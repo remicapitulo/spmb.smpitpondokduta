@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#064e3b" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fcd34d" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Background Card -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" />
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="url(#goldGrad)" stroke-width="6" opacity="0.8" />
+
+  <!-- Dome / Arch outline -->
+  <path d="M 256 90 C 200 150 140 210 140 310 L 372 310 C 372 210 312 150 256 90 Z" fill="none" stroke="url(#goldGrad)" stroke-width="7" opacity="0.4" />
+
+  <!-- 8-pointed Islamic Star -->
+  <g transform="translate(256, 175) scale(0.75)" filter="url(#shadow)">
+    <path d="M 0,-45 L 12,-12 L 45,0 L 12,12 L 0,45 L -12,12 L -45,0 L -12,-12 Z" fill="url(#goldGrad)" />
+    <path d="M -32,-32 L 0,-16 L 32,-32 L 16,0 L 32,32 L 0,16 L -32,32 L -16,0 Z" fill="url(#goldGrad)" opacity="0.9" />
+    <circle cx="0" cy="0" r="10" fill="#064e3b" />
+    <circle cx="0" cy="0" r="5" fill="#fef08a" />
+  </g>
+
+  <!-- Open Quran / Book -->
+  <g transform="translate(256, 335)" filter="url(#shadow)">
+    <!-- Book spine base -->
+    <path d="M 0 35 L -120 70 L -120 -25 L 0 -55 L 120 -25 L 120 70 Z" fill="#022c22" opacity="0.6" />
+    
+    <!-- Left page -->
+    <path d="M 0 -45 C -45 -55 -90 -45 -125 -25 L -125 55 C -90 35 -45 25 0 35 Z" fill="#ffffff" />
+    <path d="M -15 -25 C -45 -33 -85 -25 -110 -10" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" fill="none" />
+    <path d="M -15 -5 C -45 -13 -85 -5 -110 10" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" fill="none" />
+    <path d="M -15 15 C -45 7 -85 15 -110 30" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" fill="none" />
+
+    <!-- Right page -->
+    <path d="M 0 -45 C 45 -55 90 -45 125 -25 L 125 55 C 90 35 45 25 0 35 Z" fill="#f8fafc" />
+    <path d="M 15 -25 C 45 -33 85 -25 110 -10" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" fill="none" />
+    <path d="M 15 -5 C 45 -13 85 -5 110 10" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" fill="none" />
+    <path d="M 15 15 C 45 7 85 15 110 30" stroke="#cbd5e1" stroke-width="3" stroke-linecap="round" fill="none" />
+
+    <!-- Center Spine & Ribbon Bookmark -->
+    <path d="M 0 -50 L 0 45" stroke="url(#goldGrad)" stroke-width="8" stroke-linecap="round" />
+    <path d="M 0 30 L 15 70 L 0 60 L -15 70 Z" fill="#d97706" />
+  </g>
+
+  <!-- Typography initials / badge -->
+  <text x="256" y="445" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800" fill="#fef08a" text-anchor="middle" letter-spacing="4">SMPIT PONDOK DUTA</text>
+  <text x="256" y="475" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#a7f3d0" text-anchor="middle" letter-spacing="3">SPMB ONLINE PWA</text>
+</svg>

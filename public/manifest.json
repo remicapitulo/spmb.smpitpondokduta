@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "SPMB SMPIT Pondok Duta",
+  "short_name": "SPMB PD",
+  "description": "Sistem Penerimaan Murid Baru SMPIT Pondok Duta - Aplikasi PWA Pendaftaran & Observasi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#047857",
+  "background_color": "#ffffff",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
