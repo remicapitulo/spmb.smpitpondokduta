@@ -62,21 +62,17 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
       <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-950 text-white shadow-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-emerald-200 text-xs font-semibold mb-2 border border-white/15">
-              <FileText className="w-3.5 h-3.5" />
-              <span>Standar Form Isian Data Siswa Resmi SMPIT Pondok Duta</span>
-            </div>
             <h2 className="text-xl sm:text-2xl font-black">
-              Data Calon Siswa
+              Data Calon Murid
             </h2>
             <p className="text-xs text-emerald-100/90 mt-1 max-w-2xl leading-relaxed">
-              Memuat seluruh data pokok siswa, riwayat kesehatan, asal sekolah, minat prestasi, serta biodata orang tua & wali sesuai berkas pendaftaran fisik.
+              Memuat seluruh data pokok murid, riwayat kesehatan, asal sekolah, minat prestasi, serta biodata orang tua & wali sesuai berkas pendaftaran fisik.
             </p>
           </div>
 
           <div className="flex flex-col items-end gap-2 shrink-0">
             <span className="font-mono text-xs font-bold bg-white/15 px-3 py-1.5 rounded-xl border border-white/20">
-              No. Reg: {formData.noPendaftaran || 'PD-2026-001'}
+              No. Reg: {formData.noPendaftaran || '-'}
             </span>
             <button
               type="submit"
@@ -84,7 +80,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
               className="px-6 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs flex items-center gap-2 shadow-lg transition disabled:opacity-50 cursor-pointer"
             >
               <Save className="w-4 h-4" />
-              <span>{saving ? 'Menyimpan...' : 'Simpan Data Calon Siswa'}</span>
+              <span>{saving ? 'Menyimpan...' : 'Simpan Data Calon Murid'}</span>
             </button>
           </div>
         </div>
@@ -196,7 +192,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
                 Bagian 1 (Nomor 1 s/d 23)
               </span>
               <h3 className="text-base font-bold text-slate-900">
-                Data Personal Calon Siswa
+                Data Personal Calon Murid
               </h3>
             </div>
           </div>
@@ -206,7 +202,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
             {/* 1. Nama Lengkap */}
             <div className="sm:col-span-2">
               <label className="block font-semibold text-slate-700 mb-1">
-                1. Nama Lengkap Siswa *
+                1. Nama Lengkap Murid *
               </label>
               <input
                 type="text"
@@ -221,7 +217,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
             {/* 2. Nama Panggilan */}
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                2. Nama Panggilan Siswa *
+                2. Nama Panggilan Murid *
               </label>
               <input
                 type="text"
@@ -258,7 +254,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
                 required
                 value={formData.nik || ''}
                 onChange={(e) => updateField('nik', e.target.value)}
-                placeholder="16 digit NIK calon siswa"
+                placeholder="16 digit NIK calon murid"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono"
               />
             </div>
@@ -439,9 +435,6 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
                   <span className="font-bold text-slate-800">
                     Wilayah Administrasi Tempat Tinggal (Nomor 18, 17, 16)
                   </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
-                    Rujukan Pemerintah: Depok, Jakarta & Bogor
-                  </span>
                 </div>
                 <button
                   type="button"
@@ -449,7 +442,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold bg-white text-slate-700 hover:bg-slate-100 border border-slate-300 shadow-2xs transition self-start sm:self-auto"
                 >
                   <Edit3 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{isManualWilayah ? 'Gunakan Pilihan Rujukan (Depok/Jakarta/Bogor)' : 'Mode Input Manual Bebas'}</span>
+                  <span>{isManualWilayah ? 'Gunakan Pilihan Wilayah (Depok/Jakarta/Bogor)' : 'Mode Input Manual Bebas'}</span>
                 </button>
               </div>
 
@@ -638,7 +631,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
             {/* 20. Nomor Handphone / WA Siswa */}
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                20. Nomor Handphone Siswa / Orang Tua *
+                20. Nomor Handphone Murid / Orang Tua *
               </label>
               <input
                 type="text"
@@ -717,7 +710,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
                 Bagian 2 (Nomor 24 s/d 28)
               </span>
               <h3 className="text-base font-bold text-slate-900">
-                Data Kesehatan & Fisik Siswa
+                Data Kesehatan & Fisik Murid
               </h3>
             </div>
           </div>
@@ -820,7 +813,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
                 Bagian 3 (Nomor 29 s/d 31)
               </span>
               <h3 className="text-base font-bold text-slate-900">
-                Data Asal Sekolah Siswa
+                Data Asal Sekolah Murid
               </h3>
             </div>
           </div>
@@ -837,10 +830,10 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
                 onChange={(e) => updateField('masukSebagai', e.target.value as any)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white"
               >
-                <option value="Siswa Baru">Siswa Baru</option>
-                <option value="Siswa Pindahan Kelas 7">Siswa Pindahan Kelas 7</option>
-                <option value="Siswa Pindahan Kelas 8">Siswa Pindahan Kelas 8</option>
-                <option value="Siswa Pindahan Kelas 9">Siswa Pindahan Kelas 9</option>
+                <option value="Siswa Baru">Murid Baru</option>
+                <option value="Siswa Pindahan Kelas 7">Murid Pindahan Kelas 7</option>
+                <option value="Siswa Pindahan Kelas 8">Murid Pindahan Kelas 8</option>
+                <option value="Siswa Pindahan Kelas 9">Murid Pindahan Kelas 9</option>
               </select>
             </div>
 
@@ -934,7 +927,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
                 Bagian 4 (Nomor 32 s/d 36)
               </span>
               <h3 className="text-base font-bold text-slate-900">
-                Data Kegemaran (Hobi) & Prestasi Siswa
+                Data Kegemaran (Hobi) & Prestasi Murid
               </h3>
             </div>
           </div>
@@ -1427,7 +1420,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
                 Bagian 7 (Nomor 59 s/d 67 - Opsional)
               </span>
               <h3 className="text-base font-bold text-slate-900">
-                Data Wali Calon Siswa (Diisi jika bertempat tinggal dengan Wali)
+                Data Wali Calon Murid (Diisi jika bertempat tinggal dengan Wali)
               </h3>
             </div>
           </div>
@@ -1541,7 +1534,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
             {/* 67. Hubungan Wali */}
             <div className="sm:col-span-2 lg:col-span-3">
               <label className="block font-semibold text-slate-700 mb-1">
-                67. Status Hubungan Wali dengan Siswa (Paman / Bibi / Kakek / Nenek / Lainnya)
+                67. Status Hubungan Wali dengan Murid (Paman / Bibi / Kakek / Nenek / Lainnya)
               </label>
               <input
                 type="text"
@@ -1557,11 +1550,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
       )}
 
       {/* Sticky Bottom Save Action Bar */}
-      <div className="sticky bottom-4 z-20 p-4 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2 text-slate-600">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          <span>Seluruh data biodata calon siswa tersimpan secara lengkap & tersinkronisasi.</span>
-        </div>
+      <div className="sticky bottom-4 z-20 p-4 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl flex flex-col sm:flex-row sm:items-center justify-end gap-3 text-xs">
         <div className="flex items-center gap-2">
           <button
             type="submit"
@@ -1569,7 +1558,7 @@ export const FormBiodataSiswaLengkap: React.FC<Props> = ({
             className="w-full sm:w-auto px-8 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs shadow-md transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             <Save className="w-4 h-4" />
-            <span>{saving ? 'Sedang Menyimpan...' : 'Simpan Data Calon Siswa'}</span>
+            <span>{saving ? 'Sedang Menyimpan...' : 'Simpan Data Calon Murid'}</span>
           </button>
         </div>
       </div>

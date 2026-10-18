@@ -24,8 +24,11 @@ import {
   Smartphone,
   PenTool,
   KeyRound,
-  LogOut
+  LogOut,
+  Download,
+  QrCode
 } from 'lucide-react';
+import QRCode from 'qrcode';
 
 interface Props {
   onOpenGasConfig: () => void;
@@ -43,7 +46,7 @@ export const SiswaDashboard: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu'>('biodata');
   const [students, setStudents] = useState<any[]>([]);
   const [selectedNoPendaftaran, setSelectedNoPendaftaran] = useState<string>(
-    currentUser?.role === 'siswa' && currentUser?.kodePendaftaran ? currentUser.kodePendaftaran : 'PD-2026-001'
+    currentUser?.role === 'siswa' && currentUser?.kodePendaftaran ? currentUser.kodePendaftaran : ''
   );
   const [draftWawancaraOrtu, setDraftWawancaraOrtu] = useState<HasilObservasiOrtuData | null>(null);
   const [reviewDraftOrtuModal, setReviewDraftOrtuModal] = useState<HasilObservasiOrtuData | null>(null);
@@ -51,6 +54,8 @@ export const SiswaDashboard: React.FC<Props> = ({
   const [saving, setSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [cardQrDataUrl, setCardQrDataUrl] = useState<string>('');
+  const [schoolLogoUrl, setSchoolLogoUrl] = useState<string>(() => gasService.getAppSettings().logoUrl || '');
 
   // Form states
   const [biodataForm, setBiodataForm] = useState<Partial<DataSiswa>>({});
@@ -64,11 +69,27 @@ export const SiswaDashboard: React.FC<Props> = ({
   const [customYangLainQ31, setCustomYangLainQ31] = useState<string>('');
 
   useEffect(() => {
+    if (biodataForm.noPendaftaran) {
+      const hostOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+      const verificationUrl = `${hostOrigin}/?tab=cek-kelulusan&no=${encodeURIComponent(biodataForm.noPendaftaran || '')}&nisn=${encodeURIComponent(biodataForm.nisn || '')}`;
+
+      QRCode.toDataURL(verificationUrl, {
+        width: 400,
+        margin: 2,
+        color: { dark: '#000000', light: '#ffffff' },
+        errorCorrectionLevel: 'M'
+      })
+        .then((url) => setCardQrDataUrl(url))
+        .catch(() => {});
+    }
+  }, [biodataForm.noPendaftaran, biodataForm.namaLengkap, biodataForm.nisn]);
+
+  useEffect(() => {
     if (currentUser?.role === 'siswa' && currentUser?.kodePendaftaran) {
       setSelectedNoPendaftaran(currentUser.kodePendaftaran);
       loadData(currentUser.kodePendaftaran);
     } else {
-      loadData('PD-2026-001');
+      loadData();
     }
   }, [currentUser]);
 
@@ -77,32 +98,45 @@ export const SiswaDashboard: React.FC<Props> = ({
     const list = await gasService.getStudentList();
     setStudents(list);
 
-    const noPend = targetNoPend || selectedNoPendaftaran || (list[0] ? list[0].id : 'PD-2026-001');
+    const noPend =
+      targetNoPend ||
+      (currentUser?.role === 'siswa' && currentUser?.kodePendaftaran ? currentUser.kodePendaftaran : '') ||
+      selectedNoPendaftaran ||
+      (list[0] ? list[0].id : '');
     setSelectedNoPendaftaran(noPend);
+
+    if (!noPend) {
+      setBiodataForm({});
+      setWawancaraSiswaForm({});
+      setFormOrtu34({});
+      setDraftWawancaraOrtu(null);
+      setLoading(false);
+      return;
+    }
 
     const detail = await gasService.getSiswaDetail(noPend);
     const draft = gasService.getHasilWawancaraOrtu(noPend);
     setDraftWawancaraOrtu(draft);
     if (detail) {
       setBiodataForm(detail.siswa);
-      setWawancaraSiswaForm(detail.wawancaraSiswa || {
+      setWawancaraSiswaForm((detail.wawancaraSiswa || {
         noPendaftaran: noPend,
         namaLengkap: detail.siswa.namaLengkap,
-        kebiasaanSholat: 'Selalu Berjamaah di Masjid',
-        kemampuanMembacaQuran: 'Lancar Ber-Tajwid',
-        jumlahJuzHafalan: 'Juz 30 (Lengkap)',
+        kebiasaanSholat: undefined,
+        kemampuanMembacaQuran: undefined,
+        jumlahJuzHafalan: undefined,
         suratFavorit: '',
         motivasiMasukSMPIT: '',
-        minatBakat: ['Tahfidz Al-Qur\'an'],
+        minatBakat: [],
         citaCita: '',
         kegiatanWaktuLuang: ''
-      });
+      }) as Partial<WawancaraSiswaData>);
 
-      // Load 34 questions raw data
+      // Load 34 questions raw data directly from Database Sheet OTM
       const rawMap = detail.otmRaw || {};
       
       // Extract custom 'Yang Lain' if existing
-      const q6Arr = rawMap[15] ? rawMap[15].split(', ') : ['Ayah', 'Bunda'];
+      const q6Arr = rawMap[15] ? rawMap[15].split(', ').filter(Boolean) : [];
       const q6Other = q6Arr.find((x: string) => !['Ayah', 'Bunda', 'Guru Privat'].includes(x));
       if (q6Other) {
         setCustomYangLainQ6(q6Other.replace(/^Yang\s*lain(:\s*)?/i, ''));
@@ -110,7 +144,7 @@ export const SiswaDashboard: React.FC<Props> = ({
         setCustomYangLainQ6('');
       }
 
-      const q8Arr = rawMap[17] ? rawMap[17].split(', ') : ['Bunda'];
+      const q8Arr = rawMap[17] ? rawMap[17].split(', ').filter(Boolean) : [];
       const q8Other = q8Arr.find((x: string) => !['Ayah', 'Bunda', 'Keluarga lain (kakek/nenek/tante/paman)', 'Asisten Rumah Tangga'].includes(x));
       if (q8Other) {
         setCustomYangLainQ8(q8Other.replace(/^Yang\s*lain(:\s*)?/i, ''));
@@ -118,7 +152,7 @@ export const SiswaDashboard: React.FC<Props> = ({
         setCustomYangLainQ8('');
       }
 
-      const q9Arr = rawMap[18] ? rawMap[18].split(', ') : ['Pendidikan Al-Qur\'an'];
+      const q9Arr = rawMap[18] ? rawMap[18].split(', ').filter(Boolean) : [];
       const q9Other = q9Arr.find((x: string) => !['Kursus/les di luar rumah', 'Pendidikan Al-Qur\'an', 'Privat di rumah'].includes(x));
       if (q9Other) {
         setCustomYangLainQ9(q9Other.replace(/^Yang\s*lain(:\s*)?/i, ''));
@@ -126,8 +160,8 @@ export const SiswaDashboard: React.FC<Props> = ({
         setCustomYangLainQ9('');
       }
 
-      const q31Raw = rawMap[40] || 'Motor';
-      if (!['Sepeda', 'Motor', 'Mobil'].includes(q31Raw)) {
+      const q31Raw = rawMap[40] || '';
+      if (q31Raw && !['Sepeda', 'Motor', 'Mobil'].includes(q31Raw)) {
         setCustomYangLainQ31(q31Raw.replace(/^Yang\s*lain(:\s*)?/i, ''));
       } else {
         setCustomYangLainQ31('');
@@ -136,46 +170,46 @@ export const SiswaDashboard: React.FC<Props> = ({
       setFormOrtu34({
         noPendaftaran: noPend,
         namaSiswa: detail.siswa.namaLengkap,
-        namaPanggilan: detail.siswa.namaPanggilan || detail.siswa.namaLengkap.split(' ')[0],
+        namaPanggilan: detail.siswa.namaPanggilan || (detail.siswa.namaLengkap ? detail.siswa.namaLengkap.split(' ')[0] : ''),
         asalSekolah: detail.siswa.asalSekolah,
         namaAyah: detail.siswa.namaAyah,
         namaIbu: detail.siswa.namaIbu,
 
-        q1_kesiapanBiaya: rawMap[10] || 'Siap membayar LUNAS semua biaya sekolah di awal masuk sesuai ketentuan',
+        q1_kesiapanBiaya: rawMap[10] || '',
         q2_pekerjaanAyah: rawMap[11] || detail.siswa.pekerjaanAyah || '',
         q3_pekerjaanBunda: rawMap[12] || detail.siswa.pekerjaanIbu || '',
-        q4_penghasilanAyah: rawMap[13] || 'Rp. 10.000.000 - 15.000.000',
-        q5_penghasilanBunda: rawMap[14] || 'Rp. 5.000.000 - 10.000.000',
+        q4_penghasilanAyah: rawMap[13] || detail.siswa.penghasilanAyah || '',
+        q5_penghasilanBunda: rawMap[14] || detail.siswa.penghasilanIbu || '',
         q6_pendampingBelajar: q6Arr,
-        q7_sholat5Waktu: rawMap[16] || 'Selalu',
+        q7_sholat5Waktu: rawMap[16] || '',
         q8_pengasuhPulangSekolah: q8Arr,
         q9_kegiatanNonFormal: q9Arr,
-        q10_riwayatPenyakit: rawMap[19] || 'Tidak ada riwayat penyakit berat',
-        q11_prestasi: rawMap[20] || detail.siswa.prestasi || '',
-        q12_sifatPositif: rawMap[21] || 'Jujur, rajin, santun, suka membaca Al-Qur\'an',
-        q13_sifatNegatif: rawMap[22] || 'Kadang kurang sabar',
-        q14_sikapTerhadapOrtu: rawMap[23] || 'Sangat patuh dan terbuka berdialog',
-        q15_pernahMelawanOrtu: rawMap[24] || 'Tidak pernah',
-        q16_halBerkesan: rawMap[25] || 'Menghadiahkan hafalan Al-Qur\'an untuk orang tua',
+        q10_riwayatPenyakit: rawMap[19] || '',
+        q11_prestasi: rawMap[20] || detail.siswa.memenangkanKejuaraan || '',
+        q12_sifatPositif: rawMap[21] || '',
+        q13_sifatNegatif: rawMap[22] || '',
+        q14_sikapTerhadapOrtu: rawMap[23] || '',
+        q15_pernahMelawanOrtu: rawMap[24] || '',
+        q16_halBerkesan: rawMap[25] || '',
         q17_ayahMerokok: (rawMap[26] as any) || 'Tidak',
         q18_bundaMerokok: (rawMap[27] as any) || 'Tidak',
         q19_keluargaLainMerokok: rawMap[28] || 'Tidak ada',
-        q20_durasiBersamaAnak: rawMap[29] || '4 - 5 jam waktu interaksi efektif',
-        q21_kegiatanBersamaDiRumah: rawMap[30] || 'Sholat maghrib berjamaah, makan bersama, muroja\'ah',
+        q20_durasiBersamaAnak: rawMap[29] || '',
+        q21_kegiatanBersamaDiRumah: rawMap[30] || '',
         q22_traumaBullying: rawMap[31] || 'Tidak ada',
         q23_anakPernahMerokok: rawMap[32] || 'Tidak pernah',
-        q24_pendapatRokokPornografi: rawMap[33] || 'Sangat berbahaya dan harus dibentengi dengan pendidikan agama',
+        q24_pendapatRokokPornografi: rawMap[33] || '',
         q25_fasilitasGadget: rawMap[34] || 'Tidak',
         q26_frekuensiGadget: rawMap[35] || 'Waktu libur',
-        q27_bersediaAwasiGadget: rawMap[36] || 'Ya, selalu didampingi',
+        q27_bersediaAwasiGadget: rawMap[36] || '',
         q28_installAplikasiBelajarAnak: rawMap[37] || 'Ya',
         q29_installAplikasiPengawasanOrtu: rawMap[38] || 'Ya',
         q30_jarakKeSekolah: rawMap[39] || '0 - 5 km',
-        q31_kendaraanSekolah: q31Raw,
+        q31_kendaraanSekolah: q31Raw || 'Motor',
         q32_izinBawaMotorSendiri: rawMap[41] || 'Tidak',
-        q33_harapanSekolah: rawMap[42] || 'Membentuk anak yang berakhlak mulia, hafidz Qur\'an dan berprestasi',
+        q33_harapanSekolah: rawMap[42] || '',
         q34_ttdMeterai: (rawMap[43] as any) || 'Ya',
-        pernyataanSetuju: true,
+        pernyataanSetuju: Boolean(rawMap[44] && rawMap[44].toUpperCase().includes('SETUJU')),
         updatedAt: new Date().toISOString()
       });
     }
@@ -200,7 +234,7 @@ export const SiswaDashboard: React.FC<Props> = ({
     setSaving(true);
     await gasService.saveDataSiswa(biodataForm as DataSiswa);
     setSaving(false);
-    setSaveSuccessMsg('Biodata siswa berhasil disimpan!');
+    setSaveSuccessMsg('Biodata murid berhasil disimpan!');
     setTimeout(() => setSaveSuccessMsg(''), 3000);
   };
 
@@ -215,7 +249,7 @@ export const SiswaDashboard: React.FC<Props> = ({
       namaLengkap: biodataForm.namaLengkap || '',
     } as WawancaraSiswaData);
     setSaving(false);
-    setSaveSuccessMsg('Formulir Wawancara Mandiri Siswa berhasil disimpan!');
+    setSaveSuccessMsg('Formulir Asesmen Mandiri Murid berhasil disimpan!');
     setTimeout(() => setSaveSuccessMsg(''), 3000);
   };
 
@@ -245,22 +279,22 @@ export const SiswaDashboard: React.FC<Props> = ({
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/60 text-emerald-200 text-xs font-semibold mb-2 border border-emerald-500/30">
             <Users className="w-3.5 h-3.5" />
-            <span>Portal Calon Siswa & Orang Tua Murid (OTM)</span>
+            <span>Portal Calon Murid &amp; Orang Tua Murid (OTM)</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-white">
-            Data Calon Siswa & Wawancara Orang Tua
+            Data Calon Murid &amp; Observasi Orang Tua
           </h1>
           <p className="text-xs text-emerald-100 mt-0.5">
-            Lengkapi data calon siswa, asesmen mandiri anak, dan wawancara orang tua.
+            Lengkapi data calon murid, asesmen mandiri anak, dan observasi orang tua.
           </p>
         </div>
 
         {currentUser?.role === 'siswa' ? (
-          <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/20 flex items-center justify-between gap-3">
+          <div className="bg-white/10 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-white/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="text-[10px] text-emerald-200 uppercase font-bold tracking-wider flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>Akun Calon Siswa Terverifikasi</span>
+                <span>Akun Calon Murid Terverifikasi</span>
               </div>
               <div className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2 mt-0.5">
                 <span>{currentUser.namaSiswa}</span>
@@ -276,23 +310,28 @@ export const SiswaDashboard: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={onLogout}
-                className="px-3 py-1.5 rounded-xl bg-rose-500/80 hover:bg-rose-600 text-white text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-sm"
+                className="self-start sm:self-auto px-3.5 py-1.5 rounded-xl bg-rose-500/80 hover:bg-rose-600 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Keluar</span>
+                <span>Keluar</span>
               </button>
             )}
           </div>
         ) : (
-          <div className="flex flex-col sm:flex-row items-center gap-2">
-            <div className="bg-white/10 backdrop-blur-md p-1.5 rounded-2xl border border-white/20 flex items-center gap-2">
-              <label className="text-[11px] font-semibold text-emerald-200 pl-2">
-                Pilih Siswa (Mode Admin):
+          <div className="w-full md:w-auto bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/20 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <label className="block text-[11px] font-bold text-emerald-200 uppercase tracking-wider">
+                Pilih Calon Murid (Mode Admin):
               </label>
+              <span className="text-[10px] text-emerald-300 font-mono font-bold">
+                {students.length} Murid
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
               <select
                 value={selectedNoPendaftaran}
                 onChange={(e) => handleSelectSiswa(e.target.value)}
-                className="bg-emerald-900 text-white text-xs font-semibold rounded-xl px-3 py-1.5 border border-emerald-500/40 focus:outline-none"
+                className="flex-1 min-w-0 bg-emerald-950/90 text-white text-xs font-semibold rounded-xl px-3 py-2 border border-emerald-500/40 focus:outline-none shadow-xs truncate cursor-pointer"
               >
                 {students.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -300,69 +339,73 @@ export const SiswaDashboard: React.FC<Props> = ({
                   </option>
                 ))}
               </select>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="px-3 py-2 rounded-xl bg-rose-500/80 hover:bg-rose-600 text-white text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-sm cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Keluar</span>
+                </button>
+              )}
             </div>
-            {onLogout && (
-              <button
-                type="button"
-                onClick={onLogout}
-                className="px-3 py-2 rounded-xl bg-rose-500/80 hover:bg-rose-600 text-white text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-sm"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Keluar</span>
-              </button>
-            )}
           </div>
         )}
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex border-b border-slate-200 bg-white rounded-2xl p-1.5 shadow-xs gap-1 overflow-x-auto text-xs font-bold">
+      {/* Tab Navigation (Responsive 2x2 Grid on Mobile, 4 Cols on Desktop - Zero horizontal scroll) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 bg-white rounded-2xl p-1.5 shadow-xs gap-1.5 border border-slate-200 text-xs font-bold">
         <button
+          type="button"
           onClick={() => setActiveTab('biodata')}
-          className={`flex-1 py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition shrink-0 ${
+          className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-center ${
             activeTab === 'biodata'
-              ? 'bg-emerald-700 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-emerald-700 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
-          <FileText className="w-4 h-4" />
-          <span>1. Data Calon Siswa</span>
+          <FileText className="w-4 h-4 shrink-0" />
+          <span className="truncate">1. Data Murid</span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('wawancara-siswa')}
-          className={`flex-1 py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition shrink-0 ${
+          className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-center ${
             activeTab === 'wawancara-siswa'
-              ? 'bg-emerald-700 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-emerald-700 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
-          <BookOpen className="w-4 h-4" />
-          <span>2. Asesmen Mandiri Siswa</span>
+          <BookOpen className="w-4 h-4 shrink-0" />
+          <span className="truncate">2. Asesmen Murid</span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('wawancara-ortu')}
-          className={`flex-1 py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition shrink-0 ${
+          className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-center ${
             activeTab === 'wawancara-ortu'
-              ? 'bg-emerald-700 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-emerald-700 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
-          <HeartHandshake className="w-4 h-4" />
-          <span>3. Wawancara Orang Tua</span>
+          <HeartHandshake className="w-4 h-4 shrink-0" />
+          <span className="truncate">3. Observasi Ortu</span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('kartu')}
-          className={`flex-1 py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition shrink-0 ${
+          className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-center ${
             activeTab === 'kartu'
-              ? 'bg-emerald-700 text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-emerald-700 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
-          <Printer className="w-4 h-4" />
-          <span>4. Cetak Kartu Peserta</span>
+          <Printer className="w-4 h-4 shrink-0" />
+          <span className="truncate">4. Kartu Peserta</span>
         </button>
       </div>
 
@@ -389,7 +432,7 @@ export const SiswaDashboard: React.FC<Props> = ({
         <form onSubmit={handleSaveWawancaraSiswa} className="space-y-6">
           <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-4 text-xs">
             <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-2">
-              Asesmen Mandiri Calon Siswa
+              Asesmen Mandiri Calon Murid
             </h3>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -451,7 +494,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                 className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-sm transition"
               >
                 <Save className="w-4 h-4 inline-block mr-1" />
-                <span>Simpan Asesmen Siswa</span>
+                <span>Simpan Asesmen Murid</span>
               </button>
             </div>
           </div>
@@ -471,18 +514,6 @@ export const SiswaDashboard: React.FC<Props> = ({
                     <Smartphone className="w-6 h-6" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-0.5 rounded-full border ${
-                        draftWawancaraOrtu.isTtdOrtuSigned
-                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40'
-                          : 'bg-amber-500/20 text-amber-300 border-amber-400/40 animate-pulse'
-                      }`}>
-                        {draftWawancaraOrtu.isTtdOrtuSigned 
-                          ? '✓ Telah Ditandatangani di HP' 
-                          : '⚡ Draft Siap Ditandatangani di HP'}
-                      </span>
-                      <span className="text-xs text-slate-400 font-mono">[{draftWawancaraOrtu.noPendaftaran}]</span>
-                    </div>
                     <h3 className="text-base sm:text-lg font-black text-white">
                       Lembar Hasil Wawancara dari Pewawancara Sekolah
                     </h3>
@@ -495,7 +526,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setReviewDraftOrtuModal(draftWawancaraOrtu)}
-                  className="px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer shrink-0"
+                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer shrink-0"
                 >
                   <PenTool className="w-4 h-4 text-slate-950" />
                   <span>
@@ -507,17 +538,9 @@ export const SiswaDashboard: React.FC<Props> = ({
               </div>
 
               {draftWawancaraOrtu.isTtdOrtuSigned ? (
-                <div className="pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-emerald-200">
-                  <span className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Tanda tangan Ayah/Bunda telah tersimpan di HP. Pewawancara dapat melihat tanda tangan ini untuk pengesahan akhir.</span>
-                  </span>
-                  {draftWawancaraOrtu.ttdOrtuBase64 && (
-                    <div className="bg-white/95 rounded-xl px-2.5 py-1 shadow-xs border border-white/20 flex items-center gap-2 shrink-0 self-start sm:self-auto">
-                      <span className="text-[10px] text-slate-600 font-bold">TTD Ayah/Bunda:</span>
-                      <img src={draftWawancaraOrtu.ttdOrtuBase64} alt="TTD Ortu" className="h-6 max-w-[80px] object-contain" />
-                    </div>
-                  )}
+                <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-xs text-emerald-200">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Tanda tangan Ayah/Bunda telah tersimpan. Pewawancara dapat melihat tanda tangan ini untuk pengesahan akhir.</span>
                 </div>
               ) : (
                 <p className="text-[11px] text-slate-300/90 pt-2 border-t border-white/10">
@@ -527,183 +550,99 @@ export const SiswaDashboard: React.FC<Props> = ({
             </div>
           )}
 
-          <form onSubmit={handleSaveFormOrtu34} className="space-y-6">
-            <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-6 text-xs">
+          <form onSubmit={handleSaveFormOrtu34} className="space-y-4 sm:space-y-6">
+            <div className="p-3.5 sm:p-8 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-xs sm:shadow-sm space-y-4 sm:space-y-6 text-xs">
               
-              <div className="border-b border-slate-200 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="border-b border-slate-200 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
                 <div>
-                  <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block">
+                  <span className="text-[10px] sm:text-[11px] font-bold text-emerald-700 uppercase tracking-wider block">
                     Kuesioner Mandiri Orang Tua Murid (OTM)
                   </span>
-                  <h3 className="text-base sm:text-lg font-black text-slate-900 mt-0.5">
-                    Formulir Wawancara Orang Tua Calon Siswa
+                  <h3 className="text-sm sm:text-lg font-black text-slate-900 mt-0.5">
+                    Formulir Observasi Orang Tua Calon Murid
                   </h3>
-                  <p className="text-slate-500 text-xs">
+                  <p className="text-slate-500 text-[11px] sm:text-xs">
                     Pertanyaan dikelompokkan sesuai rubrik wawancara pewawancara resmi SMPIT Pondok Duta.
                   </p>
                 </div>
-                <div className="px-3.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold self-start sm:self-auto">
+                <div className="px-3 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold self-start sm:self-auto">
                   No. Registrasi: <strong className="font-mono">{formOrtu34.noPendaftaran || '-'}</strong>
                 </div>
               </div>
 
             {/* SECTIONS CONTAINER */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               
               {/* ======================================================== */}
               {/* BAGIAN A: KOMITMEN PEMBIAYAAN                            */}
               {/* ======================================================== */}
-              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs">
-                <div className="bg-slate-100/90 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div className="rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                <div className="bg-slate-800 text-white px-3.5 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span>
-                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                    <h4 className="text-xs sm:text-sm font-extrabold uppercase tracking-wide">
                       A. KOMITMEN PEMBIAYAAN
                     </h4>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/15">
                     Butir 1 - 5
                   </span>
                 </div>
 
-                <div className="p-5 sm:p-6 space-y-5">
-                  {/* 1. Kesiapan Biaya dengan Rincian Lengkap */}
-                  <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
+                  {/* 1. Kesiapan Biaya dengan Rincian Bersih (Tanpa Frame di dalam Frame) */}
+                  <div className="p-3 sm:p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2.5">
                     <label className="font-bold text-slate-900 block text-xs sm:text-sm leading-snug">
                       1. Apakah Ayah/Bunda siap membiayai sekolah ananda seperti yang tercantum dalam brosur? *
                     </label>
 
-                    {/* Rincian Komponen Biaya Sekolah Lengkap (Persis Image 1 Form Isian Orang Tua.pdf) */}
-                    <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 text-slate-800 space-y-3.5 text-xs">
-                      <div className="font-bold text-emerald-950 flex items-center gap-2 text-xs pb-1 border-b border-emerald-200">
-                        <FileText className="w-4 h-4 text-emerald-700 shrink-0" />
+                    {/* Rincian Komponen Biaya Sekolah Rapi & Bersih */}
+                    <div className="p-3 sm:p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 text-slate-800 space-y-2.5 text-xs">
+                      <div className="font-bold text-emerald-950 flex items-center gap-2 text-xs pb-1.5 border-b border-emerald-200/70">
+                        <FileText className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                         <span>Rincian Komponen Biaya Sekolah SMPIT Pondok Duta (Sesuai Brosur):</span>
                       </div>
 
-                      <div className="space-y-3">
+                      <div className="space-y-2 text-[11px]">
                         {/* A. SPP */}
-                        <div className="p-3 rounded-xl bg-white border border-emerald-100 shadow-xs">
-                          <span className="font-bold text-slate-900 block text-xs text-emerald-800">
+                        <div>
+                          <span className="font-bold text-emerald-900 block">
                             A. Uang SPP Bulanan
                           </span>
-                          <p className="text-slate-600 text-[11px] mt-0.5">
+                          <p className="text-slate-600 mt-0.5">
                             Pembayaran paling lambat <strong>tanggal 10 setiap bulannya</strong>.
                           </p>
                         </div>
 
-                        {/* B. Uang Kegiatan Kelas 7, 8, 9 (Setiap Tahun) */}
-                        <div className="p-3 rounded-xl bg-white border border-emerald-100 shadow-xs space-y-2">
-                          <span className="font-bold text-slate-900 block text-xs text-emerald-800">
+                        {/* B. Uang Kegiatan Kelas 7, 8, 9 */}
+                        <div className="pt-1.5 border-t border-emerald-200/60">
+                          <span className="font-bold text-emerald-900 block">
                             B. Uang Kegiatan Untuk Kelas 7, 8 dan 9 (Setiap Tahun):
                           </span>
-                          <ul className="text-slate-700 text-[11px] space-y-1.5 pl-1">
-                            <li className="flex items-start gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Uang Buku</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Uang Study Tour</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Uang Duta Camp / Perkemahan</span>
-                            </li>
-                            <li className="space-y-1">
-                              <div className="flex items-start gap-2">
-                                <span className="text-emerald-600 font-bold">•</span>
-                                <span className="font-semibold text-slate-900">Uang Kegiatan Belajar Mengajar :</span>
-                              </div>
-                              <ol className="list-decimal list-inside pl-5 text-slate-600 space-y-0.5">
-                                <li>Ulangan harian, PTS, UTS 2 semester</li>
-                                <li>Kegiatan PHBI/PHBN (seperti Ifthor jama'i, sanlat, tarhib, iedul adha, isra mi'raj atau maulid dll)</li>
-                                <li>Kegiatan lomba dan kesiswaan (contoh 17 agustus, O2SN)</li>
-                              </ol>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Uang Komite</span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Uang OSIS</span>
-                            </li>
-                          </ul>
+                          <p className="text-slate-600 mt-0.5 leading-relaxed">
+                            • Uang Buku, Study Tour, Duta Camp / Perkemahan<br />
+                            • Kegiatan KBM (Ulangan harian, PTS, UTS 2 semester, PHBI/PHBN, lomba kesiswaan), Uang Komite & OSIS
+                          </p>
                         </div>
 
                         {/* C. Uang Kegiatan Kelas 9 */}
-                        <div className="p-3 rounded-xl bg-white border border-emerald-100 shadow-xs space-y-2">
-                          <span className="font-bold text-slate-900 block text-xs text-emerald-800">
+                        <div className="pt-1.5 border-t border-emerald-200/60">
+                          <span className="font-bold text-emerald-900 block">
                             C. Uang Kegiatan Khusus Kelas 9:
                           </span>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 pl-1 text-[11px] text-slate-700">
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Bimbel dan Buku Bimbel</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Pubertas</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Seminar Motivasi</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Kegiatan Ujian Sekolah</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Kegiatan Ujian Praktek</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Manasik Haji</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Try Out</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Kegiatan Haflah Al-Qur'an</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Acara Perpisahan</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Seragam Perpisahan</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Album Kenangan / BTS</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Souvenir Perpisahan</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>Medali Perpisahan</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-emerald-600 font-bold">•</span>
-                              <span>TKA</span>
-                            </div>
-                          </div>
+                          <p className="text-slate-600 mt-0.5 leading-relaxed">
+                            Bimbel & Buku Bimbel, Pubertas, Seminar Motivasi, Ujian Sekolah & Praktek, Manasik Haji, Try Out, Haflah Al-Qur'an, Acara & Seragam Perpisahan, Album Kenangan / BTS, Souvenir, Medali & TKA.
+                          </p>
                         </div>
                       </div>
                     </div>
 
                     {/* Pilihan Komitmen Biaya */}
-                    <div className="space-y-2 pt-2">
+                    <div className="space-y-1.5 pt-1">
                       <span className="font-semibold text-slate-800 block text-xs">
                         Pilih Bentuk Komitmen Pembayaran:
                       </span>
-                      <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition">
+                      <label className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition">
                         <input
                           type="radio"
                           name="q1"
@@ -711,11 +650,11 @@ export const SiswaDashboard: React.FC<Props> = ({
                           checked={formOrtu34.q1_kesiapanBiaya === 'Siap membayar LUNAS semua biaya sekolah di awal masuk sesuai ketentuan'}
                           onChange={() => setFormOrtu34({ ...formOrtu34, q1_kesiapanBiaya: 'Siap membayar LUNAS semua biaya sekolah di awal masuk sesuai ketentuan' })}
                         />
-                        <span className="text-slate-800 font-medium">
+                        <span className="text-slate-800 text-xs font-medium leading-relaxed">
                           Siap membayar <strong>LUNAS</strong> semua biaya sekolah di awal masuk sesuai ketentuan
                         </span>
                       </label>
-                      <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition">
+                      <label className="flex items-start gap-2.5 p-2.5 sm:p-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 cursor-pointer transition">
                         <input
                           type="radio"
                           name="q1"
@@ -723,7 +662,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                           checked={formOrtu34.q1_kesiapanBiaya === 'Siap membayar DP 7.500.000, sisa pelunasan maksimal 6 bulan dari tanggal daftar ulang.'}
                           onChange={() => setFormOrtu34({ ...formOrtu34, q1_kesiapanBiaya: 'Siap membayar DP 7.500.000, sisa pelunasan maksimal 6 bulan dari tanggal daftar ulang.' })}
                         />
-                        <span className="text-slate-800 font-medium">
+                        <span className="text-slate-800 text-xs font-medium leading-relaxed">
                           Siap membayar <strong>DP 7.500.000</strong>, sisa pelunasan maksimal 6 bulan dari tanggal daftar ulang.
                         </span>
                       </label>
@@ -799,22 +738,22 @@ export const SiswaDashboard: React.FC<Props> = ({
               {/* ======================================================== */}
               {/* BAGIAN B: KEBIASAAN & LATAR BELAKANG                     */}
               {/* ======================================================== */}
-              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs">
-                <div className="bg-slate-100/90 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div className="rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                <div className="bg-slate-800 text-white px-3.5 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span>
-                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                    <h4 className="text-xs sm:text-sm font-extrabold uppercase tracking-wide">
                       B. KEBIASAAN & LATAR BELAKANG
                     </h4>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/15">
                     Butir 6 - 16
                   </span>
                 </div>
 
-                <div className="p-5 sm:p-6 space-y-5">
+                <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
                   {/* 6. Siapakah yang mendampingi belajar */}
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="p-3 sm:p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
                     <label className="font-bold text-slate-800 block">
                       6. Siapakah yang mendampingi ananda belajar di rumah? (Boleh lebih dari satu) *
                     </label>
@@ -1114,20 +1053,20 @@ export const SiswaDashboard: React.FC<Props> = ({
               {/* ======================================================== */}
               {/* BAGIAN C: LINGKUNGAN KELUARGA                            */}
               {/* ======================================================== */}
-              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs">
-                <div className="bg-slate-100/90 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div className="rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                <div className="bg-slate-800 text-white px-3.5 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span>
-                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                    <h4 className="text-xs sm:text-sm font-extrabold uppercase tracking-wide">
                       C. LINGKUNGAN KELUARGA
                     </h4>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/15">
                     Butir 17 - 24
                   </span>
                 </div>
 
-                <div className="p-5 sm:p-6 space-y-5">
+                <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
                   {/* 17, 18, 19 Rokok */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
@@ -1250,20 +1189,20 @@ export const SiswaDashboard: React.FC<Props> = ({
               {/* ======================================================== */}
               {/* BAGIAN D: PENGGUNAAN GADGET & MOBILITAS                  */}
               {/* ======================================================== */}
-              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs">
-                <div className="bg-slate-100/90 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div className="rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                <div className="bg-slate-800 text-white px-3.5 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span>
-                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                    <h4 className="text-xs sm:text-sm font-extrabold uppercase tracking-wide">
                       D. PENGGUNAAN GADGET & MOBILITAS
                     </h4>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/15">
                     Butir 25 - 33
                   </span>
                 </div>
 
-                <div className="p-5 sm:p-6 space-y-5">
+                <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
                   {/* 25 & 26 */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -1430,20 +1369,20 @@ export const SiswaDashboard: React.FC<Props> = ({
               {/* ======================================================== */}
               {/* BAGIAN E: PERNYATAAN ORANG TUA                           */}
               {/* ======================================================== */}
-              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs">
-                <div className="bg-slate-100/90 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+              <div className="rounded-xl sm:rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                <div className="bg-slate-800 text-white px-3.5 sm:px-5 py-2.5 sm:py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block"></span>
-                    <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                    <h4 className="text-xs sm:text-sm font-extrabold uppercase tracking-wide">
                       E. PERNYATAAN ORANG TUA
                     </h4>
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/15">
                     Butir 34 & Integritas
                   </span>
                 </div>
 
-                <div className="p-5 sm:p-6 space-y-5">
+                <div className="p-3 sm:p-6 space-y-3 sm:space-y-4">
                   {/* 34. Tanda tangan di atas meterai 10.000 */}
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                     <label className="font-bold text-slate-800 block mb-2">
@@ -1491,17 +1430,14 @@ export const SiswaDashboard: React.FC<Props> = ({
             </div>
 
             {/* Submit Button */}
-            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <span className="text-[11px] text-slate-400">
-                Data akan tersimpan ke Google Sheets tab "OTM" sebagai bahan evaluasi pewawancara.
-              </span>
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
               <button
                 type="submit"
                 disabled={saving}
-                className="px-8 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-8 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
-                <span>{saving ? 'Menyimpan...' : 'Simpan Wawancara Orang Tua ke Sheet OTM'}</span>
+                <span>{saving ? 'Menyimpan...' : 'Simpan Observasi OTM'}</span>
               </button>
             </div>
 
@@ -1510,84 +1446,118 @@ export const SiswaDashboard: React.FC<Props> = ({
         </div>
       )}
 
-      {/* TAB 4: CETAK KARTU */}
+      {/* TAB 4: CETAK KARTU PESERTA */}
       {activeTab === 'kartu' && biodataForm.noPendaftaran && (
-        <div className="p-6 sm:p-8 rounded-3xl bg-white border border-slate-200/80 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+        <div className="p-3.5 sm:p-8 rounded-2xl sm:rounded-3xl bg-white border border-slate-200/90 shadow-xs sm:shadow-sm space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-100">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold mb-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Data Biodata Siap Dicetak</span>
+                <span>Data Biodata Siap Dicetak &amp; Diunduh</span>
               </div>
-              <h3 className="text-lg font-bold text-slate-900">Kartu Peserta Ujian & Wawancara</h3>
-              <p className="text-xs text-slate-500">Cetak dan bawa kartu ini saat hadir tes observasi di SMPIT Pondok Duta.</p>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900">Kartu Peserta Ujian &amp; Observasi</h3>
+              <p className="text-xs text-slate-500">Unduh dokumen PDF / PNG dan bawa kartu ini saat hadir tes observasi di SMPIT Pondok Duta.</p>
             </div>
-            <button
-              onClick={() => setShowPrintModal(true)}
-              className="px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Buka Jendela Cetak / PDF Resmi</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(true)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+              >
+                <Download className="w-4 h-4 text-emerald-400" />
+                <span>Unduh Kartu Peserta (PDF / PNG)</span>
+              </button>
+            </div>
           </div>
 
           {/* Embedded Card Preview */}
-          <div className="border-2 border-emerald-800 rounded-2xl p-6 bg-white space-y-4 max-w-3xl mx-auto shadow-xs">
-            {/* Kop */}
-            <div className="flex items-center justify-between border-b-2 border-emerald-800 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-emerald-800 text-amber-300 flex items-center justify-center font-black text-xl">
-                  PD
+          <div className="border-2 border-emerald-800 rounded-2xl p-4 sm:p-6 bg-white space-y-4 max-w-3xl mx-auto shadow-xs relative overflow-hidden">
+            {/* Kop Kartu Resmi */}
+            <div className="border-b-2 border-emerald-800 pb-3 space-y-2">
+              <div className="flex items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl bg-white border border-emerald-100 flex items-center justify-center p-1 shadow-xs shrink-0 overflow-hidden">
+                    <img
+                      src="/logo-smpit-pondok-duta.png"
+                      alt="Logo Resmi SMPIT Pondok Duta"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[9px] sm:text-[11px] font-bold text-emerald-800 uppercase tracking-widest">
+                      PANITIA SPMB TP {getAcademicYear()}
+                    </div>
+                    <div className="text-base sm:text-xl font-black text-slate-900 leading-tight truncate">
+                      SMPIT PONDOK DUTA
+                    </div>
+                    <div className="text-[8px] sm:text-[10px] text-slate-500 leading-tight mt-0.5">
+                      Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok 16451
+                    </div>
+                    <div className="text-[7.5px] sm:text-[9.5px] text-emerald-800 font-medium">
+                      Telp: (021) 29378301 · Email: info@smpitpondokduta.sch.id | NPSN: 20276180 | Terakreditasi "A" BAN-PDM
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-                    PANITIA SPMB TP {getAcademicYear()}
-                  </div>
-                  <div className="text-base font-black text-slate-900">
-                    SMPIT PONDOK DUTA CIMANGGIS
-                  </div>
-                  <div className="text-[10px] text-slate-500">
-                    Jl. Duta Raya No. 45 Cimanggis Depok | Telp: (021) 871-2345
-                  </div>
+
+                <div className="shrink-0 self-start sm:self-center text-right">
+                  <span className="inline-block px-2.5 sm:px-3 py-1 rounded-lg bg-emerald-800 text-white text-[9px] sm:text-xs font-black uppercase tracking-wider shadow-2xs">
+                    KARTU PESERTA
+                  </span>
+                  <span className="block text-[7.5px] sm:text-[8.5px] font-mono text-emerald-900 font-semibold mt-0.5">
+                    OBSERVASI TP {getAcademicYear()}
+                  </span>
                 </div>
               </div>
-              <span className="px-2.5 py-1 rounded-md bg-emerald-800 text-white text-[11px] font-extrabold uppercase tracking-wider">
-                KARTU PESERTA
-              </span>
             </div>
 
             {/* Body */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-start pt-2">
-              <div className="sm:col-span-1 flex flex-col items-center">
-                <div className="w-28 h-36 border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 flex flex-col items-center justify-center p-2 text-center text-slate-400">
-                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-500 mb-1 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 items-start pt-2">
+              <div className="sm:col-span-1 flex flex-row sm:flex-col items-center justify-around sm:justify-center gap-3 bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200">
+                <div className="w-20 sm:w-28 h-28 sm:h-36 border-2 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center p-1.5 text-center text-slate-400 shrink-0">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 mb-1 text-[11px]">
                     3x4
                   </div>
-                  <span className="text-[9px] font-semibold">PAS FOTO</span>
-                  <span className="text-[8px] text-slate-400">Latar Biru/Merah</span>
+                  <span className="text-[8px] sm:text-[9px] font-bold text-slate-700">PAS FOTO</span>
+                  <span className="text-[7px] sm:text-[8px] text-slate-400">Tempel di sini</span>
                 </div>
-                <div className="mt-2 text-center">
-                  <span className="text-[9px] font-mono font-bold text-slate-500">QR VERIFIKASI</span>
-                  <div className="w-12 h-12 border border-slate-300 rounded-lg p-0.5 mx-auto flex items-center justify-center bg-white shadow-xs">
-                    <span className="text-[8px] font-mono text-emerald-800 font-bold">{biodataForm.noPendaftaran}</span>
+                <div className="text-center shrink-0">
+                  <span className="text-[8px] sm:text-[9px] font-bold text-slate-700 block mb-1">SCAN VERIFIKASI</span>
+                  <div className="w-20 h-20 sm:w-24 sm:h-24 border border-slate-300 rounded-xl p-1 mx-auto flex flex-col items-center justify-center bg-white shadow-xs">
+                    {cardQrDataUrl ? (
+                      <img 
+                        src={cardQrDataUrl} 
+                        alt={`QR Code Verifikasi ${biodataForm.noPendaftaran}`}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-slate-50 animate-pulse rounded-lg flex items-center justify-center text-[9px] text-slate-500 font-mono">
+                        Membuat QR...
+                      </div>
+                    )}
                   </div>
+                  <span className="text-[7.5px] sm:text-[8.5px] font-mono font-bold text-slate-900 mt-1 block truncate max-w-[85px] mx-auto bg-slate-100 px-1 py-0.5 rounded">{biodataForm.noPendaftaran}</span>
                 </div>
               </div>
 
               <div className="sm:col-span-3 space-y-2 text-xs">
-                <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl">
-                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
-                    Nomor Registrasi / Pendaftaran
-                  </span>
-                  <span className="text-lg font-black font-mono text-emerald-950">
-                    {biodataForm.noPendaftaran}
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                  <div>
+                    <span className="text-[9px] sm:text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                      Nomor Registrasi / Pendaftaran
+                    </span>
+                    <span className="text-base sm:text-lg font-black font-mono text-emerald-950">
+                      {biodataForm.noPendaftaran}
+                    </span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-800 text-white font-mono text-[9px] font-bold">
+                    VERIFIED
                   </span>
                 </div>
 
-                <table className="w-full text-xs">
+                <table className="w-full text-[10px] sm:text-xs">
                   <tbody>
                     <tr className="border-b border-slate-100">
-                      <td className="py-1 text-slate-500 w-32 font-medium">Nama Lengkap</td>
+                      <td className="py-1 text-slate-500 w-28 sm:w-36 font-medium">Nama Lengkap Murid</td>
                       <td className="py-1 font-bold text-slate-900">: {biodataForm.namaLengkap || '-'}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
@@ -1609,25 +1579,43 @@ export const SiswaDashboard: React.FC<Props> = ({
                   </tbody>
                 </table>
 
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-2 gap-2 text-[11px]">
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] sm:text-[11px]">
                   <div>
                     <span className="text-slate-400 block font-semibold">Jadwal Observasi:</span>
                     <span className="font-bold text-slate-800">Sabtu, 17 Januari 2026</span>
                     <span className="block text-slate-500">Pukul 08.00 - 11.30 WIB</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block font-semibold">Lokasi Ujian:</span>
-                    <span className="font-bold text-slate-800">Gedung SMPIT Lt. 2</span>
-                    <span className="block text-emerald-700 font-semibold">Wawancara OTM: Sesi 1</span>
+                    <span className="text-slate-400 block font-semibold">Ruang &amp; Lokasi:</span>
+                    <span className="font-bold text-emerald-900">Ruang Aula - Gedung SMPIT Lt. 1</span>
+                    <span className="block text-slate-500">Observasi Murid &amp; OTM</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Footer Kartu */}
-            <div className="border-t border-slate-200 pt-3 text-[10px] text-slate-500 flex justify-between items-center">
-              <span>* Wajib dibawa saat hadir wawancara bersama orang tua di kampus SMPIT Pondok Duta.</span>
-              <span className="font-semibold text-emerald-800">Panitia SPMB Pondok Duta 2026</span>
+            {/* Tata Tertib Sesi Observasi (Tanpa kata: putra berpeci) */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[9px] sm:text-[10px] text-slate-600 space-y-1">
+              <span className="font-bold text-slate-800 block text-[10px] sm:text-[11px]">Tata Tertib Peserta:</span>
+              <p className="leading-relaxed">
+                1. Wajib hadir di lokasi 15 menit sebelum observasi dimulai dengan membawa Kartu Peserta ini.<br />
+                2. Mengenakan seragam asal SD/MI masing-masing (putri berjilbab syar'i).<br />
+                3. Orang tua / wali murid wajib hadir mendampingi untuk sesi observasi OTM.<br />
+                4. Membawa alat tulis pensil 2B, pulpen, dan Al-Qur'an / Juz 'Amma pribadi.
+              </p>
+            </div>
+
+            {/* Blok Verifikasi Sah Secara Hukum via QR Code (Tanpa Tanda Tangan Basah) */}
+            <div className="border-t border-slate-200 pt-3 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-[10px] text-slate-600 bg-emerald-50/70 p-3 rounded-xl border border-emerald-200">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>
+                  <strong>Dokumen Sah Secara Hukum</strong> — Terverifikasi otomatis via QR Code sistem SPMB Pondok Duta tanpa memerlukan tanda tangan basah panitia / calon murid.
+                </span>
+              </div>
+              <span className="font-mono text-emerald-800 font-bold bg-white px-2 py-0.5 rounded border border-emerald-300 shrink-0">
+                VERIFIED LEGAL
+              </span>
             </div>
           </div>
         </div>
@@ -1641,12 +1629,13 @@ export const SiswaDashboard: React.FC<Props> = ({
         />
       )}
 
-      {/* Modal Review Hasil Wawancara & Tanda Tangan di HP Orang Tua */}
+      {/* Modal Review Hasil Wawancara & Tanda Tangan di HP Orang Tua (Tombol Unduh Disembunyikan di Akun Siswa) */}
       {reviewDraftOrtuModal && (
         <HasilWawancaraOrtuPrintView
           data={reviewDraftOrtuModal}
           isPreSaveReview={true}
           signingRole="ortu"
+          hideDownload={true}
           onClose={() => setReviewDraftOrtuModal(null)}
           onConfirmSave={(ttdOrtu) => {
             const res = gasService.saveTtdOrtuFromHp(selectedNoPendaftaran, ttdOrtu);

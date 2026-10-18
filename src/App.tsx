@@ -29,8 +29,9 @@ export default function App() {
   }, [currentTab]);
 
   useEffect(() => {
-    // Sinkronisasi otomatis dengan Google Spreadsheet saat pertama dibuka jika URL GAS aktif
+    // Sinkronisasi otomatis Sheet "Setting" (Logo, Foto Badge & Folder Drive) dan seluruh database saat pertama dibuka
     if (gasService.isLiveGasConfigured()) {
+      gasService.syncSettingsFromCloud();
       gasService.syncFromSpreadsheet().then(() => {
         setIsGasConfigured(gasService.isLiveGasConfigured());
       });
@@ -219,19 +220,23 @@ export default function App() {
       {/* PWA Offline Mode Indicator */}
       <OfflineIndicator />
 
-      {/* Google Apps Script & Google Spreadsheet Database Config Modal */}
-      <GasConfigModal
-        isOpen={isGasModalOpen}
-        onClose={() => setIsGasModalOpen(false)}
-        onConfigChanged={handleConfigChanged}
-        onOpenPanduan={handleOpenPanduan}
-      />
+      {/* Google Apps Script & Google Spreadsheet Database Config Modal — HANYA ADMIN */}
+      {currentUser?.role === 'admin' && (
+        <GasConfigModal
+          isOpen={isGasModalOpen}
+          onClose={() => setIsGasModalOpen(false)}
+          onConfigChanged={handleConfigChanged}
+          onOpenPanduan={handleOpenPanduan}
+        />
+      )}
 
-      {/* Netlify, GitHub & GAS Deployment Guide Modal */}
-      <PanduanDeployModal
-        isOpen={isPanduanModalOpen}
-        onClose={() => setIsPanduanModalOpen(false)}
-      />
+      {/* Netlify, GitHub & GAS Deployment Guide Modal — HANYA ADMIN */}
+      {currentUser?.role === 'admin' && (
+        <PanduanDeployModal
+          isOpen={isPanduanModalOpen}
+          onClose={() => setIsPanduanModalOpen(false)}
+        />
+      )}
 
     </div>
   );

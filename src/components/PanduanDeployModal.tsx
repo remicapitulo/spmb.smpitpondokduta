@@ -176,7 +176,7 @@ export const PanduanDeployModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   <div>
                     <strong className="text-slate-900">Jalankan Inisialisasi Otomatis (setupSheets):</strong>
                     <p className="mt-0.5 text-slate-600">
-                      Pilih fungsi <code>setupSheets</code> di dropdown toolbar Apps Script, lalu klik <strong>Jalankan (Run)</strong>. Ini akan secara otomatis membuat sheet <code>Siswa</code>, <code>OTM</code>, dan <code>Hasil_Wawancara</code> beserta header kolom lengkap.
+                      Pilih fungsi <code>setupSheets</code> di dropdown toolbar Apps Script, lalu klik <strong>Jalankan (Run)</strong>. Ini akan secara otomatis membuat 9 sheet database: <strong>Data Induk Sekolah</strong> (kolom lengkap tanpa JSON), <code>Siswa</code>, <code>Setting</code>, <code>Users</code>, <code>OTM</code>, <code>Hasil_Wawancara</code>, <code>Observasi_Siswa</code>, <code>Wawancara_Siswa</code>, dan <code>Kelulusan</code> beserta header kolom lengkap.
                     </p>
                   </div>
                 </div>

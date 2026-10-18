@@ -1,17 +1,17 @@
 export type UserRole = 'public' | 'siswa' | 'guru' | 'admin' | 'wawancara-otm' | 'observasi-siswa';
 
 /**
- * Menghitung Tahun Pelajaran SPMB secara otomatis mengikuti tahun berjalan.
- * Contoh: Tahun 2026 -> "2027/2028", Tahun 2027 -> "2028/2029"
+ * Menghitung Tahun Pelajaran SPMB secara resmi.
+ * Tahun Pelajaran aktif saat ini: "2027/2028"
  */
 export const getAcademicYear = (): string => {
-  const currentYear = new Date().getFullYear();
-  return `${currentYear + 1}/${currentYear + 2}`;
+  return '2027/2028';
 };
 
 export interface DataSiswa {
   id: string;
   noPendaftaran: string;
+  nis?: string; // Nomor Induk Siswa (NIS) Sekolah
   nik?: string; // NIK dari KK
   createdAt: string;
   updatedAt?: string;
@@ -95,6 +95,7 @@ export interface DataSiswa {
   kewarganegaraanWali?: string; // 61. Kewarganegaraan Wali
   pendidikanWali?: string; // 62. Pendidikan Wali
   pekerjaanWali?: string; // 63. Pekerjaan Wali
+  penghasilanWali?: string; // 63b. Penghasilan Wali
   alamatWali?: string; // 64. Alamat Rumah Wali
   noHpWali?: string; // 65. Nomor Telepon/ HP Wali
   emailWali?: string; // 66. Email Wali
@@ -212,10 +213,19 @@ export interface ObservasiSiswaData {
   nilaiAkademikDasar: number;
   catatanAkademikDasar: string;
 
+  // 5. Psikotes & Kematangan Belajar
+  nilaiPsikotes?: number;
+  catatanPsikotes?: string;
+
   totalSkor: number;
   rataRata: number;
   rekomendasi: 'Diterima' | 'Cadangan' | 'Tidak Diterima';
   catatanPenguji: string;
+
+  // Integrasi Batas Maksimal Tanggal Daftar Ulang ke Lembar Hasil Kelulusan Murid
+  tanggalMaksimalDaftarUlang?: string;
+  nisn?: string;
+  asalSekolah?: string;
 
   // Optional compat fields
   namaPewawancara?: string;
@@ -256,6 +266,83 @@ export interface StatusKelulusanInfo {
   pesanPengumuman: string;
   jadwalDaftarUlang?: string;
   skorAkhir?: number;
+}
+
+export interface DataIndukSiswa {
+  id: string; // ID Buku Induk
+  noUrut?: number; // No Urut Buku Induk
+  nis: string; // Nomor Induk Siswa Sekolah (NIS / NISS) diberikan oleh Admin/Guru/Pengawas
+  nisn: string; // Nomor Induk Siswa Nasional
+  nik: string; // NIK Siswa
+  noPendaftaran: string; // No Pendaftaran SPMB
+  namaLengkap: string;
+  namaPanggilan: string;
+  jenisKelamin: 'Laki-laki' | 'Perempuan' | string;
+  tempatLahir: string;
+  tanggalLahir: string;
+  agama: string;
+  kewarganegaraan: string;
+  anakNomorKe: number | string;
+  jumlahSaudaraKandung: number | string;
+  jumlahSaudaraTiri: number | string;
+  jumlahSaudaraAngkat: number | string;
+  bahasaSehariHari: string;
+  beratBadanKg: string | number;
+  tinggiBadanCm: string | number;
+  golonganDarah: string;
+  penyakitBerat: string;
+  kelainanJasmani: string;
+  alamat: string;
+  kelurahan: string;
+  kecamatan: string;
+  kotaKabupaten: string;
+  nomorTelepon: string;
+  nomorHandphone: string;
+  bertempatTinggalPada: string;
+  jarakKeSekolahKm: string | number;
+  saranaBerangkatSekolah: string;
+  masukSebagai: string;
+  asalSekolah: string;
+  nomorIjazah: string;
+  kegemaranKesenian: string;
+  kegemaranOlahraga: string;
+  kegemaranOrganisasi: string;
+  menerimaBeasiswa: string;
+  memenangkanKejuaraan: string;
+  namaAyah: string;
+  tempatTanggalLahirAyah: string;
+  agamaAyah: string;
+  pendidikanAyah: string;
+  pekerjaanAyah: string;
+  penghasilanAyah: string;
+  alamatAyah: string;
+  noHpAyah: string;
+  emailAyah: string;
+  statusPerkawinanAyah?: string;
+  namaIbu: string;
+  tempatTanggalLahirIbu: string;
+  agamaIbu: string;
+  pendidikanIbu: string;
+  pekerjaanIbu: string;
+  penghasilanIbu: string;
+  alamatIbu: string;
+  noHpIbu: string;
+  emailIbu: string;
+  statusPerkawinanIbu?: string;
+  namaWali?: string;
+  tempatTanggalLahirWali?: string;
+  agamaWali?: string;
+  pendidikanWali?: string;
+  pekerjaanWali?: string;
+  penghasilanWali?: string;
+  alamatWali?: string;
+  noHpWali?: string;
+  statusHubunganWali?: string;
+  statusKelulusan: string;
+  tahunPelajaran: string;
+  tanggalDiterima: string;
+  catatanKhusus?: string;
+  updatedAt?: string;
 }
 
 export interface UserAccount {

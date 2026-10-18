@@ -1,6 +1,6 @@
 # SPMB SMPIT Pondok Duta - Progressive Web App (PWA)
 
-Website & PWA Resmi **Sistem Penerimaan Murid Baru (SPMB) SMPIT PONDOK DUTA Cimanggis Depok** Tahun Pelajaran 2026/2027.
+Website & PWA Resmi **Sistem Penerimaan Murid Baru (SPMB) SMPIT PONDOK DUTA Cimanggis Depok** Tahun Pelajaran 2027/2028.
 
 Aplikasi ini dirancang dengan arsitektur modern berbasis **React + TypeScript + Tailwind CSS**, didukung **Progressive Web App (PWA)** untuk instalasi di Desktop, Android, iOS, dan Tablet dengan kemampuan offline caching, serta terintegrasi langsung dengan **Google Sheets** dan **Google Apps Script (GAS) API** sebagai backend serverless & PDF generator ke Google Drive.
 

@@ -28,7 +28,7 @@ export const SyaratPage: React.FC<Props> = ({ onGoToRegister }) => {
     {
       id: 'formulir',
       title: '2. Mengisi Formulir yang Telah Disediakan',
-      desc: 'Mengisi formulir pendaftaran (dapat diisi secara online melalui Portal Siswa di aplikasi ini maupun offline di ruang pendaftaran).'
+      desc: 'Mengisi formulir pendaftaran (dapat diisi secara online melalui Portal Murid di aplikasi ini maupun offline di ruang pendaftaran).'
     },
     {
       id: 'akta',
@@ -48,16 +48,16 @@ export const SyaratPage: React.FC<Props> = ({ onGoToRegister }) => {
     {
       id: 'nisn',
       title: '6. Fotokopi NISN Sebanyak 1 Lembar (Legalisir)',
-      desc: 'Melampirkan 1 lembar bukti Nomor Induk Siswa Nasional (NISN) yang telah dilegalisir.'
+      desc: 'Melampirkan 1 lembar bukti Nomor Induk Siswa Nasional (NISN Murid) (NISN) yang telah dilegalisir.'
     },
     {
       id: 'surat-pindah',
-      title: '7. Surat Pindah dari Sekolah Asal (Khusus Siswa Pindahan)',
+      title: '7. Surat Pindah dari Sekolah Asal (Khusus Murid Pindahan)',
       desc: 'Bagi calon murid pindahan, wajib melampirkan surat keterangan pindah resmi dari sekolah asal.'
     },
     {
       id: 'skkb',
-      title: '8. Surat Keterangan Kelakuan Baik dari Sekolah Asal (Khusus Siswa Pindahan)',
+      title: '8. Surat Keterangan Kelakuan Baik dari Sekolah Asal (Khusus Murid Pindahan)',
       desc: 'Bagi calon murid pindahan, wajib melampirkan Surat Keterangan Kelakuan Baik dari sekolah asal.'
     },
   ];
@@ -77,10 +77,10 @@ export const SyaratPage: React.FC<Props> = ({ onGoToRegister }) => {
           Informasi Resmi Brosur SPMB {tahunPelajaran}
         </div>
         <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
-          Syarat Pendaftaran Siswa Baru
+          Syarat Pendaftaran Murid Baru
         </h1>
         <p className="text-xs sm:text-sm text-emerald-100 max-w-2xl leading-relaxed">
-          Persyaratan resmi Sistem Penerimaan Siswa Baru (SPMB) <strong>SMPIT Pondok Duta</strong> Tahun Ajaran {tahunPelajaran} sesuai ketentuan Yayasan Perguruan Islam Pondok Duta (YPIPD).
+          Persyaratan resmi Sistem Penerimaan Murid Baru (SPMB) <strong>SMPIT Pondok Duta</strong> Tahun Ajaran {tahunPelajaran} sesuai ketentuan Yayasan Perguruan Islam Pondok Duta (YPIPD).
         </p>
       </div>
 
@@ -100,11 +100,11 @@ export const SyaratPage: React.FC<Props> = ({ onGoToRegister }) => {
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span><strong>Mengisi formulir pendaftaran</strong> yang telah disediakan (online via Portal Siswa atau offline di ruang pendaftaran).</span>
+              <span><strong>Mengisi formulir pendaftaran</strong> yang telah disediakan (online via Portal Murid atau offline di ruang pendaftaran).</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span>Mengikuti <strong>Pelaksanaan Tes Kematangan Siswa (TKS)</strong> dan <strong>Wawancara Orang Tua Murid</strong>.</span>
+              <span>Mengikuti <strong>Pelaksanaan Tes Kematangan Murid (TKM)</strong> dan <strong>Wawancara Orang Tua Murid</strong>.</span>
             </li>
           </ul>
         </div>
@@ -199,7 +199,7 @@ export const SyaratPage: React.FC<Props> = ({ onGoToRegister }) => {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
               <span className="inline-flex items-center gap-1">
                 <Phone className="w-3.5 h-3.5 text-amber-700" />
-                <strong>CS SMPIT (WA):</strong> 0822-2500-2011 · <strong>Telp:</strong> (021) 29378301
+                <strong>CS SMPIT (WA):</strong> 0822-2500-2011 · <strong>Telp:</strong> (021) 29378301 · <strong>Email:</strong> info@smpitpondokduta.sch.id
               </span>
               <span className="inline-flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5 text-amber-700" />

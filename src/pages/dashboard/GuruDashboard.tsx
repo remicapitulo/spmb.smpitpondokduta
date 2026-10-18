@@ -5,7 +5,8 @@ import {
   HasilObservasiOrtuData, 
   ObservasiSiswaData, 
   WawancaraOrtuAnswerItem,
-  UserAccount
+  UserAccount,
+  StatusKelulusanInfo
 } from '../../types';
 import { 
   QUESTIONS_CONFIG, 
@@ -14,6 +15,7 @@ import {
 } from '../../services/questionsConfig';
 import { HasilWawancaraOrtuPrintView } from './HasilWawancaraOrtuPrintView';
 import { HasilObservasiSiswaPrintView } from './HasilObservasiSiswaPrintView';
+import { DataIndukSekolahTab } from './DataIndukSekolahTab';
 import { 
   Users, 
   UserCheck, 
@@ -39,7 +41,8 @@ import {
   PenTool,
   Check,
   Smartphone,
-  LogOut
+  LogOut,
+  Calendar
 } from 'lucide-react';
 
 interface Props {
@@ -55,14 +58,17 @@ export const GuruDashboard: React.FC<Props> = ({
   currentUser,
   onLogout
 }) => {
-  // Mode Tim Penguji: 'ortu' (Tim Wawancara Orang Tua OTM) vs 'siswa' (Tim Observasi Siswa)
-  // Keduanya berdiri sendiri dan memiliki alur serta penanggung jawab masing-masing
-  const [activeTeam, setActiveTeam] = useState<'ortu' | 'siswa'>('ortu');
+  // Mode Menu: 'ortu' (Tim Wawancara OTM) vs 'siswa' (Tim Observasi Murid) vs 'data-induk' (Buku Induk Sekolah & NIS)
+  const [activeTeam, setActiveTeam] = useState<'ortu' | 'siswa' | 'data-induk'>('ortu');
 
   // Shared student state from Google Sheets / mock
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const [dbGuruNames, setDbGuruNames] = useState<string[]>(() =>
+    gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean)
+  );
 
   // =========================================================================
   // --- STATE TIM 1: WAWANCARA ORANG TUA (OTM) ---
@@ -72,7 +78,7 @@ export const GuruDashboard: React.FC<Props> = ({
   const [namaPewawancaraOrtu, setNamaPewawancaraOrtu] = useState<string>(
     currentUser?.role === 'guru' && currentUser.namaSiswa
       ? currentUser.namaSiswa
-      : (DAFTAR_PEWAWANCARA_LIST[0] || 'Ustadz Salman Al-Farisi, Lc., M.Pd.')
+      : (gasService.getPewawancaraAccounts()[0]?.namaSiswa || '')
   );
   const [isCustomPewawancara, setIsCustomPewawancara] = useState<boolean>(false);
   const [customPewawancaraName, setCustomPewawancaraName] = useState<string>('');
@@ -91,7 +97,11 @@ export const GuruDashboard: React.FC<Props> = ({
   // =========================================================================
   const [selectedSiswaIndex, setSelectedSiswaIndex] = useState<number>(0);
   const [searchKeywordSiswa, setSearchKeywordSiswa] = useState<string>('');
-  const [namaPengujiSiswa, setNamaPengujiSiswa] = useState<string>(DAFTAR_PENGUJI_SISWA_LIST[0] || 'Ustadz H. Ahmad Dahlan, S.Pd.I');
+  const [namaPengujiSiswa, setNamaPengujiSiswa] = useState<string>(
+    currentUser?.role === 'guru' && currentUser.namaSiswa
+      ? currentUser.namaSiswa
+      : (gasService.getPewawancaraAccounts()[0]?.namaSiswa || '')
+  );
   const [isCustomPenguji, setIsCustomPenguji] = useState<boolean>(false);
   const [customPengujiName, setCustomPengujiName] = useState<string>('');
 
@@ -104,8 +114,11 @@ export const GuruDashboard: React.FC<Props> = ({
   const [catatanKarakterAdab, setCatatanKarakterAdab] = useState('');
   const [nilaiAkademikDasar, setNilaiAkademikDasar] = useState<number>(85);
   const [catatanAkademikDasar, setCatatanAkademikDasar] = useState('');
+  const [nilaiPsikotes, setNilaiPsikotes] = useState<number>(85);
+  const [catatanPsikotes, setCatatanPsikotes] = useState('');
   const [rekomendasiSiswa, setRekomendasiSiswa] = useState<'Diterima' | 'Cadangan' | 'Tidak Diterima'>('Diterima');
   const [catatanPengujiSiswa, setCatatanPengujiSiswa] = useState('');
+  const [tanggalMaksimalDaftarUlang, setTanggalMaksimalDaftarUlang] = useState<string>('20 - 25 Januari 2027');
   const [savedSiswaResult, setSavedSiswaResult] = useState<ObservasiSiswaData | null>(null);
   const [previewSiswaModal, setPreviewSiswaModal] = useState<ObservasiSiswaData | null>(null);
 
@@ -116,6 +129,14 @@ export const GuruDashboard: React.FC<Props> = ({
   const loadStudentList = async () => {
     setLoading(true);
     const list = await gasService.getStudentList();
+    const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
+    setDbGuruNames(gurus);
+    if (!namaPewawancaraOrtu && gurus.length > 0) {
+      setNamaPewawancaraOrtu(currentUser?.role === 'guru' && currentUser.namaSiswa ? currentUser.namaSiswa : gurus[0]);
+    }
+    if (!namaPengujiSiswa && gurus.length > 0) {
+      setNamaPengujiSiswa(currentUser?.role === 'guru' && currentUser.namaSiswa ? currentUser.namaSiswa : gurus[0]);
+    }
     setStudents(list);
     if (list.length > 0) {
       setSelectedOrtuIndex(0);
@@ -195,6 +216,7 @@ export const GuruDashboard: React.FC<Props> = ({
   // Load observasi siswa yang sudah ada
   const loadExistingObservasiSiswa = (noPend: string) => {
     const existing = gasService.getObservasiSiswa(noPend);
+    const existingLulus = gasService.getStatusKelulusan(noPend);
     if (existing) {
       setNamaPengujiSiswa(existing.namaPenguji);
       setNilaiTahsin(existing.nilaiTahsin);
@@ -206,8 +228,11 @@ export const GuruDashboard: React.FC<Props> = ({
       setCatatanKarakterAdab(existing.catatanKarakterAdab);
       setNilaiAkademikDasar(existing.nilaiAkademikDasar);
       setCatatanAkademikDasar(existing.catatanAkademikDasar);
+      setNilaiPsikotes(existing.nilaiPsikotes !== undefined ? existing.nilaiPsikotes : 85);
+      setCatatanPsikotes(existing.catatanPsikotes || '');
       setRekomendasiSiswa(existing.rekomendasi);
       setCatatanPengujiSiswa(existing.catatanPenguji);
+      setTanggalMaksimalDaftarUlang(existing.tanggalMaksimalDaftarUlang || (existingLulus?.jadwalDaftarUlang && existingLulus.jadwalDaftarUlang !== '-' ? existingLulus.jadwalDaftarUlang : '20 - 25 Januari 2027'));
     } else {
       setNilaiTahsin(85);
       setCatatanTahsin('');
@@ -218,8 +243,11 @@ export const GuruDashboard: React.FC<Props> = ({
       setCatatanKarakterAdab('');
       setNilaiAkademikDasar(85);
       setCatatanAkademikDasar('');
+      setNilaiPsikotes(85);
+      setCatatanPsikotes('');
       setRekomendasiSiswa('Diterima');
       setCatatanPengujiSiswa('');
+      setTanggalMaksimalDaftarUlang(existingLulus?.jadwalDaftarUlang && existingLulus.jadwalDaftarUlang !== '-' ? existingLulus.jadwalDaftarUlang : '20 - 25 Januari 2027');
     }
   };
 
@@ -261,6 +289,11 @@ export const GuruDashboard: React.FC<Props> = ({
         // Khusus Catatan Khusus
         if (q.id === 'catatan' || q.text.includes('CATATAN KHUSUS')) {
           ansVal = catatanKhususOrtu || ansVal;
+        }
+
+        // Khusus Bagian G: Pernyataan Orang Tua (otomatis terisi dari pernyataan orang tua)
+        if (q.id === 'q34' || q.id === 'q35' || q.text.includes('10.000') || q.text.includes('rekayasa')) {
+          ansVal = refVal || 'Bersedia / Setuju';
         }
 
         collectedAnswers.push({
@@ -378,8 +411,8 @@ export const GuruDashboard: React.FC<Props> = ({
   // =========================================================================
   // --- SUBMIT TIM 2: OBSERVASI SISWA (TERPISAH & MANDIRI) ---
   // =========================================================================
-  const skorTotalSiswa = Number(nilaiTahsin) + Number(nilaiTahfidz) + Number(nilaiKarakterAdab) + Number(nilaiAkademikDasar);
-  const rataRataSiswa = Number((skorTotalSiswa / 4).toFixed(1));
+  const skorTotalSiswa = Number(nilaiTahsin) + Number(nilaiTahfidz) + Number(nilaiKarakterAdab) + Number(nilaiAkademikDasar) + Number(nilaiPsikotes);
+  const rataRataSiswa = Number((skorTotalSiswa / 5).toFixed(1));
 
   const handleSubmitObservasiSiswa = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -387,10 +420,22 @@ export const GuruDashboard: React.FC<Props> = ({
     if (!activePengujiName.trim()) { alert("Pilih atau isi nama penguji siswa!"); return; }
 
     setSaving(true);
+    const existingSiswa = gasService.getSiswaByNo(currentStudentSiswa.id);
+    const existingInduk = gasService.getDataIndukList().find(d => d.noPendaftaran === currentStudentSiswa.id);
+    const existingLulus = gasService.getStatusKelulusan(currentStudentSiswa.id);
+    const resolvedNisn = (existingSiswa?.nisn && existingSiswa.nisn !== '-') 
+      ? existingSiswa.nisn 
+      : ((existingInduk?.nisn && existingInduk.nisn !== '-') 
+        ? existingInduk.nisn 
+        : (existingLulus?.nisn && existingLulus.nisn !== '-' ? existingLulus.nisn : '-'));
+    const resolvedAsalSekolah = currentStudentSiswa.sekolah || existingSiswa?.asalSekolah || existingLulus?.asalSekolah || 'SD/MI Pendaftar';
+
     const payload: ObservasiSiswaData = {
       id: 'OBS-SISWA-' + Date.now(),
       siswaId: currentStudentSiswa.id,
       noPendaftaran: currentStudentSiswa.id,
+      nisn: resolvedNisn,
+      asalSekolah: resolvedAsalSekolah,
       namaSiswa: currentStudentSiswa.nama,
       namaPenguji: activePengujiName,
       tanggalObservasi: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
@@ -403,10 +448,13 @@ export const GuruDashboard: React.FC<Props> = ({
       catatanKarakterAdab: catatanKarakterAdab,
       nilaiAkademikDasar: Number(nilaiAkademikDasar),
       catatanAkademikDasar: catatanAkademikDasar,
+      nilaiPsikotes: Number(nilaiPsikotes),
+      catatanPsikotes: catatanPsikotes,
       totalSkor: skorTotalSiswa,
       rataRata: rataRataSiswa,
       rekomendasi: rekomendasiSiswa,
       catatanPenguji: catatanPengujiSiswa,
+      tanggalMaksimalDaftarUlang: tanggalMaksimalDaftarUlang.trim() || '20 - 25 Januari 2027',
       createdAt: new Date().toISOString()
     };
 
@@ -415,6 +463,16 @@ export const GuruDashboard: React.FC<Props> = ({
     setSavedSiswaResult(res.data);
     alert(res.message);
     await loadStudentList();
+  };
+
+  const handleApplyTanggalToAllLulus = (dateStr: string) => {
+    const trimmed = (dateStr || '').trim();
+    if (!trimmed) {
+      alert('Silakan tentukan atau pilih tanggal daftar ulang terlebih dahulu.');
+      return;
+    }
+    const res = gasService.applyJadwalDaftarUlangToAllLulus(trimmed);
+    alert(`Alhamdulillah! Tanggal daftar ulang "${trimmed}" berhasil diterapkan ke ${res.count} calon murid berstatus Diterima / Lulus.`);
   };
 
   return (
@@ -428,67 +486,61 @@ export const GuruDashboard: React.FC<Props> = ({
           <div className="flex flex-wrap items-center gap-2 mb-2.5">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-emerald-300 text-xs font-semibold border border-white/15">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Menu Pewawancara & Penguji SPMB SMPIT Pondok Duta</span>
+              <span>Menu Evaluasi SPMB SMPIT Pondok Duta</span>
             </div>
-            {(currentUser?.role === 'guru' || currentUser?.role === 'admin') && (
-              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border ${
-                currentUser.role === 'admin'
-                  ? 'bg-amber-500/20 text-amber-200 border-amber-400/30'
-                  : 'bg-purple-500/20 text-purple-200 border-purple-400/30'
-              }`}>
-                <span>
-                  {currentUser.role === 'admin' ? 'Admin Login:' : 'Pewawancara Login:'} {currentUser.namaSiswa} ({currentUser.kodePendaftaran})
-                </span>
-                {onLogout && (
-                  <button
-                    type="button"
-                    onClick={onLogout}
-                    className="ml-1 px-2 py-0.5 rounded-md bg-rose-500/80 hover:bg-rose-600 text-white text-[10px] font-bold flex items-center gap-1 transition"
-                  >
-                    <LogOut className="w-3 h-3" />
-                    <span>Keluar</span>
-                  </button>
-                )}
-              </div>
-            )}
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white">
-            Evaluasi Seleksi Penerimaan Siswa Baru
+            Evaluasi Seleksi Penerimaan Murid Baru
           </h1>
           <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-            Tim Wawancara OTM dan Tim Observasi Siswa masing-masing <strong>berdiri sendiri secara mandiri</strong> karena dikerjakan oleh tim dan penguji berbeda dengan instrumen terpisah.
+            Panel instrumen evaluasi seleksi murid baru. Penilaian wawancara orang tua murid dan lembar observasi murid diuji secara mandiri oleh masing-masing tim penguji untuk penetapan kelulusan.
           </p>
         </div>
 
-        {/* TEAM SELECTOR BUTTONS */}
-        <div className="flex bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700 shadow-lg shrink-0">
+        {/* TEAM SELECTOR BUTTONS (Responsive Grid on Mobile & Tablet) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700 shadow-lg w-full lg:w-auto">
           <button
             onClick={() => setActiveTeam('ortu')}
-            className={`px-4 sm:px-5 py-3 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition cursor-pointer ${
+            className={`px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition cursor-pointer ${
               activeTeam === 'ortu'
                 ? 'bg-emerald-600 text-white shadow-md'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Users className="w-4 h-4 text-emerald-200" />
-            <div className="text-left">
-              <span className="block leading-tight">1. Tim Wawancara OTM</span>
-              <span className="text-[10px] opacity-80 font-normal">Wawancara Orang Tua Murid</span>
+            <Users className="w-4 h-4 text-emerald-200 shrink-0" />
+            <div className="text-left min-w-0">
+              <span className="block leading-tight truncate">1. Wawancara OTM</span>
+              <span className="text-[10px] opacity-80 font-normal truncate">Orang Tua Murid</span>
             </div>
           </button>
 
           <button
             onClick={() => setActiveTeam('siswa')}
-            className={`px-4 sm:px-5 py-3 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition cursor-pointer ${
+            className={`px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition cursor-pointer ${
               activeTeam === 'siswa'
                 ? 'bg-indigo-600 text-white shadow-md'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
             }`}
           >
-            <BookOpen className="w-4 h-4 text-indigo-200" />
-            <div className="text-left">
-              <span className="block leading-tight">2. Tim Observasi Siswa</span>
-              <span className="text-[10px] opacity-80 font-normal">Tahsin, Tahfidz, Adab & Akademik</span>
+            <BookOpen className="w-4 h-4 text-indigo-200 shrink-0" />
+            <div className="text-left min-w-0">
+              <span className="block leading-tight truncate">2. Observasi Murid</span>
+              <span className="text-[10px] opacity-80 font-normal truncate">Tahsin, Adab, Akademik</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTeam('data-induk')}
+            className={`px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition cursor-pointer ${
+              activeTeam === 'data-induk'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                : 'text-slate-300 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Award className="w-4 h-4 text-amber-300 shrink-0" />
+            <div className="text-left min-w-0">
+              <span className="block leading-tight truncate">3. Data Induk</span>
+              <span className="text-[10px] opacity-80 font-normal truncate">Buku Induk &amp; NIS</span>
             </div>
           </button>
         </div>
@@ -499,29 +551,6 @@ export const GuruDashboard: React.FC<Props> = ({
       {/* ===================================================================== */}
       {activeTeam === 'ortu' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          
-          {/* Header Card Info */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-emerald-600 text-white shadow-xs">
-                <Users className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-base sm:text-lg font-black text-slate-900">
-                  Formulir Wawancara Orang Tua Murid (OTM)
-                </h2>
-                <div className="text-xs text-slate-600 font-medium">
-                  Mengacu pada data kuesioner OTM Google Form & diverifikasi langsung oleh Tim Pewawancara.
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <span className="text-[11px] font-bold bg-white text-emerald-800 px-3 py-1 rounded-full border border-emerald-300 shadow-2xs">
-                Portal Mandiri Tim OTM
-              </span>
-            </div>
-          </div>
-
           {/* CONTROL PANEL 1: PENCARIAN KATA KUNCI + PILIH NAMA PEWAWANCARA DARI LIST */}
           <div className="p-6 rounded-3xl bg-[#dceefc] border border-[#b6d4fe] text-xs space-y-5 shadow-xs">
             
@@ -530,7 +559,7 @@ export const GuruDashboard: React.FC<Props> = ({
               <div className="flex items-center justify-between">
                 <label className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
                   <Search className="w-4 h-4 text-blue-700" />
-                  <span>Pencarian Kata Kunci Calon Siswa (Nama / No. Reg / Asal Sekolah / Orang Tua):</span>
+                  <span>Pencarian Kata Kunci Calon Murid (Nama / No. Reg / Asal Sekolah / Orang Tua):</span>
                 </label>
                 <span className="text-[11px] font-medium text-slate-600">
                   Menampilkan <strong>{filteredStudentsOrtu.length}</strong> dari {students.length} siswa
@@ -590,7 +619,7 @@ export const GuruDashboard: React.FC<Props> = ({
               {/* Dropdown Selector Siswa Terfilter */}
               <div className="pt-1">
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Pilih Siswa Aktif:
+                  Pilih Murid Aktif:
                 </label>
                 <select
                   value={selectedOrtuIndex}
@@ -639,41 +668,15 @@ export const GuruDashboard: React.FC<Props> = ({
                 );
               })()}
 
-              {/* Alert Status Wawancara Sebelumnya */}
+              {/* Keterangan Status Wawancara Sebelumnya (Tombol atas dihapus sesuai instruksi user) */}
               {currentStudentOrtu?.existingPdf && (
-                <div className="p-4 rounded-2xl bg-[#fff3cd] border border-[#ffeeba] text-[#856404] text-center space-y-2 animate-in fade-in">
-                  <div className="font-bold text-sm flex items-center justify-center gap-1.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    <span>Siswa ini sudah pernah diwawancara.</span>
+                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 flex items-center gap-3 animate-in fade-in shadow-2xs">
+                  <div className="p-2 bg-emerald-600 text-white rounded-xl shrink-0">
+                    <CheckCircle2 className="w-4 h-4" />
                   </div>
-                  <p className="text-xs text-[#856404]/90">
-                    Anda dapat meninjau lembar resmi, mengedit jawaban, atau membuka arsip PDF di Google Drive:
-                  </p>
-                  <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const existing = gasService.getHasilWawancaraOrtu(currentStudentOrtu.id);
-                        if (existing) {
-                          setPreviewOrtuModal(existing);
-                        } else {
-                          window.open(currentStudentOrtu.existingPdf, '_blank');
-                        }
-                      }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>Pratinjau Lembar Dokumen PDF</span>
-                    </button>
-                    <a
-                      href={currentStudentOrtu.existingPdf}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-blue-700 font-bold text-xs rounded-xl shadow-xs border border-amber-300 underline"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      <span>Buka Google Drive File</span>
-                    </a>
+                  <div className="text-xs">
+                    <span className="font-bold text-emerald-900">Orang tua calon murid ini sudah selesai diwawancara.</span>
+                    <span className="text-emerald-700 ml-1">Hasil wawancara dan tanda tangan tersimpan di sistem. Anda dapat memperbarui isian jika diperlukan, atau mencetak PDF melalui tombol di bawah formulir.</span>
                   </div>
                 </div>
               )}
@@ -699,7 +702,7 @@ export const GuruDashboard: React.FC<Props> = ({
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-blue-500"
                 >
-                  {DAFTAR_PEWAWANCARA_LIST.map((guru) => (
+                  {dbGuruNames.map((guru) => (
                     <option key={guru} value={guru}>{guru}</option>
                   ))}
                   <option value="__CUSTOM__">[+] Tulis Nama Lain / Penguji Pengganti...</option>
@@ -778,98 +781,266 @@ export const GuruDashboard: React.FC<Props> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {QUESTIONS_CONFIG.map((q, index) => {
-                      if (q.type === 'header') {
-                        return (
-                          <tr key={index}>
-                            <td colSpan={3} className="bg-[#7f8c8d] text-white p-2.5 font-bold text-center text-xs tracking-wide">
-                              {q.text}
-                            </td>
-                          </tr>
+                    {(() => {
+                      let curHeader = '';
+                      return QUESTIONS_CONFIG.map((q, index) => {
+                        if (q.type === 'header') {
+                          curHeader = q.text;
+                          return (
+                            <tr key={index}>
+                              <td colSpan={3} className="bg-[#7f8c8d] text-white p-2.5 font-bold text-center text-xs tracking-wide">
+                                {q.text}
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        // Penanganan Khusus untuk CATATAN KHUSUS
+                        const isCatatanKhusus = q.id === 'catatan' || q.text.includes('CATATAN KHUSUS');
+                        const refText = getRefValue(q.refId);
+
+                        const isSectionEF = !isCatatanKhusus && (
+                          curHeader.includes('E. SIMULASI PERATURAN') || 
+                          curHeader.includes('F. INFORMASI LAINNYA') ||
+                          ['i2', 'i3', 'i4', 'i5', 'i9', 'i10', 'i6', 'i7', 'i8'].includes(q.id)
                         );
-                      }
+                        const isSectionG = !isCatatanKhusus && (
+                          curHeader.includes('G. PERNYATAAN ORANG TUA') ||
+                          ['q34', 'q35'].includes(q.id)
+                        );
 
-                      // Penanganan Khusus untuk CATATAN KHUSUS
-                      const isCatatanKhusus = q.id === 'catatan' || q.text.includes('CATATAN KHUSUS');
-                      const refText = getRefValue(q.refId);
+                        // Bagian E & F: Kolom isian jawaban dipindahkan ke bawah pertanyaan tanpa kolom kosong
+                        if (isSectionEF) {
+                          return (
+                            <tr key={index} className="hover:bg-slate-50/80">
+                              <td colSpan={3} className="p-3.5 align-top space-y-2">
+                                <div className="font-semibold text-[#2c3e50] leading-relaxed whitespace-pre-line text-xs">
+                                  {q.text}
+                                </div>
+                                <textarea
+                                  rows={2}
+                                  value={ortuAnswers[index] || ''}
+                                  onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
+                                  placeholder="Jawaban / Catatan wawancara..."
+                                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white shadow-2xs"
+                                />
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                  <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                                  {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                                    <button
+                                      type="button"
+                                      key={quickOption}
+                                      onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                      className={`px-2.5 py-1 text-[11px] rounded-lg font-medium border transition cursor-pointer ${
+                                        ortuAnswers[index] === quickOption
+                                          ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                          : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                      }`}
+                                    >
+                                      + {quickOption}
+                                    </button>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
 
-                      return (
-                        <tr 
-                          key={index} 
-                          className={`hover:bg-slate-50/80 ${isCatatanKhusus ? 'bg-amber-50/60 border-2 border-amber-300' : ''}`}
-                        >
-                          <td className="p-3 align-top font-semibold text-[#2c3e50] leading-relaxed">
-                            <div className="flex items-start gap-1.5">
-                              <span>{q.text}</span>
-                            </div>
-                          </td>
-                          <td className="p-3 align-top bg-[#f8f9fa] border-r border-slate-200 text-slate-700 text-[11px] leading-relaxed">
-                            {refText}
-                          </td>
-                          <td className="p-3 align-top">
-                            {isCatatanKhusus ? (
-                              <textarea
-                                rows={3}
-                                value={catatanKhususOrtu}
-                                onChange={(e) => setCatatanKhususOrtu(e.target.value)}
-                                placeholder="Catatan internal penguji (rekomendasi khusus, aspek komitmen finansial/moral, catatan rahasia)..."
-                                className="w-full p-2.5 rounded-xl border border-amber-400 bg-amber-50/40 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                              />
-                            ) : (
+                        // Bagian G: Hilangkan kotak isian jawaban, isian orang tua diletakkan di bawah pertanyaan
+                        if (isSectionG) {
+                          return (
+                            <tr key={index} className="hover:bg-slate-50/80 bg-emerald-50/30">
+                              <td colSpan={3} className="p-3.5 align-top space-y-1.5">
+                                <div className="font-semibold text-[#2c3e50] leading-relaxed whitespace-pre-line text-xs">
+                                  {q.text}
+                                </div>
+                                <div className="flex items-center gap-2 pt-0.5">
+                                  <span className="text-[11px] font-bold text-slate-500">Pernyataan / Isian Orang Tua:</span>
+                                  <span className="px-3 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 shadow-2xs">
+                                    {refText || 'Bersedia / Setuju'}
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        // Catatan Khusus Pewawancara (Pindahkan isian ke bawah, hilangkan kolom kosong)
+                        if (isCatatanKhusus) {
+                          return (
+                            <tr key={index} className="hover:bg-amber-50/50 bg-amber-50/30 border-y-2 border-amber-300">
+                              <td colSpan={3} className="p-3.5 align-top space-y-2">
+                                <div className="font-bold text-amber-950 leading-relaxed whitespace-pre-line text-xs flex items-center gap-1.5">
+                                  <span>📌 {q.text}</span>
+                                </div>
+                                <textarea
+                                  rows={3}
+                                  value={catatanKhususOrtu}
+                                  onChange={(e) => setCatatanKhususOrtu(e.target.value)}
+                                  placeholder="Catatan internal penguji (rekomendasi khusus, aspek komitmen finansial/moral, catatan rahasia)..."
+                                  className="w-full p-2.5 rounded-xl border border-amber-400 bg-white text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none shadow-2xs"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        // Bagian Standar (A, B, C, D)
+                        return (
+                          <tr 
+                            key={index} 
+                            className="hover:bg-slate-50/80"
+                          >
+                            <td className="p-3 align-top font-semibold text-[#2c3e50] leading-relaxed">
+                              <div className="flex items-start gap-1.5">
+                                <span>{q.text}</span>
+                              </div>
+                            </td>
+                            <td className="p-3 align-top bg-[#f8f9fa] border-r border-slate-200 text-slate-700 text-[11px] leading-relaxed">
+                              {refText}
+                            </td>
+                            <td className="p-3 align-top space-y-1.5">
                               <textarea
                                 rows={2}
                                 value={ortuAnswers[index] || ''}
                                 onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
                                 placeholder="Jawaban / Catatan wawancara..."
-                                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white shadow-2xs"
                               />
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                                {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                                  <button
+                                    type="button"
+                                    key={quickOption}
+                                    onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                    className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
+                                      ortuAnswers[index] === quickOption
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                        : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                    }`}
+                                  >
+                                    + {quickOption}
+                                  </button>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>
 
               {/* Mobile Card View */}
               <div className="block md:hidden space-y-4">
-                {QUESTIONS_CONFIG.map((q, index) => {
-                  if (q.type === 'header') {
-                    return (
-                      <div key={index} className="bg-[#7f8c8d] text-white p-2.5 rounded-xl font-bold text-center text-xs">
-                        {q.text}
-                      </div>
+                {(() => {
+                  let curMobileHeader = '';
+                  return QUESTIONS_CONFIG.map((q, index) => {
+                    if (q.type === 'header') {
+                      curMobileHeader = q.text;
+                      return (
+                        <div key={index} className="bg-[#7f8c8d] text-white p-2.5 rounded-xl font-bold text-center text-xs">
+                          {q.text}
+                        </div>
+                      );
+                    }
+
+                    const isCatatanKhusus = q.id === 'catatan' || q.text.includes('CATATAN KHUSUS');
+                    const refText = getRefValue(q.refId);
+
+                    const isSectionEF = !isCatatanKhusus && (
+                      curMobileHeader.includes('E. SIMULASI PERATURAN') || 
+                      curMobileHeader.includes('F. INFORMASI LAINNYA') ||
+                      ['i2', 'i3', 'i4', 'i5', 'i9', 'i10', 'i6', 'i7', 'i8'].includes(q.id)
                     );
-                  }
+                    const isSectionG = !isCatatanKhusus && (
+                      curMobileHeader.includes('G. PERNYATAAN ORANG TUA') ||
+                      ['q34', 'q35'].includes(q.id)
+                    );
 
-                  const isCatatanKhusus = q.id === 'catatan' || q.text.includes('CATATAN KHUSUS');
-                  const refText = getRefValue(q.refId);
+                    if (isSectionEF) {
+                      return (
+                        <div key={index} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-2.5">
+                          <div className="font-bold text-xs text-slate-900 leading-relaxed whitespace-pre-line">
+                            {q.text}
+                          </div>
+                          <textarea
+                            rows={3}
+                            value={ortuAnswers[index] || ''}
+                            onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
+                            placeholder="Jawaban / Catatan wawancara..."
+                            className="w-full p-2.5 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                          />
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                            {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                              <button
+                                type="button"
+                                key={quickOption}
+                                onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
+                                  ortuAnswers[index] === quickOption
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                    : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                }`}
+                              >
+                                + {quickOption}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
 
-                  return (
-                    <div 
-                      key={index} 
-                      className={`p-4 rounded-2xl border space-y-3 ${
-                        isCatatanKhusus ? 'border-amber-400 bg-amber-50/50' : 'border-slate-200 bg-slate-50/50'
-                      }`}
-                    >
-                      <div className="font-bold text-xs text-slate-900">
-                        {q.text}
-                      </div>
-                      <div className="text-[11px] bg-white p-2.5 rounded-xl border border-slate-200 text-slate-700">
-                        <span className="font-semibold text-slate-400 block text-[10px]">Data Ortu (Ref):</span>
-                        {refText}
-                      </div>
-                      <div>
-                        {isCatatanKhusus ? (
+                    if (isSectionG) {
+                      return (
+                        <div key={index} className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 space-y-2">
+                          <div className="font-bold text-xs text-slate-900 leading-relaxed whitespace-pre-line">
+                            {q.text}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10.5px] font-bold text-slate-500">Pernyataan Orang Tua:</span>
+                            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300">
+                              {refText || 'Bersedia / Setuju'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Catatan Khusus Pewawancara (Mobile)
+                    if (isCatatanKhusus) {
+                      return (
+                        <div key={index} className="p-4 rounded-2xl border border-amber-400 bg-amber-50/50 space-y-2.5">
+                          <div className="font-bold text-xs text-amber-950 leading-relaxed whitespace-pre-line flex items-center gap-1.5">
+                            <span>📌 {q.text}</span>
+                          </div>
                           <textarea
                             rows={3}
                             value={catatanKhususOrtu}
                             onChange={(e) => setCatatanKhususOrtu(e.target.value)}
-                            placeholder="Catatan khusus komite (disembunyikan dari pratinjau orang tua)..."
-                            className="w-full p-2.5 rounded-xl border border-amber-300 text-xs bg-white focus:ring-2 focus:ring-amber-500"
+                            placeholder="Catatan internal penguji (rekomendasi khusus, aspek komitmen finansial/moral, catatan rahasia)..."
+                            className="w-full p-2.5 rounded-xl border border-amber-300 text-xs bg-white focus:ring-2 focus:ring-amber-500 shadow-2xs"
                           />
-                        ) : (
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div 
+                        key={index} 
+                        className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3"
+                      >
+                        <div className="font-bold text-xs text-slate-900">
+                          {q.text}
+                        </div>
+                        <div className="text-[11px] bg-white p-2.5 rounded-xl border border-slate-200 text-slate-700">
+                          <span className="font-semibold text-slate-400 block text-[10px]">Data Ortu (Ref):</span>
+                          {refText}
+                        </div>
+                        <div className="space-y-1.5">
                           <textarea
                             rows={3}
                             value={ortuAnswers[index] || ''}
@@ -877,11 +1048,28 @@ export const GuruDashboard: React.FC<Props> = ({
                             placeholder="Jawaban / Catatan wawancara..."
                             className="w-full p-2.5 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-blue-500"
                           />
-                        )}
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                            {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                              <button
+                                type="button"
+                                key={quickOption}
+                                onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
+                                  ortuAnswers[index] === quickOption
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                    : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                }`}
+                              >
+                                + {quickOption}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
 
               {/* ============================================================= */}
@@ -893,7 +1081,7 @@ export const GuruDashboard: React.FC<Props> = ({
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     <span>SOP Penutupan Wawancara:</span>
                   </div>
-                  Klik tombol di samping untuk mereview lembar PDF bersama orang tua, menandatangani secara digital, dan menyimpan ke Google Sheets & Drive.
+                  Klik tombol di samping untuk mereview lembar PDF bersama orang tua dan menandatangani secara digital.
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
@@ -914,7 +1102,7 @@ export const GuruDashboard: React.FC<Props> = ({
                     className="flex-1 sm:flex-initial px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-700/20 transition cursor-pointer active:scale-98 disabled:opacity-50"
                   >
                     <FileText className="w-4 h-4" />
-                    <span>Review Pratinjau PDF & Tanda Tangan Elektronik</span>
+                    <span>Pratinjau &amp; Tanda Tangan</span>
                   </button>
                 </div>
               </div>
@@ -939,17 +1127,12 @@ export const GuruDashboard: React.FC<Props> = ({
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-black text-slate-900">
-                  Lembar Penilaian Observasi Siswa
+                  Lembar Penilaian Observasi Murid
                 </h2>
                 <div className="text-xs text-slate-600 font-medium">
-                  <strong>Khusus Tim Penguji Siswa:</strong> Pengujian kemampuan membaca Al-Qur'an (Tahsin), hafalan (Tahfidz), adab/karakter, serta nalar akademik dasar.
+                  <strong>Khusus Tim Penguji Murid:</strong> Pengujian kemampuan membaca Al-Qur'an (Tahsin), hafalan (Tahfidz), adab/karakter, serta nalar akademik dasar.
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 self-start sm:self-auto">
-              <span className="text-[11px] font-bold bg-white text-indigo-800 px-3 py-1 rounded-full border border-indigo-300 shadow-2xs">
-                Portal Mandiri Tim Observasi Siswa
-              </span>
             </div>
           </div>
 
@@ -961,7 +1144,7 @@ export const GuruDashboard: React.FC<Props> = ({
               <div className="flex items-center justify-between">
                 <label className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
                   <Search className="w-4 h-4 text-indigo-700" />
-                  <span>Pencarian Kata Kunci Siswa Diuji (Nama / No. Reg / Asal Sekolah):</span>
+                  <span>Pencarian Kata Kunci Murid Diuji (Nama / No. Reg / Asal Sekolah):</span>
                 </label>
                 <span className="text-[11px] font-medium text-slate-600">
                   Menampilkan <strong>{filteredStudentsSiswa.length}</strong> dari {students.length} siswa
@@ -974,7 +1157,7 @@ export const GuruDashboard: React.FC<Props> = ({
                   type="text"
                   value={searchKeywordSiswa}
                   onChange={(e) => setSearchKeywordSiswa(e.target.value)}
-                  placeholder="Ketik nama santri atau nomor registrasi..."
+                  placeholder="Ketik nama murid atau nomor registrasi..."
                   className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 bg-white font-medium text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-xs"
                 />
                 {searchKeywordSiswa && (
@@ -1016,7 +1199,7 @@ export const GuruDashboard: React.FC<Props> = ({
               {/* Dropdown Selector Siswa Terfilter */}
               <div className="pt-1">
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Siswa yang Sedang Diuji:
+                  Murid yang Sedang Diuji:
                 </label>
                 <select
                   value={selectedSiswaIndex}
@@ -1039,7 +1222,7 @@ export const GuruDashboard: React.FC<Props> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-indigo-200/60">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-800">
-                  Nama Penguji Siswa (Pilih dari List Resmi):
+                  Nama Penguji Murid (Pilih dari List Resmi):
                 </label>
                 <select
                   value={isCustomPenguji ? '__CUSTOM__' : namaPengujiSiswa}
@@ -1053,7 +1236,7 @@ export const GuruDashboard: React.FC<Props> = ({
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-indigo-500"
                 >
-                  {DAFTAR_PENGUJI_SISWA_LIST.map((penguji) => (
+                  {dbGuruNames.map((penguji) => (
                     <option key={penguji} value={penguji}>{penguji}</option>
                   ))}
                   <option value="__CUSTOM__">[+] Tulis Nama Penguji Lain / Pengganti...</option>
@@ -1064,14 +1247,14 @@ export const GuruDashboard: React.FC<Props> = ({
                     type="text"
                     value={customPengujiName}
                     onChange={(e) => setCustomPengujiName(e.target.value)}
-                    placeholder="Ketik nama lengkap penguji siswa pengganti..."
+                    placeholder="Ketik nama lengkap penguji murid pengganti..."
                     className="w-full px-3 py-2 rounded-xl border border-indigo-400 bg-white font-semibold text-xs mt-1.5"
                   />
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Asal Sekolah Siswa:</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Asal Sekolah Murid:</label>
                 <input
                   type="text"
                   readOnly
@@ -1090,7 +1273,7 @@ export const GuruDashboard: React.FC<Props> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
-                    Rubrik Penilaian Kompetensi Santri Baru
+                    Rubrik Penilaian Kompetensi Murid Baru
                   </h3>
                   <p className="text-xs text-slate-500">
                     Siswa Sedang Diuji: <strong>{currentStudentSiswa?.nama || '-'}</strong> ({currentStudentSiswa?.id})
@@ -1103,7 +1286,7 @@ export const GuruDashboard: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Rubrik Penilaian Siswa */}
+              {/* Rubrik Penilaian Murid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 
                 {/* 1. Tahsin */}
@@ -1228,13 +1411,42 @@ export const GuruDashboard: React.FC<Props> = ({
                   />
                 </div>
 
+                {/* 5. Psikotes */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5 md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-slate-900 block">5. Psikotes &amp; Potensi Belajar</span>
+                      <span className="text-[11px] text-slate-500">Kematangan belajar, daya tangkap, adaptasi sosial &amp; profil psikologis</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <label className="font-semibold text-slate-600">Skor:</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        required
+                        value={nilaiPsikotes}
+                        onChange={(e) => setNilaiPsikotes(Number(e.target.value))}
+                        className="w-16 px-2 py-1 rounded-lg border border-slate-300 bg-white font-bold text-center text-emerald-800"
+                      />
+                    </div>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={catatanPsikotes}
+                    onChange={(e) => setCatatanPsikotes(e.target.value)}
+                    placeholder="Catatan psikotes: konsentrasi, kematangan emosi, stabilitas belajar, kepribadian..."
+                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs bg-white"
+                  />
+                </div>
+
               </div>
 
               {/* Rekomendasi Hasil Evaluasi Siswa */}
               <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <span className="font-bold text-slate-900 block text-xs">
-                    Rekomendasi Tim Penguji Siswa:
+                    Rekomendasi Tim Penguji Murid:
                   </span>
                   <div className="flex items-center gap-4 mt-2 text-xs">
                     <label className="flex items-center gap-1.5 font-bold text-emerald-800 cursor-pointer">
@@ -1282,7 +1494,7 @@ export const GuruDashboard: React.FC<Props> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
-                  Catatan Khusus Penguji Siswa:
+                  Catatan Khusus Penguji Murid:
                 </label>
                 <textarea
                   rows={2}
@@ -1291,6 +1503,68 @@ export const GuruDashboard: React.FC<Props> = ({
                   placeholder="Catatan rekomendasi kelas khusus tahfidz/sains, minat bakat, hal yang perlu pembinaan..."
                   className="w-full p-2.5 rounded-xl border border-slate-300 text-xs bg-white"
                 />
+              </div>
+
+              {/* Menu Input Tanggal Daftar Ulang (Tunggal di Bawah Form) */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-400 space-y-3 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-emerald-600 text-white shrink-0 shadow-xs">
+                      <Calendar className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-emerald-950 flex items-center gap-1.5 flex-wrap">
+                        <span>Tanggal Batas Daftar Ulang Murid (Tercetak di SKL)</span>
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-300">
+                          Integrasi SKL &amp; Kelulusan
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-emerald-800 leading-snug">
+                        Jadwal ini otomatis tersimpan ke data kelulusan murid dan tercetak resmi di dokumen Surat Keterangan Lulus (SKL) serta Portal Cek Kelulusan.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyTanggalToAllLulus(tanggalMaksimalDaftarUlang)}
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer self-start sm:self-auto"
+                    title="Terapkan jadwal daftar ulang ini untuk semua calon murid berstatus Diterima/Lulus"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                    <span>Terapkan ke Semua Murid Lulus</span>
+                  </button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={tanggalMaksimalDaftarUlang}
+                      onChange={(e) => setTanggalMaksimalDaftarUlang(e.target.value)}
+                      placeholder="Contoh: 20 - 25 Januari 2027 atau 30 Januari 2027"
+                      className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-emerald-400 bg-white font-bold text-xs text-emerald-950 focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                    />
+                    <Calendar className="w-4 h-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {['20 - 25 Januari 2027', '26 - 31 Januari 2027', '1 - 7 Februari 2027', '10 - 15 Februari 2027'].map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => setTanggalMaksimalDaftarUlang(chip)}
+                        className={`text-[10.5px] font-semibold px-2.5 py-1.5 rounded-lg border transition cursor-pointer ${
+                          tanggalMaksimalDaftarUlang === chip
+                            ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
+                            : 'bg-white hover:bg-emerald-100/60 text-slate-700 border-emerald-200'
+                        }`}
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Actions */}
@@ -1305,7 +1579,7 @@ export const GuruDashboard: React.FC<Props> = ({
                     className="px-6 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition disabled:opacity-50 cursor-pointer"
                   >
                     <Save className="w-4 h-4" />
-                    <span>{saving ? 'Menyimpan...' : 'Simpan Lembar Observasi Siswa'}</span>
+                    <span>{saving ? 'Menyimpan...' : 'Simpan Lembar Observasi Murid'}</span>
                   </button>
                   <button
                     type="button"
@@ -1313,7 +1587,45 @@ export const GuruDashboard: React.FC<Props> = ({
                       if (!currentStudentSiswa) return;
                       const obs = gasService.getObservasiSiswa(currentStudentSiswa.id);
                       if (obs) setPreviewSiswaModal(obs);
-                      else alert('Simpan observasi terlebih dahulu untuk melihat pratinjau.');
+                      else {
+                        const existingSiswa = gasService.getSiswaByNo(currentStudentSiswa.id);
+                        const existingInduk = gasService.getDataIndukList().find(d => d.noPendaftaran === currentStudentSiswa.id);
+                        const existingLulus = gasService.getStatusKelulusan(currentStudentSiswa.id);
+                        const resolvedNisn = (existingSiswa?.nisn && existingSiswa.nisn !== '-') 
+                          ? existingSiswa.nisn 
+                          : ((existingInduk?.nisn && existingInduk.nisn !== '-') 
+                            ? existingInduk.nisn 
+                            : (existingLulus?.nisn && existingLulus.nisn !== '-' ? existingLulus.nisn : '-'));
+                        const resolvedAsalSekolah = currentStudentSiswa.sekolah || existingSiswa?.asalSekolah || existingLulus?.asalSekolah || 'SD/MI Pendaftar';
+
+                        setPreviewSiswaModal({
+                          id: 'OBS-DRAFT',
+                          siswaId: currentStudentSiswa.id,
+                          noPendaftaran: currentStudentSiswa.id,
+                          nisn: resolvedNisn,
+                          asalSekolah: resolvedAsalSekolah,
+                          namaSiswa: currentStudentSiswa.nama,
+                          namaPenguji: activePengujiName,
+                          tanggalObservasi: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+                          nilaiTahsin,
+                          catatanTahsin,
+                          nilaiTahfidz,
+                          juzDiuji,
+                          catatanTahfidz,
+                          nilaiKarakterAdab,
+                          catatanKarakterAdab,
+                          nilaiAkademikDasar,
+                          catatanAkademikDasar,
+                          nilaiPsikotes,
+                          catatanPsikotes,
+                          totalSkor: skorTotalSiswa,
+                          rataRata: rataRataSiswa,
+                          rekomendasi: rekomendasiSiswa,
+                          catatanPenguji: catatanPengujiSiswa,
+                          tanggalMaksimalDaftarUlang: tanggalMaksimalDaftarUlang.trim() || '20 - 25 Januari 2027',
+                          createdAt: new Date().toISOString()
+                        });
+                      }
                     }}
                     className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
                   >
@@ -1327,6 +1639,17 @@ export const GuruDashboard: React.FC<Props> = ({
           </form>
 
         </div>
+      )}
+
+      {/* ===================================================================== */}
+      {/* TIM 3: DATA INDUK SEKOLAH (BUKU INDUK MURID RESMI TANPA JSON)          */}
+      {/* ===================================================================== */}
+      {activeTeam === 'data-induk' && (
+        <DataIndukSekolahTab
+          students={students}
+          currentUser={currentUser}
+          onRefreshStudentList={loadStudentList}
+        />
       )}
 
       {/* ===================================================================== */}

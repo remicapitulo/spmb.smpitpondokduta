@@ -70,15 +70,23 @@ export const HasilWawancaraPrintView: React.FC<Props> = ({ observasi, onClose })
               SMPIT PONDOK DUTA CIMANGGIS DEPOK
             </div>
             <p className="text-[10px] text-slate-500">
-              Terakreditasi "A" Unggul | NSS: 202026601007 | NPSN: 20228391
+              <a
+                href="https://ban-pdm.id/satuanpendidikan/20276180"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-emerald-800 font-bold hover:underline"
+                title="Buka sertifikat resmi akreditasi BAN-PDM"
+              >
+                Terakreditasi "A" (BAN-PDM)
+              </a> | NPSN: 20276180 | NSS: 202026601007
             </p>
             <p className="text-[10px] text-slate-500">
-              Jl. Duta Raya No. 45, Cimanggis, Kota Depok, Jawa Barat 16451 | Telp: (021) 871-2345
+              Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok 16451 | Telp: (021) 29378301 | Email: info@smpitpondokduta.sch.id
             </p>
           </div>
 
           <div className="text-center font-bold text-sm underline uppercase tracking-wide py-1">
-            LEMBAR OBSERVASI CALON SISWA & WAWANCARA ORANG TUA (OTM)
+            LEMBAR OBSERVASI CALON MURID & OBSERVASI ORANG TUA (OTM)
           </div>
 
           {/* Info Pendaftar */}
@@ -167,21 +175,10 @@ export const HasilWawancaraPrintView: React.FC<Props> = ({ observasi, onClose })
             </div>
           )}
 
-          {/* Tanda Tangan */}
-          <div className="grid grid-cols-2 text-center text-xs pt-4">
-            <div>
-              Mengetahui,<br />
-              <strong>Ketua Panitia SPMB</strong>
-              <div className="h-16" />
-              <u>(Ust. H. Ahmad Dahlan, S.Pd.I)</u><br />
-              NIP. 19850214 201001 1 002
-            </div>
-            <div>
-              Depok, {observasi.tanggalObservasi}<br />
-              <strong>Guru Pewawancara</strong>
-              <div className="h-16" />
-              <u>({observasi.namaPewawancara})</u><br />
-              Penguji SPMB SMPIT Pondok Duta
+          {/* Tanggal Surat Resmi (Kolom tanda tangan telah dihapus, disisakan tanggal surat) */}
+          <div className="pt-6 border-t border-slate-200">
+            <div className="text-right text-xs font-semibold text-slate-700">
+              Depok, {observasi.tanggalObservasi || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
             </div>
           </div>
 

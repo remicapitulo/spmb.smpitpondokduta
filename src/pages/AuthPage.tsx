@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { gasService } from '../services/gasService';
 import { UserAccount } from '../types';
 import { 
@@ -15,8 +15,7 @@ import {
   Mail, 
   User, 
   AlertCircle,
-  Sparkles,
-  Info
+  Sparkles
 } from 'lucide-react';
 
 interface AuthPageProps {
@@ -49,18 +48,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [loginKode, setLoginKode] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string>(() => gasService.getAppSettings().logoUrl);
 
-  // Demo accounts for quick testing
-  const existingUsers = gasService.getUsers();
-  const pewawancaraAccounts = gasService.getPewawancaraAccounts();
-  const adminAccounts = gasService.getAdminAccounts();
+  useEffect(() => {
+    const syncLogo = () => {
+      setLogoUrl(gasService.getAppSettings().logoUrl || '');
+    };
+    window.addEventListener('spmb_settings_updated', syncLogo);
+    window.addEventListener('storage', syncLogo);
+    return () => {
+      window.removeEventListener('spmb_settings_updated', syncLogo);
+      window.removeEventListener('storage', syncLogo);
+    };
+  }, []);
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     setRegError(null);
 
     if (!regForm.namaSiswa.trim()) {
-      setRegError('Nama Lengkap Siswa wajib diisi.');
+      setRegError('Nama Lengkap Murid wajib diisi.');
       return;
     }
     if (!regForm.namaOrangTua.trim()) {
@@ -95,26 +102,29 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
 
     const cleanKode = loginKode.trim();
     if (!cleanKode) {
-      setLoginError('Silakan masukkan Kode Calon Siswa, Kode Pewawancara, atau Kode Admin Anda.');
+      setLoginError('Silakan masukkan Kode Akses Anda.');
       return;
     }
 
     setIsLoggingIn(true);
-    setTimeout(() => {
-      const res = gasService.loginWithKode(cleanKode);
+    try {
+      const res = await gasService.loginWithKodeAsync(cleanKode);
       if (res.success && res.user) {
         onLoginSuccess(res.user);
       } else {
         setLoginError(res.message);
         setIsLoggingIn(false);
       }
-    }, 250);
+    } catch {
+      setLoginError('Gagal memeriksa kode akses di database.');
+      setIsLoggingIn(false);
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -133,14 +143,23 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     <div className="max-w-2xl mx-auto py-4 px-2 sm:px-0">
       {/* Brand Header */}
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 mb-3 ring-4 ring-emerald-50">
-          <GraduationCap className="w-8 h-8" />
-        </div>
+        {logoUrl ? (
+          <img
+            src={gasService.resolveImageUrl(logoUrl)}
+            alt="Logo SMPIT Pondok Duta"
+            referrerPolicy="no-referrer"
+            className="w-16 h-16 rounded-2xl object-contain bg-white p-1.5 shadow-lg border border-emerald-100 mx-auto mb-3"
+          />
+        ) : (
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 mb-3 ring-4 ring-emerald-50">
+            <GraduationCap className="w-8 h-8" />
+          </div>
+        )}
         <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
           Login Akses Portal SPMB
         </h1>
         <p className="text-sm sm:text-base text-slate-600 mt-1 max-w-md mx-auto">
-          SMPIT Pondok Duta - Sistem Penerimaan Murid Baru Terpadu
+          SMPIT Pondok Duta - Sistem Penerimaan Murid Baru
         </p>
       </div>
 
@@ -195,7 +214,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           {/* Account Summary info */}
           <div className="bg-slate-50 rounded-2xl p-4 text-left border border-slate-200/80 mb-6 space-y-2 text-xs sm:text-sm">
             <div className="flex justify-between py-1 border-b border-slate-200">
-              <span className="text-slate-500">Nama Siswa:</span>
+              <span className="text-slate-500">Nama Murid:</span>
               <span className="font-bold text-slate-800">{registeredUser.namaSiswa}</span>
             </div>
             <div className="flex justify-between py-1 border-b border-slate-200">
@@ -222,7 +241,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               onClick={handleProceedToDashboard}
               className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm sm:text-base shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.01]"
             >
-              <span>Masuk ke Portal Siswa Sekarang</span>
+              <span>Masuk ke Portal Murid Sekarang</span>
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>
@@ -260,7 +279,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               }`}
             >
               <UserPlus className="w-4 h-4 text-emerald-600" />
-              <span>Pendaftaran Akun Siswa</span>
+              <span>Pendaftaran Akun Murid</span>
             </button>
           </div>
 
@@ -271,11 +290,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-sm font-bold text-slate-800">
-                      Kode Calon Siswa / Pewawancara / Admin
+                      Kode Pendaftaran / Kode Akses
                     </label>
-                    <span className="text-xs text-slate-500 font-medium">
-                      PD-2026-... / PW-2026-... / ADM-2026-...
-                    </span>
                   </div>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -288,31 +304,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         setLoginKode(e.target.value);
                         setLoginError(null);
                       }}
-                      placeholder="Masukkan Kode Siswa, Kode Pewawancara, atau Kode Admin"
+                      placeholder="Masukkan Kode Akses Anda"
                       className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-300 rounded-2xl text-slate-900 font-mono font-bold tracking-wider placeholder:font-sans placeholder:font-normal placeholder:tracking-normal focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all uppercase"
                       required
                     />
-                  </div>
-                  <div className="text-xs text-slate-600 mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                    <div className="font-bold text-slate-800 mb-1">3 Role Akses Akun Sistem:</div>
-                    <div className="flex items-start gap-1.5">
-                      <Info className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                      <span>
-                        <strong>1. Calon Siswa:</strong> Hanya membuka <strong>Portal Siswa</strong>.
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-1.5">
-                      <Info className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
-                      <span>
-                        <strong>2. Pewawancara:</strong> Hanya membuka <strong>Menu Pewawancara</strong>.
-                      </span>
-                    </div>
-                    <div className="flex items-start gap-1.5">
-                      <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <span>
-                        <strong>3. Admin:</strong> Akses penuh seluruh portal & <strong>GAS API (Hanya Admin yang boleh akses)</strong>.
-                      </span>
-                    </div>
                   </div>
                 </div>
 
@@ -329,129 +324,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 <button
                   type="submit"
                   disabled={isLoggingIn}
-                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-base shadow-lg shadow-emerald-600/25 transition-all hover:scale-[1.005] disabled:opacity-60"
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-base shadow-lg shadow-emerald-600/25 transition-all hover:scale-[1.005] disabled:opacity-60 cursor-pointer"
                 >
                   <LogIn className="w-5 h-5" />
                   <span>{isLoggingIn ? 'Memverifikasi Kode...' : 'Masuk ke Portal'}</span>
                 </button>
 
-                {/* Quick Account Test Selector: 1. Calon Siswa, 2. Pewawancara, 3. Admin */}
-                <div className="mt-6 pt-5 border-t border-slate-100 space-y-4">
-                  {/* 1. Role Calon Siswa */}
-                  {existingUsers && existingUsers.length > 0 && (
-                    <div>
-                      <div className="text-xs font-bold text-emerald-800 mb-2 flex items-center justify-between">
-                        <span>1. Role Calon Siswa (Membuka Portal Siswa):</span>
-                        <span className="text-[11px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold">
-                          Calon Siswa
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {existingUsers.slice(0, 4).map((u) => (
-                          <button
-                            key={u.id}
-                            type="button"
-                            onClick={() => {
-                              setLoginKode(u.kodePendaftaran);
-                              setLoginError(null);
-                            }}
-                            className="p-2.5 text-left rounded-xl bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-200 hover:border-emerald-400 transition-all text-xs flex flex-col justify-between group"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono font-bold text-emerald-900 group-hover:text-emerald-700">
-                                {u.kodePendaftaran}
-                              </span>
-                              <span className="text-[10px] text-emerald-600 font-semibold">
-                                Pilih Kode
-                              </span>
-                            </div>
-                            <span className="text-slate-600 truncate mt-0.5 font-medium">
-                              {u.namaSiswa}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 2. Role Pewawancara */}
-                  {pewawancaraAccounts && pewawancaraAccounts.length > 0 && (
-                    <div>
-                      <div className="text-xs font-bold text-purple-800 mb-2 flex items-center justify-between">
-                        <span>2. Role Pewawancara (Membuka Menu Pewawancara):</span>
-                        <span className="text-[11px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-bold">
-                          Pewawancara
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {pewawancaraAccounts.map((pw) => (
-                          <button
-                            key={pw.id}
-                            type="button"
-                            onClick={() => {
-                              setLoginKode(pw.kodePendaftaran);
-                              setLoginError(null);
-                            }}
-                            className="p-2.5 text-left rounded-xl bg-purple-50/50 hover:bg-purple-50 border border-purple-200 hover:border-purple-400 transition-all text-xs flex flex-col justify-between group"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono font-bold text-purple-900 group-hover:text-purple-700">
-                                {pw.kodePendaftaran}
-                              </span>
-                              <span className="text-[10px] text-purple-600 font-semibold">
-                                Pilih Kode
-                              </span>
-                            </div>
-                            <span className="text-slate-600 truncate mt-0.5 font-medium">
-                              {pw.namaSiswa}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 3. Role Admin */}
-                  {adminAccounts && adminAccounts.length > 0 && (
-                    <div>
-                      <div className="text-xs font-bold text-amber-800 mb-2 flex items-center justify-between">
-                        <span>3. Role Admin (Akses Penuh & GAS API):</span>
-                        <span className="text-[11px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
-                          Admin
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {adminAccounts.map((adm) => (
-                          <button
-                            key={adm.id}
-                            type="button"
-                            onClick={() => {
-                              setLoginKode(adm.kodePendaftaran);
-                              setLoginError(null);
-                            }}
-                            className="p-2.5 text-left rounded-xl bg-amber-50/60 hover:bg-amber-50 border border-amber-200 hover:border-amber-400 transition-all text-xs flex flex-col justify-between group"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono font-bold text-amber-950 group-hover:text-amber-700">
-                                {adm.kodePendaftaran}
-                              </span>
-                              <span className="text-[10px] text-amber-700 font-semibold">
-                                Pilih Kode
-                              </span>
-                            </div>
-                            <span className="text-slate-600 truncate mt-0.5 font-medium">
-                              {adm.namaSiswa}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
                 <div className="text-center pt-2">
                   <p className="text-xs text-slate-500">
-                    Calon siswa baru belum punya kode pendaftaran?{' '}
+                    Calon murid baru belum punya kode pendaftaran?{' '}
                     <button
                       type="button"
                       onClick={() => {
@@ -477,10 +358,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   </div>
                 </div>
 
-                {/* 1. Nama Lengkap Siswa */}
+                {/* 1. Nama Lengkap Murid */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Nama Lengkap Siswa <span className="text-rose-500">*</span>
+                    Nama Lengkap Murid <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -570,7 +451,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       type="email"
                       value={regForm.emailOrangTua}
                       onChange={(e) => setRegForm({ ...regForm, emailOrangTua: e.target.value })}
-                      placeholder="Contoh: orangtua.siswa@gmail.com"
+                      placeholder="Contoh: orangtua.murid@gmail.com"
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                       required
                     />

@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { gasService } from '../services/gasService';
-import { StatusKelulusanInfo } from '../types';
+import { StatusKelulusanInfo, getAcademicYear } from '../types';
 import confetti from 'canvas-confetti';
+import QRCode from 'qrcode';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { patchGetComputedStyle, sanitizeDocumentForCanvas } from '../utils/colorSanitizer';
 import { 
   Search, 
   CheckCircle2, 
   AlertCircle, 
   Clock, 
   FileText, 
-  Printer, 
+  Download, 
   Sparkles, 
   XCircle, 
   School, 
@@ -16,7 +20,10 @@ import {
   Calendar,
   Award,
   ChevronRight,
-  X
+  X,
+  ShieldCheck,
+  QrCode as QrCodeIcon,
+  Loader2
 } from 'lucide-react';
 
 interface Props {
@@ -29,14 +36,30 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
   const [result, setResult] = useState<StatusKelulusanInfo | null>(null);
   const [searched, setSearched] = useState(false);
   const [showSklModal, setShowSklModal] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+  const [logoBase64, setLogoBase64] = useState<string>('');
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const sklDocRef = useRef<HTMLDivElement | null>(null);
+  const tahunPelajaran = getAcademicYear();
 
   const handleSearch = async (termToSearch?: string) => {
-    const query = termToSearch || keyword;
-    if (!query.trim()) return;
+    const query = (termToSearch !== undefined ? termToSearch : keyword).trim();
+    if (!query) return;
 
     setIsSearching(true);
     setSearched(true);
     const data = await gasService.checkStatusKelulusan(query);
+    if (data) {
+      const st = gasService.getSiswaByNo(data.noPendaftaran);
+      const induk = gasService.getDataIndukList().find(d => d.noPendaftaran === data.noPendaftaran);
+      const obs = gasService.getObservasiSiswa(data.noPendaftaran);
+      if (!data.nisn || data.nisn === '-' || data.nisn.trim() === '') {
+        data.nisn = st?.nisn || induk?.nisn || '-';
+      }
+      if (data.status === 'LULUS' && (!data.jadwalDaftarUlang || data.jadwalDaftarUlang === '-' || data.jadwalDaftarUlang.trim() === '')) {
+        data.jadwalDaftarUlang = obs?.tanggalMaksimalDaftarUlang || '20 - 25 Januari 2027';
+      }
+    }
     setIsSearching(false);
     setResult(data);
 
@@ -53,13 +76,163 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
     }
   };
 
+  // Auto-search jika ada parameter ?no= atau ?nisn= di URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const no = params.get('no') || params.get('noPendaftaran');
+      const nisn = params.get('nisn');
+      const q = no || nisn;
+      if (q) {
+        setKeyword(q);
+        handleSearch(q);
+      }
+    }
+  }, []);
+
+  // Pastikan NISN selalu tampil dan tidak kosong
+  const effectiveNisn = useMemo(() => {
+    if (!result) return '-';
+    if (result.nisn && result.nisn !== '-' && result.nisn.trim()) return result.nisn.trim();
+    if (result.noPendaftaran) {
+      const st = gasService.getSiswaByNo(result.noPendaftaran);
+      if (st?.nisn && st.nisn !== '-' && st.nisn.trim()) return st.nisn.trim();
+      const induk = gasService.getDataIndukList().find(d => d.noPendaftaran === result.noPendaftaran);
+      if (induk?.nisn && induk.nisn !== '-' && induk.nisn.trim()) return induk.nisn.trim();
+      const stKel = gasService.getStatusKelulusan(result.noPendaftaran);
+      if (stKel?.nisn && stKel.nisn !== '-' && stKel.nisn.trim()) return stKel.nisn.trim();
+    }
+    return '-';
+  }, [result]);
+
+  // Pastikan Jadwal Daftar Ulang selalu tampil dan tidak kosong di SKL & halaman pengumuman
+  const effectiveJadwalDaftarUlang = useMemo(() => {
+    if (!result) return '20 - 25 Januari 2027';
+    if (result.jadwalDaftarUlang && result.jadwalDaftarUlang !== '-' && result.jadwalDaftarUlang.trim()) {
+      return result.jadwalDaftarUlang.trim();
+    }
+    if (result.noPendaftaran) {
+      const obs = gasService.getObservasiSiswa(result.noPendaftaran);
+      if (obs?.tanggalMaksimalDaftarUlang && obs.tanggalMaksimalDaftarUlang !== '-' && obs.tanggalMaksimalDaftarUlang.trim()) {
+        return obs.tanggalMaksimalDaftarUlang.trim();
+      }
+      const stKel = gasService.getStatusKelulusan(result.noPendaftaran);
+      if (stKel?.jadwalDaftarUlang && stKel.jadwalDaftarUlang !== '-' && stKel.jadwalDaftarUlang.trim()) {
+        return stKel.jadwalDaftarUlang.trim();
+      }
+    }
+    return '20 - 25 Januari 2027';
+  }, [result]);
+
+  // Preload logo sekolah untuk render HTML2Canvas & cetak dokumen
+  useEffect(() => {
+    const rawLogo = gasService.getAppSettings().logoUrl || '/logo-smpit-pondok-duta.png';
+    const resolvedUrl = gasService.resolveImageUrl(rawLogo) || '/logo-smpit-pondok-duta.png';
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 200;
+        canvas.height = img.naturalHeight || 200;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          setLogoBase64(canvas.toDataURL('image/png'));
+        } else {
+          setLogoBase64(resolvedUrl);
+        }
+      } catch {
+        setLogoBase64(resolvedUrl);
+      }
+    };
+    img.onerror = () => setLogoBase64('/logo-smpit-pondok-duta.png');
+    img.src = resolvedUrl;
+  }, []);
+
+  // Generate QR Code Verifikasi Resmi sebagai Pengganti Tanda Tangan Basah
+  useEffect(() => {
+    if (result && result.noPendaftaran) {
+      const hostOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+      const verificationUrl = `${hostOrigin}/?tab=cek-kelulusan&no=${encodeURIComponent(result.noPendaftaran)}&status=${encodeURIComponent(result.status)}`;
+
+      QRCode.toDataURL(verificationUrl, {
+        width: 360,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        },
+        errorCorrectionLevel: 'M'
+      })
+        .then((url) => setQrCodeUrl(url))
+        .catch((err) => console.error('Gagal generate QR Code:', err));
+    }
+  }, [result]);
+
   const handleChipClick = (code: string) => {
     setKeyword(code);
     handleSearch(code);
   };
 
-  const handlePrintSkl = () => {
-    window.print();
+  // Handler Unduh PDF Resmi Surat Keterangan Lulus (SKL)
+  const handleDownloadPdf = async () => {
+    if (isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+
+    const restoreComputedStyle = patchGetComputedStyle(window);
+
+    try {
+      const docElement = sklDocRef.current;
+      if (!docElement) {
+        window.print();
+        return;
+      }
+
+      const canvas = await html2canvas(docElement, {
+        scale: 2.2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        logging: false,
+        onclone: (clonedDoc) => {
+          sanitizeDocumentForCanvas(clonedDoc);
+        }
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 14;
+      const printableWidth = pageWidth - margin * 2;
+      const imgHeight = (canvas.height * printableWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', margin, 14, printableWidth, imgHeight);
+
+      // Keterangan footer PDF
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(
+        `Surat Keterangan Lulus Resmi SPMB SMPIT Pondok Duta · TP ${tahunPelajaran} · Sah terverifikasi via QR Code.`,
+        margin,
+        14 + imgHeight + 7
+      );
+
+      const safeName = (result?.namaLengkap || 'Calon_Murid').replace(/\s+/g, '_');
+      pdf.save(`SKL_SPMB_SMPIT_Pondok_Duta_${safeName}_${result?.noPendaftaran || ''}.pdf`);
+    } catch (err) {
+      console.warn('Gagal render canvas PDF, dialihkan ke print dialog:', err);
+      window.print();
+    } finally {
+      restoreComputedStyle();
+      setIsDownloadingPdf(false);
+    }
   };
 
   return (
@@ -71,10 +244,10 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
           Pengumuman Hasil Seleksi SPMB
         </span>
         <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
-          Cek Status Kelulusan Calon Siswa
+          Cek Status Kelulusan Calon Murid
         </h1>
         <p className="text-xs sm:text-sm text-emerald-100 max-w-xl leading-relaxed">
-          Masukkan Nomor Pendaftaran (contoh: <code>PD-2026-001</code>) atau NISN siswa untuk melihat hasil evaluasi observasi & wawancara.
+          Masukkan Nomor Pendaftaran atau NISN murid untuk melihat hasil evaluasi observasi &amp; wawancara.
         </p>
       </div>
 
@@ -92,7 +265,7 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
               type="text"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="Ketik No. Pendaftaran (PD-2026-...) atau NISN..."
+              placeholder="Ketik Nomor Pendaftaran atau NISN Murid..."
               className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold text-xs sm:text-sm text-slate-800 uppercase"
             />
             <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
@@ -102,35 +275,9 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
             disabled={isSearching || !keyword.trim()}
             className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold text-xs sm:text-sm shadow-md transition disabled:opacity-50 shrink-0"
           >
-            {isSearching ? 'Memeriksa...' : 'Cari Data'}
+            {isSearching ? 'Memeriksa Database...' : 'Cari Data'}
           </button>
         </form>
-
-        {/* Quick Test Chips */}
-        <div className="flex flex-wrap items-center gap-2 pt-2 text-xs text-slate-500">
-          <span className="font-semibold text-[11px]">Contoh Data Uji Cepat:</span>
-          <button
-            type="button"
-            onClick={() => handleChipClick('PD-2026-001')}
-            className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 hover:bg-emerald-100 font-mono text-[11px] font-semibold transition"
-          >
-            PD-2026-001 (Lulus)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleChipClick('PD-2026-002')}
-            className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-mono text-[11px] font-semibold transition"
-          >
-            PD-2026-002 (Proses)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleChipClick('0112345678')}
-            className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-mono text-[11px] font-semibold transition"
-          >
-            0112345678 (NISN)
-          </button>
-        </div>
       </div>
 
       {/* Result Card */}
@@ -206,23 +353,27 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
                   <div className="font-extrabold font-mono text-slate-800">{result.noPendaftaran}</div>
                 </div>
                 <div className="p-3.5 rounded-xl bg-white/80 border border-slate-200/60 space-y-1">
-                  <div className="text-[11px] text-slate-400 font-medium">Nama Lengkap Siswa</div>
+                  <div className="text-[11px] text-slate-400 font-medium">Nama Lengkap Murid</div>
                   <div className="font-bold text-slate-800 text-sm">{result.namaLengkap}</div>
                 </div>
                 <div className="p-3.5 rounded-xl bg-white/80 border border-slate-200/60 space-y-1">
                   <div className="text-[11px] text-slate-400 font-medium">NISN / Asal Sekolah</div>
-                  <div className="font-medium text-slate-800">{result.nisn} &bull; {result.asalSekolah}</div>
+                  <div className="font-medium text-slate-800">
+                    {effectiveNisn} &bull; {result.asalSekolah}
+                  </div>
                 </div>
                 <div className="p-3.5 rounded-xl bg-white/80 border border-slate-200/60 space-y-1">
                   <div className="text-[11px] text-slate-400 font-medium">Jadwal Daftar Ulang</div>
-                  <div className="font-bold text-emerald-800">{result.jadwalDaftarUlang || '-'}</div>
+                  <div className="font-bold text-emerald-800">
+                    {effectiveJadwalDaftarUlang}
+                  </div>
                 </div>
               </div>
 
               {/* Message Box */}
               <div className="p-4 rounded-2xl bg-white border border-slate-200/80 text-xs text-slate-700 leading-relaxed space-y-1">
                 <strong className="text-slate-900 block font-bold">Keterangan Panitia:</strong>
-                <p>{result.pesanPengumuman}</p>
+                <p>{(result.pesanPengumuman || '').replace(/2026\/2027/g, '2027/2028')}</p>
               </div>
 
               {/* Action Buttons */}
@@ -261,7 +412,7 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
                   onClick={onGoToRegister}
                   className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition inline-flex items-center gap-1.5"
                 >
-                  <span>Daftar Calon Siswa Baru</span>
+                  <span>Daftar Calon Murid Baru</span>
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -275,7 +426,7 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
           <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[92vh] overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
             
-            {/* Modal Controls Header (Sticky top - No Print) */}
+            {/* Modal Controls Header (Sticky top - No Print, Clean title & Close button only) */}
             <div className="no-print bg-white/95 backdrop-blur-md px-6 py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0 rounded-t-3xl z-10">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-emerald-700" />
@@ -283,45 +434,52 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
                   Pratinjau Surat Keterangan Lulus (SKL) Resmi
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePrintSkl}
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Cetak / Simpan PDF</span>
-                </button>
-                <button
-                  onClick={() => setShowSklModal(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-                  title="Tutup"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              <button
+                onClick={() => setShowSklModal(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+                title="Tutup"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
             {/* Official SKL Document Format (Scrollable Body) */}
-            <div className="overflow-y-auto p-6 sm:p-10 space-y-6 text-slate-900 text-xs sm:text-sm print-container">
-              {/* Kop Surat */}
-              <div className="border-b-4 border-double border-emerald-900 pb-4 text-center space-y-1">
-                <div className="text-xs sm:text-sm font-bold tracking-widest text-emerald-800 uppercase">
-                  YAYASAN PONDOK DUTA
+            <div 
+              ref={sklDocRef}
+              id="printable-skl-document"
+              className="overflow-y-auto p-6 sm:p-10 space-y-5 text-slate-900 text-xs sm:text-sm print-container bg-white"
+            >
+              {/* Kop Surat Resmi dengan Logo Sekolah */}
+              <div className="border-b-4 border-double border-emerald-900 pb-3 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-4 text-center sm:text-left">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 p-1 bg-white border border-emerald-200 rounded-2xl flex items-center justify-center shadow-2xs">
+                  <img
+                    src={logoBase64 || '/logo-smpit-pondok-duta.png'}
+                    alt="Logo Resmi SMPIT Pondok Duta"
+                    className="w-full h-full object-contain"
+                  />
                 </div>
-                <div className="text-lg sm:text-xl font-extrabold text-slate-900 uppercase tracking-wide">
-                  SMPIT PONDOK DUTA CIMANGGIS DEPOK
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="text-[11px] sm:text-xs font-bold tracking-widest text-emerald-800 uppercase">
+                    YAYASAN PERGURUAN ISLAM PONDOK DUTA
+                  </div>
+                  <div className="text-base sm:text-xl font-black text-slate-900 uppercase tracking-wide">
+                    SMPIT PONDOK DUTA CIMANGGIS DEPOK
+                  </div>
+                  <p className="text-[10px] text-slate-600 font-medium">
+                    <span className="font-bold text-emerald-800">Terakreditasi "A" (BAN-PDM)</span> | NPSN: 20276180 | NSS: 202026601007
+                  </p>
+                  <p className="text-[9.5px] text-slate-500 leading-snug">
+                    Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451
+                  </p>
+                  <p className="text-[9px] text-emerald-900 font-semibold">
+                    Telp: (021) 29378301 · Website: smpitpondokduta.sch.id · Email: info@smpitpondokduta.sch.id
+                  </p>
                 </div>
-                <p className="text-[10px] text-slate-500">
-                  Terakreditasi "A" Unggul | NSS: 202026601007 | NPSN: 20228391
-                </p>
-                <p className="text-[10px] text-slate-500">
-                  Jl. Duta Raya No. 45, Cimanggis, Kota Depok, Jawa Barat 16451 | Telp: (021) 871-2345
-                </p>
               </div>
 
               {/* Judul Surat */}
-              <div className="text-center space-y-1 py-2">
-                <div className="font-extrabold text-sm sm:text-base underline uppercase text-slate-900">
+              <div className="text-center space-y-1 py-1">
+                <div className="font-extrabold text-sm sm:text-base underline uppercase text-slate-900 tracking-wide">
                   SURAT KETERANGAN LULUS SELEKSI SPMB
                 </div>
                 <div className="text-[11px] text-slate-500 font-mono">
@@ -340,12 +498,12 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
                   <span className="col-span-2 font-bold font-mono text-slate-900">: {result.noPendaftaran}</span>
                 </div>
                 <div className="grid grid-cols-3">
-                  <span className="text-slate-500">Nama Calon Siswa</span>
+                  <span className="text-slate-500">Nama Calon Murid</span>
                   <span className="col-span-2 font-bold text-slate-900">: {result.namaLengkap}</span>
                 </div>
                 <div className="grid grid-cols-3">
                   <span className="text-slate-500">NISN</span>
-                  <span className="col-span-2 text-slate-900">: {result.nisn}</span>
+                  <span className="col-span-2 font-mono text-slate-900">: {effectiveNisn}</span>
                 </div>
                 <div className="grid grid-cols-3">
                   <span className="text-slate-500">Asal SD/MI</span>
@@ -355,66 +513,100 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
                   <span className="text-slate-500">Jalur Penerimaan</span>
                   <span className="col-span-2 text-slate-900">: {result.jalur}</span>
                 </div>
+                <div className="grid grid-cols-3">
+                  <span className="text-slate-500 font-semibold text-emerald-950">Tanggal Daftar Ulang</span>
+                  <span className="col-span-2 font-bold text-emerald-800">: {effectiveJadwalDaftarUlang}</span>
+                </div>
               </div>
 
               <p className="leading-relaxed">
-                Telah mengikuti seluruh rangkaian tahapan observasi baca Al-Qur'an (Tahsin), hafalan (Tahfidz), potensi akademik, serta wawancara orang tua murid, dan dinyatakan:
+                Telah mengikuti seluruh rangkaian tahapan observasi baca Al-Qur'an (Tahsin), hafalan (Tahfidz), potensi akademik, psikotes, serta wawancara orang tua murid, dan dinyatakan:
               </p>
 
               {/* Status Box */}
-              <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-600 text-center">
+              <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-600 text-center space-y-1">
                 <span className="text-xs font-bold text-emerald-800 uppercase tracking-widest block">Keputusan Panitia:</span>
-                <span className="text-xl sm:text-2xl font-black text-emerald-900 tracking-wider">
-                  DITERIMA SEBAGAI SANTRI / SISWA BARU
+                <span className="text-xl sm:text-2xl font-black text-emerald-900 tracking-wider block">
+                  DITERIMA SEBAGAI MURID BARU
                 </span>
-                <span className="block text-xs text-emerald-700 font-semibold mt-1">
-                  SMPIT PONDOK DUTA TAHUN PELAJARAN 2026/2027
+                <span className="block text-xs text-emerald-700 font-semibold">
+                  SMPIT PONDOK DUTA TAHUN PELAJARAN {tahunPelajaran}
                 </span>
+                <div className="pt-2 border-t border-emerald-200 mt-2 text-xs font-bold text-emerald-950">
+                  Batas Tanggal Daftar Ulang: <span className="underline decoration-emerald-500 decoration-2">{effectiveJadwalDaftarUlang}</span>
+                </div>
               </div>
 
               <p className="leading-relaxed text-[11px] text-slate-600">
-                Demikian surat keterangan ini diterbitkan untuk dipergunakan dalam proses daftar ulang. Orang tua/wali calon siswa diharapkan melakukan daftar ulang selambat-lambatnya tanggal <strong>{result.jadwalDaftarUlang || '25 Januari 2026'}</strong>.
+                Demikian surat keterangan ini diterbitkan untuk dipergunakan dalam proses daftar ulang. Orang tua/wali calon murid diharapkan melakukan daftar ulang selambat-lambatnya tanggal <strong className="text-slate-900 font-extrabold">{effectiveJadwalDaftarUlang}</strong>.
               </p>
 
-              {/* Tanda Tangan */}
-              <div className="pt-6 grid grid-cols-2 text-center text-xs">
-                <div>
-                  Mengetahui,<br />
-                  <strong>Kepala SMPIT Pondok Duta</strong>
-                  <div className="h-16" />
-                  <u>(Drs. H. Mulyadi, M.Pd.)</u><br />
-                  NIP. 19740510 200212 1 003
+              {/* Pengesahan Dokumen Resmi via QR Code (Tanda tangan manual dihapus, digantikan QR Code verifikasi resmi) */}
+              <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  {qrCodeUrl ? (
+                    <div className="p-1 bg-white rounded-xl border border-slate-300 shadow-2xs shrink-0">
+                      <img src={qrCodeUrl} alt="QR Code Verifikasi Resmi" className="w-20 h-20 sm:w-22 sm:h-22 object-contain" />
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center shrink-0">
+                      <QrCodeIcon className="w-9 h-9 text-slate-700" />
+                    </div>
+                  )}
+                  <div className="text-left space-y-0.5">
+                    <span className="text-[11px] font-bold text-slate-900 block">
+                      Verifikasi Pengesahan Dokumen
+                    </span>
+                    <p className="text-[10px] text-slate-600 leading-snug max-w-[260px]">
+                      Pindai QR Code untuk memvalidasi keaslian dokumen kelulusan resmi SPMB SMPIT Pondok Duta.
+                    </p>
+                    <div className="text-[9.5px] font-mono text-emerald-800 font-bold">
+                      Ref: SPMB-PD/{result.noPendaftaran}/{new Date().getFullYear()}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  Depok, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}<br />
-                  <strong>Ketua Panitia SPMB</strong>
-                  <div className="h-16" />
-                  <u>(Ust. H. Ahmad Dahlan, S.Pd.I)</u><br />
-                  NIP. 19850214 201001 1 002
+
+                <div className="text-center sm:text-right shrink-0">
+                  <div className="text-xs font-bold text-slate-800">
+                    Depok, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                  <div className="text-[11px] text-slate-600 font-medium mt-0.5">
+                    Panitia SPMB SMPIT Pondok Duta
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Modal Footer Controls (Sticky bottom - No Print) */}
-            <div className="no-print bg-slate-50/95 backdrop-blur-md px-6 py-3 border-t border-slate-100 flex items-center justify-between shrink-0 rounded-b-3xl text-xs">
+            {/* Modal Footer Controls (Sticky bottom - No Print, Cukup 1 tombol Unduh PDF di bawah saja) */}
+            <div className="no-print bg-slate-50/95 backdrop-blur-md px-6 py-3.5 border-t border-slate-100 flex items-center justify-between shrink-0 rounded-b-3xl text-xs">
               <span className="text-[11px] text-slate-500 hidden sm:inline">
-                Gunakan menu Cetak atau simpan sebagai file PDF untuk keperluan daftar ulang.
+                Dokumen resmi Surat Keterangan Lulus (SKL) siap diunduh dalam format PDF.
               </span>
-              <div className="flex items-center gap-2 ml-auto">
+              <div className="flex items-center gap-2.5 ml-auto">
                 <button
                   type="button"
                   onClick={() => setShowSklModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition cursor-pointer"
                 >
                   Tutup
                 </button>
                 <button
                   type="button"
-                  onClick={handlePrintSkl}
-                  className="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  onClick={handleDownloadPdf}
+                  disabled={isDownloadingPdf}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold transition flex items-center gap-2 cursor-pointer shadow-md active:scale-95"
                 >
-                  <Printer className="w-4 h-4" />
-                  <span>Cetak Dokumen</span>
+                  {isDownloadingPdf ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Menyiapkan PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>Unduh PDF</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>

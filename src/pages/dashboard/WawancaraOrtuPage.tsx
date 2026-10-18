@@ -26,12 +26,16 @@ interface Props {
 
 export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPanduan }) => {
   const [students, setStudents] = useState<any[]>([]);
-  const [selectedStudentId, setSelectedStudentId] = useState<string>('PD-2026-001');
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Pewawancara selection from list
-  const [namaPewawancaraOrtu, setNamaPewawancaraOrtu] = useState<string>(DAFTAR_PEWAWANCARA_LIST[0]);
+  const [dbGuruNames, setDbGuruNames] = useState<string[]>(() =>
+    gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean)
+  );
+  const [namaPewawancaraOrtu, setNamaPewawancaraOrtu] = useState<string>(
+    gasService.getPewawancaraAccounts()[0]?.namaSiswa || ''
+  );
   const [customPewawancara, setCustomPewawancara] = useState<string>('');
   const [isCustomPewawancara, setIsCustomPewawancara] = useState<boolean>(false);
 
@@ -48,9 +52,14 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
   const loadStudentList = async (targetId?: string) => {
     setLoading(true);
     const list = await gasService.getStudentList();
+    const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
+    setDbGuruNames(gurus);
+    if (!namaPewawancaraOrtu && gurus.length > 0) {
+      setNamaPewawancaraOrtu(gurus[0]);
+    }
     setStudents(list);
 
-    const activeId = targetId || selectedStudentId || (list[0] ? list[0].id : 'PD-2026-001');
+    const activeId = targetId || selectedStudentId || (list[0] ? list[0].id : '');
     setSelectedStudentId(activeId);
 
     // Check if student already has saved interview
@@ -58,7 +67,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
     if (existing) {
       setSavedOrtuResult(existing);
       if (existing.namaPewawancara) {
-        if (DAFTAR_PEWAWANCARA_LIST.includes(existing.namaPewawancara)) {
+        if (gurus.includes(existing.namaPewawancara)) {
           setNamaPewawancaraOrtu(existing.namaPewawancara);
           setIsCustomPewawancara(false);
         } else {
@@ -208,7 +217,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
       {/* Main Workspace Card */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 sm:p-8 space-y-6">
         
-        {/* Step 1 & 2: Identitas Pewawancara & Pencarian Siswa */}
+        {/* Step 1 & 2: Identitas Pewawancara & Pencarian Murid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-5 rounded-2xl bg-slate-50 border border-slate-200/80">
           
           {/* Pewawancara Dropdown List */}
@@ -230,7 +239,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
                 }}
                 className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 shadow-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               >
-                {DAFTAR_PEWAWANCARA_LIST.map((name) => (
+                {dbGuruNames.map((name) => (
                   <option key={name} value={name}>
                     {name}
                   </option>
@@ -274,7 +283,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
               </div>
               <div>
                 <h4 className="font-bold text-xs sm:text-sm text-amber-950">
-                  Calon Siswa Ini Sudah Pernah Diwawancarai
+                  Calon Murid Ini Sudah Pernah Diwawancarai
                 </h4>
                 <p className="text-xs text-amber-800">
                   Tanggal: {savedOrtuResult.tanggalWawancara} | Pewawancara: {savedOrtuResult.namaPewawancara}
@@ -331,59 +340,157 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {QUESTIONS_CONFIG.map((q, index) => {
-                      if (q.type === 'header') {
-                        return (
-                          <tr key={q.id} className="bg-slate-800 text-white font-bold">
-                            <td colSpan={3} className="py-2.5 px-4 text-xs tracking-wider uppercase">
-                              {q.text}
-                            </td>
-                          </tr>
+                    {(() => {
+                      let curHeader = '';
+                      return QUESTIONS_CONFIG.map((q, index) => {
+                        if (q.type === 'header') {
+                          curHeader = q.text;
+                          return (
+                            <tr key={q.id} className="bg-slate-800 text-white font-bold">
+                              <td colSpan={3} className="py-2.5 px-4 text-xs tracking-wider uppercase">
+                                {q.text}
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        const refVal = getRefValue(q.refId);
+                        const isCatatanKhusus = q.id === 'catatan' || q.text.includes('CATATAN KHUSUS');
+
+                        const isSectionEF = !isCatatanKhusus && (
+                          curHeader.includes('E. SIMULASI PERATURAN') || 
+                          curHeader.includes('F. INFORMASI LAINNYA') ||
+                          ['i2', 'i3', 'i4', 'i5', 'i9', 'i10', 'i6', 'i7', 'i8'].includes(q.id)
                         );
-                      }
+                        const isSectionG = !isCatatanKhusus && (
+                          curHeader.includes('G. PERNYATAAN ORANG TUA') ||
+                          ['q34', 'q35'].includes(q.id)
+                        );
 
-                      const refVal = getRefValue(q.refId);
-                      const isCatatanKhusus = q.text.includes('CATATAN KHUSUS');
+                        // E & F: Kolom isian jawaban dipindahkan ke bawah pertanyaan tanpa kolom kosong
+                        if (isSectionEF) {
+                          return (
+                            <tr key={q.id} className="hover:bg-slate-50/80">
+                              <td colSpan={3} className="p-3.5 align-top space-y-2 border-b border-slate-200">
+                                <div className="font-semibold text-slate-900 leading-relaxed whitespace-pre-line text-xs">
+                                  {q.text}
+                                </div>
+                                <div className="space-y-1.5">
+                                  <textarea
+                                    rows={2}
+                                    value={ortuAnswers[index] || ''}
+                                    onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
+                                    placeholder="Input hasil wawancara / catatan respon orang tua..."
+                                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white shadow-2xs"
+                                  />
+                                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                    <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                                    {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                                      <button
+                                        type="button"
+                                        key={quickOption}
+                                        onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                        className={`px-2.5 py-1 text-[11px] rounded-lg font-medium border transition cursor-pointer ${
+                                          ortuAnswers[index] === quickOption
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                            : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                        }`}
+                                      >
+                                        + {quickOption}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
 
-                      return (
-                        <tr 
-                          key={q.id} 
-                          className={`hover:bg-slate-50/80 transition ${
-                            isCatatanKhusus ? 'bg-amber-50/40 border-t-2 border-amber-300' : ''
-                          }`}
-                        >
-                          <td className="p-3 align-top font-medium text-slate-900">
-                            <div className="space-y-1">
-                              <span>{q.text}</span>
-                            </div>
-                          </td>
+                        // G: Hilangkan kotak isian jawaban. Isian orang tua diletakkan di bawah pertanyaan
+                        if (isSectionG) {
+                          return (
+                            <tr key={q.id} className="hover:bg-slate-50/80 bg-slate-50/60 border-b border-slate-200">
+                              <td colSpan={3} className="p-3.5 align-top space-y-2">
+                                <div className="font-semibold text-slate-900 leading-relaxed whitespace-pre-line text-xs">
+                                  {q.text}
+                                </div>
+                                <div className="flex items-center gap-2 pt-0.5">
+                                  <span className="text-[11px] font-bold text-slate-500">Isian / Pernyataan Orang Tua:</span>
+                                  <span className="px-3 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300 shadow-2xs">
+                                    {refVal || 'Bersedia / Setuju'}
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
 
-                          <td className="p-3 align-top bg-emerald-50/30 text-slate-700 font-mono text-[11px]">
-                            {refVal}
-                          </td>
+                        // Catatan Khusus Pewawancara (Pindahkan isian ke bawah, hilangkan kolom kosong)
+                        if (isCatatanKhusus) {
+                          return (
+                            <tr key={q.id} className="hover:bg-amber-50/50 bg-amber-50/30 border-y-2 border-amber-300">
+                              <td colSpan={3} className="p-3.5 align-top space-y-2">
+                                <div className="font-bold text-amber-950 leading-relaxed whitespace-pre-line text-xs flex items-center gap-1.5">
+                                  <span>📌 {q.text}</span>
+                                </div>
+                                <textarea
+                                  rows={3}
+                                  value={ortuAnswers[index] || ''}
+                                  onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
+                                  placeholder="Tuliskan catatan khusus internal pewawancara..."
+                                  className="w-full p-2.5 rounded-xl border border-amber-400 bg-white text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none shadow-2xs"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        }
 
-                          <td className="p-2.5 align-top">
-                            {isCatatanKhusus ? (
-                              <textarea
-                                rows={2}
-                                value={ortuAnswers[index] || ''}
-                                onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
-                                placeholder="Tuliskan catatan khusus internal pewawancara..."
-                                className="w-full p-2 rounded-xl border border-amber-300 bg-white text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                              />
-                            ) : (
+                        // Standard Sections (A, B, C, D)
+                        return (
+                          <tr 
+                            key={q.id} 
+                            className="hover:bg-slate-50/80 transition"
+                          >
+                            <td className="p-3 align-top font-medium text-slate-900">
+                              <div className="space-y-1">
+                                <span>{q.text}</span>
+                              </div>
+                            </td>
+
+                            <td className="p-3 align-top bg-emerald-50/30 text-slate-700 font-mono text-[11px]">
+                              {refVal}
+                            </td>
+
+                            <td className="p-2.5 align-top space-y-1.5">
                               <input
                                 type="text"
                                 value={ortuAnswers[index] || ''}
                                 onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
                                 placeholder={`Konfirmasi / catatan topik... (Ref: ${refVal !== '-' ? refVal.substring(0, 15) : '-'})`}
-                                className="w-full p-2 rounded-xl border border-slate-300 bg-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                className="w-full p-2 rounded-xl border border-slate-300 bg-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-2xs"
                               />
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                                {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                                  <button
+                                    type="button"
+                                    key={quickOption}
+                                    onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                    className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
+                                      ortuAnswers[index] === quickOption
+                                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                        : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                    }`}
+                                  >
+                                    + {quickOption}
+                                  </button>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -405,7 +512,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
                   className="px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-md transition cursor-pointer disabled:opacity-50"
                 >
                   <PenTool className="w-4 h-4" />
-                  <span>Review Hasil & Tanda Tangan Digital</span>
+                  <span>Pratinjau &amp; Tanda Tangan</span>
                 </button>
               </div>
             </div>
@@ -413,7 +520,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
           </form>
         ) : (
           <div className="text-center py-12 text-slate-400 text-xs">
-            Tidak ada calon siswa yang dipilih. Silakan cari nama siswa pada kolom pencarian di atas.
+            Tidak ada calon murid yang dipilih. Silakan cari nama murid pada kolom pencarian di atas.
           </div>
         )}
 

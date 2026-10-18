@@ -30,17 +30,17 @@ export const AlurPage: React.FC<Props> = ({ onGoToRegister, onGoToCheckResult })
       items: [
         '1) Pendaftaran online melalui CS SMPIT (WA: 0822-2500-2011) atau melalui Portal Aplikasi SPMB ini.',
         '2) Pendaftaran offline di ruang pendaftaran SMPIT Pondok Duta.',
-        '3) Mengembalikan formulir pendaftaran (atau melengkapi biodata online di Portal Siswa).'
+        '3) Mengembalikan formulir pendaftaran (atau melengkapi biodata online di Portal Murid).'
       ]
     },
     {
       num: '2',
       icon: Users2,
-      title: '2. TES KEMATANGAN SISWA (TKS)',
-      subtitle: 'Pelaksanaan Tes Kematangan Siswa (TKS) & Wawancara',
+      title: '2. TES KEMATANGAN MURID (TKM)',
+      subtitle: 'Pelaksanaan Tes Kematangan Murid (TKM) & Observasi',
       items: [
         '1. Wawancara Orang Tua Murid (SMP)',
-        '2. Wawancara Siswa & Tes Agama (SMP)',
+        '2. Observasi Murid & Tes Agama (SMP)',
         '3. Test Potensi Akademik (SMP)'
       ]
     },
@@ -48,10 +48,10 @@ export const AlurPage: React.FC<Props> = ({ onGoToRegister, onGoToCheckResult })
       num: '3',
       icon: CheckCircle2,
       title: '3. PENGUMUMAN HASIL TES',
-      subtitle: 'Pengumuman Hasil Tes Kematangan Siswa (TKS)',
+      subtitle: 'Pengumuman Hasil Tes Kematangan Murid (TKM)',
       items: [
         '• Hasil Tes dapat diambil di Ruang Tata Usaha unit SMPIT Pondok Duta.',
-        '• Calon siswa SMPIT juga dapat mengecek status kelulusan secara online melalui menu Cek Kelulusan.'
+        '• Calon murid SMPIT juga dapat mengecek status kelulusan secara online melalui menu Cek Kelulusan.'
       ]
     },
     {
@@ -76,7 +76,7 @@ export const AlurPage: React.FC<Props> = ({ onGoToRegister, onGoToCheckResult })
       num: '6',
       icon: GraduationCap,
       title: 'MASA PENGENALAN LINGKUNGAN SEKOLAH (MPLS)',
-      subtitle: 'Tahap Akhir Penyambutan Siswa Baru SMPIT Pondok Duta',
+      subtitle: 'Tahap Akhir Penyambutan Murid Baru SMPIT Pondok Duta',
       items: [
         '• Mengikuti kegiatan Masa Pengenalan Lingkungan Sekolah (MPLS) Tahun Ajaran ' + tahunPelajaran + ' di kampus SMPIT Pondok Duta.'
       ]
@@ -92,10 +92,10 @@ export const AlurPage: React.FC<Props> = ({ onGoToRegister, onGoToCheckResult })
           YAYASAN PERGURUAN ISLAM PONDOK DUTA (YPIPD)
         </div>
         <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
-          Alur Pendaftaran Siswa Baru
+          Alur Pendaftaran Murid Baru
         </h1>
         <p className="text-xs sm:text-sm text-emerald-100 max-w-2xl leading-relaxed">
-          Alur resmi Sistem Penerimaan Siswa Baru (SPMB) Tahun Ajaran {tahunPelajaran}.
+          Alur resmi Sistem Penerimaan Murid Baru (SPMB) Tahun Ajaran {tahunPelajaran}.
         </p>
       </div>
 
@@ -193,7 +193,7 @@ export const AlurPage: React.FC<Props> = ({ onGoToRegister, onGoToCheckResult })
             </div>
             <div className="flex items-center gap-2">
               <Phone className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span><strong>Telepon:</strong> (021) 29378301 · <strong>Sosmed:</strong> @sekolahislampondokduta</span>
+              <span><strong>Telepon:</strong> (021) 29378301 · <strong>Email:</strong> info@smpitpondokduta.sch.id · <strong>Sosmed:</strong> @sekolahislampondokduta</span>
             </div>
           </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { UserRole, UserAccount } from '../types';
+import { gasService } from '../services/gasService';
 import { PWAInstallButton } from './PWAInstallButton';
 import { 
   Menu, 
@@ -47,7 +48,20 @@ export const Navbar: React.FC<Props> = ({
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string>(() => gasService.getAppSettings().logoUrl);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const syncLogo = () => {
+      setLogoUrl(gasService.getAppSettings().logoUrl || '');
+    };
+    window.addEventListener('spmb_settings_updated', syncLogo);
+    window.addEventListener('storage', syncLogo);
+    return () => {
+      window.removeEventListener('spmb_settings_updated', syncLogo);
+      window.removeEventListener('storage', syncLogo);
+    };
+  }, []);
 
   const navItems = [
     { id: 'home', label: 'Beranda', icon: Home },
@@ -78,7 +92,7 @@ export const Navbar: React.FC<Props> = ({
       ? 'Admin'
       : currentUser?.role === 'guru'
       ? 'Pewawancara'
-      : 'Calon Siswa';
+      : 'Calon Murid';
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-2xs">
@@ -90,9 +104,20 @@ export const Navbar: React.FC<Props> = ({
             onClick={() => handleNavClick('home')}
             className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group min-w-0 flex-1 lg:flex-none"
           >
-            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-emerald-800 via-emerald-700 to-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-700/20 group-hover:scale-105 transition-transform border border-emerald-500/30 shrink-0">
-              <span className="font-extrabold text-amber-300 text-sm sm:text-lg tracking-tight">PD</span>
-            </div>
+            {logoUrl ? (
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-white flex items-center justify-center shadow-sm border border-slate-200 overflow-hidden p-0.5 group-hover:scale-105 transition-transform shrink-0">
+                <img
+                  src={gasService.resolveImageUrl(logoUrl)}
+                  alt="Logo SMPIT Pondok Duta"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-tr from-emerald-800 via-emerald-700 to-emerald-600 flex items-center justify-center shadow-sm shadow-emerald-700/20 group-hover:scale-105 transition-transform border border-emerald-500/30 shrink-0">
+                <span className="font-extrabold text-amber-300 text-sm sm:text-lg tracking-tight">PD</span>
+              </div>
+            )}
             <div className="min-w-0">
               <div className="text-xs sm:text-base font-extrabold text-slate-900 tracking-tight leading-tight truncate">
                 SMPIT PONDOK DUTA
@@ -202,7 +227,7 @@ export const Navbar: React.FC<Props> = ({
                         </div>
                       </div>
 
-                      {/* 1. Portal Siswa (untuk Calon Siswa & Admin) */}
+                      {/* 1. Portal Murid (untuk Calon Siswa & Admin) */}
                       {(currentUser.role === 'siswa' || currentUser.role === 'admin') && (
                         <button
                           type="button"
@@ -221,8 +246,8 @@ export const Navbar: React.FC<Props> = ({
                               <Users className="w-3.5 h-3.5" />
                             </div>
                             <div className="text-left">
-                              <div className="font-bold text-slate-800">Portal Siswa</div>
-                              <div className="text-[10px] text-slate-500 font-normal">Biodata & Wawancara OTM</div>
+                              <div className="font-bold text-slate-800">Portal Murid</div>
+                              <div className="text-[10px] text-slate-500 font-normal">Biodata & Observasi OTM</div>
                             </div>
                           </div>
                           {currentTab === 'dashboard-siswa' && (
@@ -251,7 +276,7 @@ export const Navbar: React.FC<Props> = ({
                             </div>
                             <div className="text-left">
                               <div className="font-bold text-slate-800">Menu Pewawancara</div>
-                              <div className="text-[10px] text-slate-500 font-normal">Evaluasi OTM & Observasi Siswa</div>
+                              <div className="text-[10px] text-slate-500 font-normal">Evaluasi OTM & Observasi Murid</div>
                             </div>
                           </div>
                           {currentTab === 'dashboard-guru' && (
@@ -260,7 +285,7 @@ export const Navbar: React.FC<Props> = ({
                         </button>
                       )}
 
-                      {/* 3. GAS API & Panduan Deploy (HANYA ADMIN) */}
+                      {/* 3. Koneksi Database & Panduan Deploy (HANYA ADMIN) */}
                       {currentUser.role === 'admin' && (
                         <>
                           <button
@@ -276,8 +301,8 @@ export const Navbar: React.FC<Props> = ({
                                 <Database className="w-3.5 h-3.5" />
                               </div>
                               <div className="text-left">
-                                <div className="font-bold text-slate-800">GAS API</div>
-                                <div className="text-[10px] text-slate-500 font-normal">Konfigurasi Server & Sheets</div>
+                                <div className="font-bold text-slate-800">Koneksi Database</div>
+                                <div className="text-[10px] text-slate-500 font-normal">Setting, Logo, Foto &amp; Drive</div>
                               </div>
                             </div>
                             <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
@@ -353,7 +378,7 @@ export const Navbar: React.FC<Props> = ({
                         </div>
                         <div className="text-left">
                           <div className="font-bold text-slate-800">Login dengan Kode</div>
-                          <div className="text-[10px] text-slate-500 font-normal">Calon Siswa / Pewawancara / Admin</div>
+                          <div className="text-[10px] text-slate-500 font-normal">Masuk menggunakan kode akses</div>
                         </div>
                       </button>
 
@@ -370,35 +395,11 @@ export const Navbar: React.FC<Props> = ({
                         </div>
                         <div className="text-left">
                           <div className="font-bold text-slate-800">Daftar Akun Baru</div>
-                          <div className="text-[10px] text-slate-500 font-normal">Khusus pendaftar calon siswa baru</div>
+                          <div className="text-[10px] text-slate-500 font-normal">Khusus pendaftar calon murid baru</div>
                         </div>
                       </button>
 
-                      <div className="pt-1 mt-1 border-t border-slate-100 space-y-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDropdownOpen(false);
-                            onOpenGasConfig();
-                          }}
-                          className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-700 hover:bg-amber-50/80 hover:text-amber-950 transition cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                              <Database className="w-3.5 h-3.5" />
-                            </div>
-                            <div className="text-left">
-                              <div className="font-bold text-slate-800">Database &amp; GAS API</div>
-                              <div className="text-[10px] text-slate-500 font-normal">Spreadsheet SMPIT Pondok Duta</div>
-                            </div>
-                          </div>
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                            isGasConfigured ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {isGasConfigured ? 'Online' : 'Siap'}
-                          </span>
-                        </button>
-
+                      <div className="pt-1 mt-1 border-t border-slate-100">
                         <PWAInstallButton
                           variant="dropdown"
                           onAction={() => setDropdownOpen(false)}
@@ -511,7 +512,7 @@ export const Navbar: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {/* Portal Siswa (Siswa & Admin) */}
+                {/* Portal Murid (Siswa & Admin) */}
                 {(currentUser.role === 'siswa' || currentUser.role === 'admin') && (
                   <button
                     type="button"
@@ -530,8 +531,8 @@ export const Navbar: React.FC<Props> = ({
                         <Users className="w-3.5 h-3.5" />
                       </div>
                       <div className="text-left">
-                        <div className="font-bold text-slate-800">Portal Siswa</div>
-                        <div className="text-[10px] text-slate-500 font-normal">Biodata & Wawancara OTM</div>
+                        <div className="font-bold text-slate-800">Portal Murid</div>
+                        <div className="text-[10px] text-slate-500 font-normal">Biodata & Observasi OTM</div>
                       </div>
                     </div>
                   </button>
@@ -557,13 +558,13 @@ export const Navbar: React.FC<Props> = ({
                       </div>
                       <div className="text-left">
                         <div className="font-bold text-slate-800">Menu Pewawancara</div>
-                        <div className="text-[10px] text-slate-500 font-normal">Evaluasi OTM & Observasi Siswa</div>
+                        <div className="text-[10px] text-slate-500 font-normal">Evaluasi OTM & Observasi Murid</div>
                       </div>
                     </div>
                   </button>
                 )}
 
-                {/* GAS API & Panduan Deploy (Khusus Admin) */}
+                {/* Koneksi Database & Panduan Deploy (Khusus Admin) */}
                 {currentUser.role === 'admin' && (
                   <>
                     <button
@@ -579,8 +580,8 @@ export const Navbar: React.FC<Props> = ({
                           <Database className="w-3.5 h-3.5" />
                         </div>
                         <div className="text-left">
-                          <div className="font-bold text-slate-800">GAS API</div>
-                          <div className="text-[10px] text-slate-500 font-normal">Konfigurasi Server & Sheets</div>
+                          <div className="font-bold text-slate-800">Koneksi Database</div>
+                          <div className="text-[10px] text-slate-500 font-normal">Setting, Logo, Foto &amp; Drive</div>
                         </div>
                       </div>
                       <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
@@ -665,30 +666,6 @@ export const Navbar: React.FC<Props> = ({
                     <span>Daftar Akun</span>
                   </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenGasConfig();
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-200/80 hover:bg-amber-50/60 transition"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                      <Database className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-slate-800">Database &amp; GAS API</div>
-                      <div className="text-[10px] text-slate-500 font-normal">Spreadsheet SMPIT Pondok Duta</div>
-                    </div>
-                  </div>
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                    isGasConfigured ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                  }`}>
-                    {isGasConfigured ? 'Online' : 'Siap'}
-                  </span>
-                </button>
 
                 <div className="rounded-xl border border-slate-200/80 bg-white">
                   <PWAInstallButton

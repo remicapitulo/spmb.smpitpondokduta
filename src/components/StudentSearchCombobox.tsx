@@ -175,7 +175,7 @@ export const StudentSearchCombobox: React.FC<Props> = ({
                 ))
               ) : (
                 <div className="text-center py-6 text-slate-400 text-xs">
-                  Tidak ditemukan siswa dengan kata kunci "<strong>{searchTerm}</strong>".
+                  Tidak ditemukan murid dengan kata kunci "<strong>{searchTerm}</strong>".
                 </div>
               )}
             </div>

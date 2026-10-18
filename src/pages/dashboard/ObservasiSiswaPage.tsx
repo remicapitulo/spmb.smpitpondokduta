@@ -13,7 +13,8 @@ import {
   CheckCircle2, 
   Database,
   Sparkles,
-  School
+  School,
+  Calendar
 } from 'lucide-react';
 
 interface Props {
@@ -23,13 +24,17 @@ interface Props {
 
 export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
   const [students, setStudents] = useState<any[]>([]);
-  const [selectedStudentId, setSelectedStudentId] = useState<string>('PD-2026-001');
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
 
-  // Penguji Siswa Selection from List
-  const [namaPengujiSiswa, setNamaPengujiSiswa] = useState<string>(DAFTAR_PEWAWANCARA_LIST[1] || 'Ustadz H. Ahmad Dahlan, S.Pd.I');
+  const [dbGuruNames, setDbGuruNames] = useState<string[]>(() =>
+    gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean)
+  );
+  const [namaPengujiSiswa, setNamaPengujiSiswa] = useState<string>(
+    gasService.getPewawancaraAccounts()[0]?.namaSiswa || ''
+  );
   const [isCustomPenguji, setIsCustomPenguji] = useState<boolean>(false);
   const [customPenguji, setCustomPenguji] = useState<string>('');
 
@@ -43,8 +48,11 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
   const [catatanKarakterAdab, setCatatanKarakterAdab] = useState<string>('');
   const [nilaiAkademikDasar, setNilaiAkademikDasar] = useState<number>(85);
   const [catatanAkademikDasar, setCatatanAkademikDasar] = useState<string>('');
+  const [nilaiPsikotes, setNilaiPsikotes] = useState<number>(85);
+  const [catatanPsikotes, setCatatanPsikotes] = useState<string>('');
   const [rekomendasiSiswa, setRekomendasiSiswa] = useState<'Diterima' | 'Cadangan' | 'Tidak Diterima'>('Diterima');
   const [catatanPengujiSiswa, setCatatanPengujiSiswa] = useState<string>('');
+  const [tanggalMaksimalDaftarUlang, setTanggalMaksimalDaftarUlang] = useState<string>('20 - 25 Januari 2027');
 
   const [savedSiswaResult, setSavedSiswaResult] = useState<ObservasiSiswaData | null>(null);
   const [previewSiswaModal, setPreviewSiswaModal] = useState<ObservasiSiswaData | null>(null);
@@ -56,9 +64,14 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
   const loadStudentList = async (targetId?: string) => {
     setLoading(true);
     const list = await gasService.getStudentList();
+    const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
+    setDbGuruNames(gurus);
+    if (!namaPengujiSiswa && gurus.length > 0) {
+      setNamaPengujiSiswa(gurus[0]);
+    }
     setStudents(list);
 
-    const activeId = targetId || selectedStudentId || (list[0] ? list[0].id : 'PD-2026-001');
+    const activeId = targetId || selectedStudentId || (list[0] ? list[0].id : '');
     setSelectedStudentId(activeId);
     loadExistingObservasiSiswa(activeId);
     setLoading(false);
@@ -71,10 +84,11 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
 
   const loadExistingObservasiSiswa = (noPend: string) => {
     const existing = gasService.getObservasiSiswa(noPend);
+    const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
     if (existing) {
       setSavedSiswaResult(existing);
       if (existing.namaPenguji) {
-        if (DAFTAR_PEWAWANCARA_LIST.includes(existing.namaPenguji)) {
+        if (gurus.includes(existing.namaPenguji)) {
           setNamaPengujiSiswa(existing.namaPenguji);
           setIsCustomPenguji(false);
         } else {
@@ -91,8 +105,11 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       setCatatanKarakterAdab(existing.catatanKarakterAdab || '');
       setNilaiAkademikDasar(existing.nilaiAkademikDasar);
       setCatatanAkademikDasar(existing.catatanAkademikDasar || '');
+      setNilaiPsikotes(existing.nilaiPsikotes !== undefined ? existing.nilaiPsikotes : 85);
+      setCatatanPsikotes(existing.catatanPsikotes || '');
       setRekomendasiSiswa(existing.rekomendasi);
       setCatatanPengujiSiswa(existing.catatanPenguji || '');
+      setTanggalMaksimalDaftarUlang(existing.tanggalMaksimalDaftarUlang || '20 - 25 Januari 2027');
     } else {
       setSavedSiswaResult(null);
       setNilaiTahsin(85);
@@ -104,16 +121,19 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       setCatatanKarakterAdab('');
       setNilaiAkademikDasar(85);
       setCatatanAkademikDasar('');
+      setNilaiPsikotes(85);
+      setCatatanPsikotes('');
       setRekomendasiSiswa('Diterima');
       setCatatanPengujiSiswa('');
+      setTanggalMaksimalDaftarUlang('20 - 25 Januari 2027');
     }
   };
 
   const currentStudent = students.find(s => s.id === selectedStudentId) || students[0] || null;
   const isGasLive = gasService.isLiveGasConfigured();
 
-  const totalScore = Math.round(Number(nilaiTahsin) + Number(nilaiTahfidz) + Number(nilaiKarakterAdab) + Number(nilaiAkademikDasar));
-  const avgScore = Math.round(totalScore / 4);
+  const totalScore = Math.round(Number(nilaiTahsin) + Number(nilaiTahfidz) + Number(nilaiKarakterAdab) + Number(nilaiAkademikDasar) + Number(nilaiPsikotes));
+  const avgScore = Math.round(totalScore / 5);
 
   const effectivePengujiName = isCustomPenguji ? customPenguji.trim() : namaPengujiSiswa;
 
@@ -125,10 +145,22 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
     setSaving(true);
     const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
 
+    const existingSiswa = gasService.getSiswaByNo(currentStudent.id);
+    const existingInduk = gasService.getDataIndukList().find(d => d.noPendaftaran === currentStudent.id);
+    const existingLulus = gasService.getStatusKelulusan(currentStudent.id);
+    const resolvedNisn = (existingSiswa?.nisn && existingSiswa.nisn !== '-') 
+      ? existingSiswa.nisn 
+      : ((existingInduk?.nisn && existingInduk.nisn !== '-') 
+        ? existingInduk.nisn 
+        : (existingLulus?.nisn && existingLulus.nisn !== '-' ? existingLulus.nisn : '-'));
+    const resolvedAsalSekolah = currentStudent.sekolah || existingSiswa?.asalSekolah || existingLulus?.asalSekolah || 'SD/MI Pendaftar';
+
     const dataPayload: ObservasiSiswaData = {
       id: 'OS-' + Date.now(),
       siswaId: currentStudent.id,
       noPendaftaran: currentStudent.id,
+      nisn: resolvedNisn,
+      asalSekolah: resolvedAsalSekolah,
       namaSiswa: currentStudent.nama,
       namaPenguji: effectivePengujiName,
       tanggalObservasi: dateStr,
@@ -141,10 +173,13 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       catatanKarakterAdab,
       nilaiAkademikDasar: Number(nilaiAkademikDasar),
       catatanAkademikDasar,
+      nilaiPsikotes: Number(nilaiPsikotes),
+      catatanPsikotes,
       totalSkor: totalScore,
       rataRata: avgScore,
       rekomendasi: rekomendasiSiswa,
       catatanPenguji: catatanPengujiSiswa,
+      tanggalMaksimalDaftarUlang: tanggalMaksimalDaftarUlang.trim() || '20 - 25 Januari 2027',
       createdAt: new Date().toISOString()
     };
 
@@ -163,10 +198,10 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-950/60 text-indigo-200 text-xs font-semibold mb-2 border border-indigo-500/30">
             <BookOpen className="w-3.5 h-3.5 text-amber-300" />
-            <span>Portal Khusus Tim Penguji Observasi Santri / Calon Siswa</span>
+            <span>Portal Khusus Tim Penguji Observasi Calon Murid</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-white">
-            Lembar Observasi Calon Siswa
+            Lembar Observasi Calon Murid
           </h1>
           <p className="text-xs text-indigo-100 mt-1">
             Penilaian mandiri terpisah: Tahsin & Tajwid, Tahfidz Quran, Adab Karakter, dan Potensi Akademik Dasar.
@@ -194,7 +229,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <UserCheck className="w-3.5 h-3.5 text-indigo-700" />
-              <span>Nama Penguji Siswa (Pilih Dari Daftar Guru/Penguji):</span>
+              <span>Nama Penguji Murid (Pilih Dari Daftar Guru/Penguji):</span>
             </label>
             <div className="space-y-2">
               <select
@@ -209,7 +244,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                 }}
                 className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 shadow-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               >
-                {DAFTAR_PEWAWANCARA_LIST.map((name) => (
+                {dbGuruNames.map((name) => (
                   <option key={name} value={name}>
                     {name}
                   </option>
@@ -229,7 +264,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
               )}
             </div>
             <p className="text-[10px] text-slate-400">
-              Penguji bertugas menguji dan memberikan rekomendasi kelulusan observasi calon siswa.
+              Penguji bertugas menguji dan memberikan rekomendasi kelulusan observasi calon murid.
             </p>
           </div>
 
@@ -239,7 +274,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
               students={students}
               selectedStudentId={selectedStudentId}
               onSelectStudent={handleSelectStudent}
-              label="Pilih Calon Siswa yang Diobservasi:"
+              label="Pilih Calon Murid yang Diobservasi:"
             />
           </div>
 
@@ -262,7 +297,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
               </div>
               <div>
                 <h4 className="font-bold text-xs sm:text-sm text-indigo-950">
-                  Data Observasi Siswa Ini Sudah Tercatat
+                  Data Observasi Murid Ini Sudah Tercatat
                 </h4>
                 <p className="text-xs text-indigo-800">
                   Penguji: <strong>{savedSiswaResult.namaPenguji}</strong> | Rata-rata: <strong>{savedSiswaResult.rataRata}/100</strong> | Rekomendasi: <strong>{savedSiswaResult.rekomendasi}</strong>
@@ -290,7 +325,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
             <div className="border-b border-slate-200 pb-3 flex items-center justify-between">
               <div>
                 <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
-                  Rubrik Penilaian & Observasi Calon Siswa
+                  Rubrik Penilaian & Observasi Calon Murid
                 </h3>
                 <p className="text-xs text-slate-500">
                   Isikan skor (rentang 0 - 100) dan catatan evaluasi pada tiap komponen.
@@ -436,6 +471,35 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                 />
               </div>
 
+              {/* 5. Psikotes */}
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3 shadow-2xs sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-slate-800 text-xs block">5. Psikotes &amp; Potensi Belajar</span>
+                    <span className="text-[11px] text-slate-500">Kematangan belajar, daya tangkap, adaptasi sosial &amp; profil psikologis</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[11px] font-bold text-slate-500">Skor:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      required
+                      value={nilaiPsikotes}
+                      onChange={(e) => setNilaiPsikotes(Number(e.target.value))}
+                      className="w-16 p-1.5 rounded-lg border border-slate-300 text-center font-bold text-xs bg-white text-indigo-900"
+                    />
+                  </div>
+                </div>
+                <textarea
+                  rows={2}
+                  value={catatanPsikotes}
+                  onChange={(e) => setCatatanPsikotes(e.target.value)}
+                  placeholder="Catatan psikotes: konsentrasi, kematangan emosi, stabilitas belajar, kepribadian..."
+                  className="w-full p-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
             </div>
 
             {/* Rekomendasi & Catatan Akhir Penguji */}
@@ -468,6 +532,50 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                   />
                 </div>
               </div>
+
+              {/* Menu Input Tanggal Daftar Ulang */}
+              <div className="pt-3 border-t border-indigo-200/80">
+                <div className="p-4 rounded-2xl bg-emerald-50/80 border-2 border-emerald-400 space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
+                    <label className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-emerald-700" />
+                      <span>Menu Input Tanggal / Batas Daftar Ulang Murid (Tercetak di SKL):</span>
+                    </label>
+                    <span className="text-[10px] text-emerald-800 font-bold bg-emerald-200/80 px-2.5 py-0.5 rounded-md border border-emerald-300">
+                      Otomatis Tercetak di SKL Siswa
+                    </span>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <input
+                      type="text"
+                      value={tanggalMaksimalDaftarUlang}
+                      onChange={(e) => setTanggalMaksimalDaftarUlang(e.target.value)}
+                      placeholder="Contoh: 20 - 25 Januari 2027 atau 30 Januari 2027"
+                      className="flex-1 p-2.5 rounded-xl border border-emerald-500 bg-white font-bold text-xs text-emerald-950 focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                    />
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {['20 - 25 Januari 2027', '26 - 31 Januari 2027', '1 - 7 Februari 2027', '10 - 15 Februari 2027'].map((chip) => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => setTanggalMaksimalDaftarUlang(chip)}
+                          className={`text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border transition cursor-pointer ${
+                            tanggalMaksimalDaftarUlang === chip
+                              ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
+                              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
+                          }`}
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[10.5px] text-slate-600 mt-1.5 leading-snug">
+                    Batas tanggal ini akan langsung tercetak pada dokumen resmi Surat Keterangan Lulus (SKL) dan tertera pada halaman Pengumuman Kelulusan calon murid bersangkutan.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Submit & Action Buttons */}
@@ -483,7 +591,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                   className="px-6 py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition disabled:opacity-50 cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
-                  <span>{saving ? 'Menyimpan...' : 'Simpan Lembar Observasi Siswa'}</span>
+                  <span>{saving ? 'Menyimpan...' : 'Simpan Lembar Observasi Murid'}</span>
                 </button>
 
                 <button
@@ -534,7 +642,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
 
       </div>
 
-      {/* Modal Pratinjau Lembar Observasi Siswa */}
+      {/* Modal Pratinjau Lembar Observasi Murid */}
       {previewSiswaModal && (
         <HasilObservasiSiswaPrintView
           data={previewSiswaModal}

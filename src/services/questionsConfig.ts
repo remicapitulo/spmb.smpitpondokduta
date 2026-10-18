@@ -78,30 +78,8 @@ export const QUESTIONS_CONFIG: QuestionConfigItem[] = [
   { id: 'catatan', text: 'CATATAN KHUSUS / KESIMPULAN AKHIR', refId: null }
 ];
 
-export const DAFTAR_PEWAWANCARA_LIST: string[] = [
-  'Ustadz Salman Al-Farisi, Lc., M.Pd.',
-  'Ustadz H. Ahmad Dahlan, S.Pd.I',
-  'Ustadzah Siti Maryam, S.Pd.',
-  'Ustadz Muhammad Fauzan, Lc.',
-  'Ustadz Ridwan Kamil, S.Th.I',
-  'Ustadzah Nurul Hidayati, S.Pd.I',
-  'Ustadz Arif Rahman Hakim, M.Pd.',
-  'Ustadzah Khadijah Azzahra, S.Sos.',
-  'Ustadz Dedi Supriyadi, S.Ag.',
-  'Ustadzah Fitriani Rahmawati, S.Pd.',
-  'Ustadz Irfan Maulana, M.Pd.',
-  'Ustadzah Zahra Amalia, S.Pd.'
-];
+// Daftar Pewawancara & Penguji kini ditarik langsung dari Sheet Akun_User (role: 'guru') di Database Google Spreadsheet
+export const DAFTAR_PEWAWANCARA_LIST: string[] = [];
 
-export const DAFTAR_PENGUJI_SISWA_LIST: string[] = [
-  'Ustadz H. Ahmad Dahlan, S.Pd.I',
-  'Ustadz Salman Al-Farisi, Lc., M.Pd.',
-  'Ustadzah Siti Maryam, S.Pd.',
-  'Ustadz Muhammad Fauzan, Lc.',
-  'Ustadz Arif Rahman Hakim, M.Pd.',
-  'Ustadzah Fitriani Rahmawati, S.Pd.',
-  'Ustadz Dedi Supriyadi, S.Ag.',
-  'Ustadz Abdul Hakim, S.Pd.I',
-  'Ustadzah Khadijah Azzahra, S.Sos.',
-  'Ustadz Farhan Mubarok, Lc.'
-];
+export const DAFTAR_PENGUJI_SISWA_LIST: string[] = [];
+

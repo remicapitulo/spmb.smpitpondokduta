@@ -112,7 +112,7 @@ export const HomePage: React.FC<Props> = ({
 
             <div className="space-y-2">
               <div className="text-xs sm:text-sm font-bold uppercase tracking-wider text-emerald-200">
-                Penerimaan Siswa Baru (SPMB) Tahun Pelajaran {tahunPelajaran}
+                Penerimaan Murid Baru (SPMB) Tahun Pelajaran {tahunPelajaran}
               </div>
               <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight leading-tight text-white">
                 SMPIT Pondok Duta <br />
@@ -136,7 +136,7 @@ export const HomePage: React.FC<Props> = ({
                       className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
                     >
                       <Users className="w-4 h-4" />
-                      <span>Portal Siswa</span>
+                      <span>Portal Murid</span>
                     </button>
                     <button
                       onClick={onOpenPortalGuru}
@@ -170,7 +170,7 @@ export const HomePage: React.FC<Props> = ({
                     className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-sm shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
                   >
                     <Users className="w-4 h-4" />
-                    <span>Portal Siswa</span>
+                    <span>Portal Murid</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 )
@@ -209,7 +209,15 @@ export const HomePage: React.FC<Props> = ({
             <div className="pt-5 border-t border-emerald-700/50 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-emerald-100">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-amber-300 shrink-0" />
-                <span>Terakreditasi <strong>"A"</strong> (BAN-SM) · <em>Blended Learning</em></span>
+                <a
+                  href="https://ban-pdm.id/satuanpendidikan/20276180"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:underline hover:text-amber-200 transition"
+                  title="Lihat sertifikat akreditasi resmi di BAN-PDM"
+                >
+                  Terakreditasi <strong>"A"</strong> (BAN-SM / BAN-PDM) · <em>Blended Learning</em>
+                </a>
               </div>
               <div className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-amber-300 shrink-0" />
@@ -217,7 +225,7 @@ export const HomePage: React.FC<Props> = ({
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-amber-300 shrink-0" />
-                <span>CS SMPIT: <strong>0822-2500-2011</strong> / (021) 29378301</span>
+                <span>CS SPMB: <strong>0822-2500-2011</strong> / Telp: (021) 29378301 · Email: info@smpitpondokduta.sch.id</span>
               </div>
             </div>
           </div>
@@ -268,7 +276,7 @@ export const HomePage: React.FC<Props> = ({
               <span>Visi Sekolah</span>
             </div>
             <p className="text-base sm:text-lg font-extrabold leading-snug text-white">
-              "Terbentuknya siswa yang berakhlak mulia, kreatif, mandiri, berprestasi dan berwawasan global."
+              "Terbentuknya murid yang berakhlak mulia, kreatif, mandiri, berprestasi dan berwawasan global."
             </p>
           </div>
 
@@ -279,7 +287,7 @@ export const HomePage: React.FC<Props> = ({
               <span>Misi Sekolah</span>
             </div>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              SMPIT Pondok Duta membentuk siswa yang berakhlak mulia, kreatif, mandiri, berprestasi dan berwawasan global. Sekolah kami juga menanamkan keyakinan akidah Islam, membiasakan perilaku yang berakhlak mulia, kepada Allah, diri sendiri, orang tua, guru, kepada manusia dan lingkungannya, sesuai dengan contoh yang dituntunkan oleh Rosulullah SAW, serta membentuk rasa cinta kepada bangsa tanah air Indonesia.
+              SMPIT Pondok Duta membentuk murid yang berakhlak mulia, kreatif, mandiri, berprestasi dan berwawasan global. Sekolah kami juga menanamkan keyakinan akidah Islam, membiasakan perilaku yang berakhlak mulia, kepada Allah, diri sendiri, orang tua, guru, kepada manusia dan lingkungannya, sesuai dengan contoh yang dituntunkan oleh Rosulullah SAW, serta membentuk rasa cinta kepada bangsa tanah air Indonesia.
             </p>
           </div>
         </div>
@@ -486,10 +494,10 @@ export const HomePage: React.FC<Props> = ({
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-300">
               <Trophy className="w-4 h-4" />
-              <span>Rekam Jejak Kejuaraan Siswa 2026</span>
+              <span>Rekam Jejak Kejuaraan Murid 2026</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
-              Prestasi Membanggakan Siswa SMPIT Pondok Duta
+              Prestasi Membanggakan Murid SMPIT Pondok Duta
             </h2>
           </div>
           <div className="text-xs text-emerald-200 font-medium">
@@ -519,7 +527,7 @@ export const HomePage: React.FC<Props> = ({
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">
-              Alur Pendaftaran Siswa Baru {tahunPelajaran}
+              Alur Pendaftaran Murid Baru {tahunPelajaran}
             </span>
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-1">
               Tahapan Seleksi SMPIT Pondok Duta
@@ -544,10 +552,10 @@ export const HomePage: React.FC<Props> = ({
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-800/90 border border-slate-700 space-y-2">
-            <div className="text-[11px] font-extrabold text-amber-400 uppercase">2. TES KEMATANGAN SISWA</div>
+            <div className="text-[11px] font-extrabold text-amber-400 uppercase">2. TES KEMATANGAN MURID (TKM)</div>
             <h4 className="font-bold text-sm text-white">Observasi, TKS & Wawancara</h4>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Wawancara Orang Tua Murid (OTM), Wawancara Siswa & Tes Agama (SMP), serta Test Potensi Akademik (SMP).
+              Wawancara Orang Tua Murid (OTM), Observasi Murid & Tes Agama (SMP), serta Test Potensi Akademik (SMP).
             </p>
           </div>
 
