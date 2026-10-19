@@ -35,15 +35,24 @@ interface Props {
   currentUser?: UserAccount | null;
   onLogout?: () => void;
   onGoToLogin?: () => void;
+  activeTab?: 'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu';
+  onTabChange?: (tab: 'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu') => void;
 }
 
 export const SiswaDashboard: React.FC<Props> = ({ 
   onOpenGasConfig,
   currentUser,
   onLogout,
-  onGoToLogin
+  onGoToLogin,
+  activeTab: propActiveTab,
+  onTabChange: propOnTabChange
 }) => {
-  const [activeTab, setActiveTab] = useState<'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu'>('biodata');
+  const [internalTab, setInternalTab] = useState<'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu'>('biodata');
+  const activeTab = propActiveTab !== undefined ? propActiveTab : internalTab;
+  const setActiveTab = (tab: 'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu') => {
+    setInternalTab(tab);
+    propOnTabChange?.(tab);
+  };
   const [students, setStudents] = useState<any[]>([]);
   const [selectedNoPendaftaran, setSelectedNoPendaftaran] = useState<string>(
     currentUser?.role === 'siswa' && currentUser?.kodePendaftaran ? currentUser.kodePendaftaran : ''

@@ -35,7 +35,7 @@ export const Footer: React.FC<Props> = ({ onSelectTab, onOpenGasConfig, onOpenPa
   }, []);
 
   return (
-    <footer className="bg-slate-900 text-slate-300 border-t border-slate-800 text-xs mt-16 no-print">
+    <footer className={`bg-slate-900 text-slate-300 border-t border-slate-800 text-xs mt-16 no-print ${currentUser ? 'pb-20 lg:pb-0' : ''}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           

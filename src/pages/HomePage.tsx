@@ -129,52 +129,20 @@ export const HomePage: React.FC<Props> = ({
             {/* Action CTAs */}
             <div className="pt-2 flex flex-wrap items-center gap-3">
               {currentUser ? (
-                currentUser.role === 'admin' ? (
-                  <>
-                    <button
-                      onClick={onOpenPortalSiswa}
-                      className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-xs sm:text-sm shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
-                    >
-                      <Users className="w-4 h-4" />
-                      <span>Portal Murid</span>
-                    </button>
-                    <button
-                      onClick={onOpenPortalGuru}
-                      className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-purple-950/40 transition-all cursor-pointer"
-                    >
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>Menu Pewawancara</span>
-                    </button>
-                    {onOpenGasConfig && (
-                      <button
-                        onClick={onOpenGasConfig}
-                        className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs sm:text-sm shadow-lg shadow-amber-950/40 transition-all cursor-pointer"
-                      >
-                        <Database className="w-4 h-4" />
-                        <span>GAS API (Admin)</span>
-                      </button>
-                    )}
-                  </>
-                ) : currentUser.role === 'guru' ? (
+                /* Setelah login: Menu pada home cukup 2 (Cek Kelulusan & Install Aplikasi) */
+                <>
                   <button
-                    onClick={onOpenPortalGuru}
-                    className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-sm shadow-lg shadow-purple-950/40 transition-all cursor-pointer"
+                    onClick={() => onSelectTab('cek-kelulusan')}
+                    className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-950/60 text-emerald-100 hover:text-white font-bold text-sm backdrop-blur-md border border-emerald-500/40 shadow-lg shadow-emerald-950/30 transition-all cursor-pointer"
                   >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Buka Menu Pewawancara</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <Search className="w-4 h-4 text-amber-300" />
+                    <span>Cek Kelulusan</span>
                   </button>
-                ) : (
-                  <button
-                    onClick={onOpenPortalSiswa}
-                    className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-sm shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
-                  >
-                    <Users className="w-4 h-4" />
-                    <span>Portal Murid</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                )
+
+                  <PWAInstallButton variant="hero" />
+                </>
               ) : (
+                /* Belum login: Tampilkan Daftar Akun Baru, Login dengan Kode, Cek Kelulusan, dan Install Aplikasi */
                 <>
                   <button
                     onClick={onGoToRegister}
@@ -191,18 +159,18 @@ export const HomePage: React.FC<Props> = ({
                     <LogIn className="w-4 h-4 text-amber-300" />
                     <span>Login dengan Kode</span>
                   </button>
+
+                  <button
+                    onClick={() => onSelectTab('cek-kelulusan')}
+                    className="flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-950/60 text-emerald-100 font-semibold text-sm backdrop-blur-md border border-emerald-500/30 transition cursor-pointer"
+                  >
+                    <Search className="w-4 h-4 text-amber-300" />
+                    <span>Cek Kelulusan</span>
+                  </button>
+
+                  <PWAInstallButton variant="hero" />
                 </>
               )}
-
-              <button
-                onClick={() => onSelectTab('cek-kelulusan')}
-                className="flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-950/60 text-emerald-100 font-semibold text-sm backdrop-blur-md border border-emerald-500/30 transition cursor-pointer"
-              >
-                <Search className="w-4 h-4 text-amber-300" />
-                <span>Cek Kelulusan</span>
-              </button>
-
-              <PWAInstallButton variant="hero" />
             </div>
 
             {/* Info Ringkas Akreditasi & Lokasi Sesuai Brosur */}

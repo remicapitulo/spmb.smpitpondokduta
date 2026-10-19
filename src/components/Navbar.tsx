@@ -410,51 +410,74 @@ export const Navbar: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* TOMBOL MENU HP & TABLET (< lg): Satu-satunya tombol di kanan atas pada layar HP sehingga tidak pernah terpotong */}
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={`lg:hidden inline-flex items-center gap-1.5 h-10 px-3 rounded-xl font-bold text-xs transition shrink-0 cursor-pointer border ${
-                mobileMenuOpen
-                  ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
-                  : 'bg-slate-50 text-slate-800 hover:bg-slate-100 border-slate-200/90'
-              }`}
-              aria-label="Buka Menu"
-            >
-              {mobileMenuOpen ? (
-                <>
-                  <X className="w-4 h-4 shrink-0" />
-                  <span>Tutup</span>
-                </>
-              ) : (
-                <>
-                  <Menu className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>Menu</span>
-                  {currentUser && (
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${
-                      currentUser.role === 'admin'
-                        ? 'bg-amber-500'
-                        : currentUser.role === 'guru'
-                        ? 'bg-purple-600'
-                        : 'bg-emerald-600'
-                    }`} />
-                  )}
-                </>
-              )}
-            </button>
+            {/* TAMPILAN HP & TABLET (< lg):
+                - Setelah Login: Menu navigasi berpindah seluruhnya ke menu bawah (MobileBottomNav).
+                  Di kanan atas hanya tampil chip profil minimalis yang bila disentuh membuka laci menu bawah.
+                - Belum Login: Tetap tampil tombol Menu navigasi & login. */}
+            {currentUser ? (
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('open_mobile_bottom_drawer'));
+                }}
+                className={`lg:hidden inline-flex items-center gap-1.5 h-10 px-3 rounded-xl font-bold text-xs transition shrink-0 cursor-pointer border shadow-2xs ${
+                  currentUser.role === 'admin'
+                    ? 'bg-amber-50 text-amber-950 border-amber-300 hover:bg-amber-100'
+                    : currentUser.role === 'guru'
+                    ? 'bg-purple-50 text-purple-950 border-purple-300 hover:bg-purple-100'
+                    : 'bg-emerald-50 text-emerald-950 border-emerald-300 hover:bg-emerald-100'
+                }`}
+                title="Buka Menu & Profil Akun"
+              >
+                <span className={`w-2 h-2 rounded-full shrink-0 ${
+                  currentUser.role === 'admin'
+                    ? 'bg-amber-500'
+                    : currentUser.role === 'guru'
+                    ? 'bg-purple-600'
+                    : 'bg-emerald-600'
+                }`} />
+                <span className="truncate max-w-[110px] sm:max-w-[150px]">
+                  {currentUser.namaSiswa || currentUser.kodePendaftaran}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 opacity-60 shrink-0" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className={`lg:hidden inline-flex items-center gap-1.5 h-10 px-3 rounded-xl font-bold text-xs transition shrink-0 cursor-pointer border ${
+                  mobileMenuOpen
+                    ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
+                    : 'bg-slate-50 text-slate-800 hover:bg-slate-100 border-slate-200/90'
+                }`}
+                aria-label="Buka Menu"
+              >
+                {mobileMenuOpen ? (
+                  <>
+                    <X className="w-4 h-4 shrink-0" />
+                    <span>Tutup</span>
+                  </>
+                ) : (
+                  <>
+                    <Menu className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>Menu</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* PANEL MENU DROPDOWN HP & TABLET (< lg) */}
-      <div
-        className={
-          mobileMenuOpen
-            ? 'lg:hidden border-t border-slate-200/80 bg-white px-4 pt-3 pb-5 space-y-4 text-sm animate-in slide-in-from-top-2 shadow-2xl max-h-[calc(100vh-4rem)] overflow-y-auto'
-            : 'hidden'
-        }
-      >
-          
+      {/* PANEL MENU DROPDOWN HP & TABLET (< lg) - HANYA SAAT BELUM LOGIN */}
+      {!currentUser && (
+        <div
+          className={
+            mobileMenuOpen
+              ? 'lg:hidden border-t border-slate-200/80 bg-white px-4 pt-3 pb-5 space-y-4 text-sm animate-in slide-in-from-top-2 shadow-2xl max-h-[calc(100vh-4rem)] overflow-y-auto'
+              : 'hidden'
+          }
+        >
           {/* 1. Menu Navigasi Halaman */}
           <div className="space-y-1.5">
             <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-1">
@@ -483,200 +506,48 @@ export const Navbar: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* 2. Menu Akses Akun, Portal, GAS API, Install Aplikasi & Log Out */}
+          {/* 2. Tombol Login, Registrasi & Unduh Aplikasi */}
           <div className="pt-2 border-t border-slate-100 space-y-2">
             <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider px-1">
-              {currentUser ? 'Menu Portal & Akun' : 'Akses Akun & Aplikasi'}
+              Akses Akun &amp; Aplikasi
             </div>
-
-            {currentUser ? (
-              <div className="space-y-1.5">
-                {/* Kartu Profil Singkat */}
-                <div className={`p-3 rounded-xl border ${
-                  currentUser.role === 'admin'
-                    ? 'bg-amber-50/70 border-amber-200'
-                    : currentUser.role === 'guru'
-                    ? 'bg-purple-50/70 border-purple-200'
-                    : 'bg-emerald-50/70 border-emerald-200'
-                }`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                      Role: {roleBadgeLabel}
-                    </span>
-                    <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700">
-                      {currentUser.kodePendaftaran}
-                    </span>
-                  </div>
-                  <div className="font-extrabold text-xs text-slate-900 truncate mt-0.5">
-                    {currentUser.namaSiswa}
-                  </div>
-                </div>
-
-                {/* Portal Murid (Siswa & Admin) */}
-                {(currentUser.role === 'siswa' || currentUser.role === 'admin') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onRoleChange('siswa');
-                      handleNavClick('dashboard-siswa');
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition border ${
-                      currentTab === 'dashboard-siswa'
-                        ? 'bg-emerald-50 text-emerald-950 border-emerald-300'
-                        : 'bg-white text-slate-700 border-slate-200/80 hover:bg-emerald-50/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                        <Users className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-bold text-slate-800">Portal Murid</div>
-                        <div className="text-[10px] text-slate-500 font-normal">Biodata & Observasi OTM</div>
-                      </div>
-                    </div>
-                  </button>
-                )}
-
-                {/* Menu Pewawancara (Pewawancara & Admin) */}
-                {(currentUser.role === 'guru' || currentUser.role === 'admin') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onRoleChange('guru');
-                      handleNavClick('dashboard-guru');
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition border ${
-                      currentTab === 'dashboard-guru'
-                        ? 'bg-purple-50 text-purple-950 border-purple-300'
-                        : 'bg-white text-slate-700 border-slate-200/80 hover:bg-purple-50/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="text-left">
-                        <div className="font-bold text-slate-800">Menu Pewawancara</div>
-                        <div className="text-[10px] text-slate-500 font-normal">Evaluasi OTM & Observasi Murid</div>
-                      </div>
-                    </div>
-                  </button>
-                )}
-
-                {/* Koneksi Database & Panduan Deploy (Khusus Admin) */}
-                {currentUser.role === 'admin' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        onOpenGasConfig();
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-200/80 hover:bg-amber-50/60 transition"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                          <Database className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="text-left">
-                          <div className="font-bold text-slate-800">Koneksi Database</div>
-                          <div className="text-[10px] text-slate-500 font-normal">Setting, Logo, Foto &amp; Drive</div>
-                        </div>
-                      </div>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                        isGasConfigured ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                      }`}>
-                        {isGasConfigured ? 'Online' : 'Lokal'}
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        onOpenPanduan();
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-50 transition"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-                          <HelpCircle className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="text-left">
-                          <div className="font-bold text-slate-800">Panduan Deploy</div>
-                          <div className="text-[10px] text-slate-500 font-normal">GitHub, Netlify & Apps Script</div>
-                        </div>
-                      </div>
-                    </button>
-                  </>
-                )}
-
-                {/* Install Aplikasi */}
-                <div className="rounded-xl border border-slate-200/80 bg-white">
-                  <PWAInstallButton
-                    variant="dropdown"
-                    onAction={() => setMobileMenuOpen(false)}
-                  />
-                </div>
-
-                {/* Log Out */}
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    onLogout();
+                    onGoToLogin();
                   }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50/60 hover:bg-rose-100/70 border border-rose-200/80 transition"
+                  className="w-full py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                 >
-                  <div className="w-7 h-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                    <LogOut className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="text-left">
-                    <div>Log Out / Keluar</div>
-                    <div className="text-[10px] text-rose-500 font-normal">Tutup sesi akses portal</div>
-                  </div>
+                  <LogIn className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                  <span>Login Kode</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onGoToRegister();
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-white border border-emerald-600 text-emerald-800 hover:bg-emerald-50 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  <span>Daftar Akun</span>
                 </button>
               </div>
-            ) : (
-              /* Saat Belum Login di HP/Tablet */
-              <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onGoToLogin();
-                    }}
-                    className="w-full py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs"
-                  >
-                    <LogIn className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                    <span>Login Kode</span>
-                  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onGoToRegister();
-                    }}
-                    className="w-full py-2.5 px-3 rounded-xl bg-white border border-emerald-600 text-emerald-800 hover:bg-emerald-50 font-bold text-xs flex items-center justify-center gap-1.5"
-                  >
-                    <UserPlus className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                    <span>Daftar Akun</span>
-                  </button>
-                </div>
-
-                <div className="rounded-xl border border-slate-200/80 bg-white">
-                  <PWAInstallButton
-                    variant="dropdown"
-                    onAction={() => setMobileMenuOpen(false)}
-                  />
-                </div>
+              <div className="rounded-xl border border-slate-200/80 bg-white">
+                <PWAInstallButton
+                  variant="dropdown"
+                  onAction={() => setMobileMenuOpen(false)}
+                />
               </div>
-            )}
+            </div>
           </div>
-      </div>
+        </div>
+      )}
     </header>
   );
 };

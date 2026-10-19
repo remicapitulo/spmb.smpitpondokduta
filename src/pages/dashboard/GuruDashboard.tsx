@@ -50,16 +50,25 @@ interface Props {
   onOpenPanduan: () => void;
   currentUser?: UserAccount | null;
   onLogout?: () => void;
+  activeTeam?: 'ortu' | 'siswa' | 'data-induk';
+  onTeamChange?: (team: 'ortu' | 'siswa' | 'data-induk') => void;
 }
 
 export const GuruDashboard: React.FC<Props> = ({ 
   onOpenGasConfig, 
   onOpenPanduan,
   currentUser,
-  onLogout
+  onLogout,
+  activeTeam: propActiveTeam,
+  onTeamChange: propOnTeamChange
 }) => {
   // Mode Menu: 'ortu' (Tim Wawancara OTM) vs 'siswa' (Tim Observasi Murid) vs 'data-induk' (Buku Induk Sekolah & NIS)
-  const [activeTeam, setActiveTeam] = useState<'ortu' | 'siswa' | 'data-induk'>('ortu');
+  const [internalTeam, setInternalTeam] = useState<'ortu' | 'siswa' | 'data-induk'>('ortu');
+  const activeTeam = propActiveTeam !== undefined ? propActiveTeam : internalTeam;
+  const setActiveTeam = (team: 'ortu' | 'siswa' | 'data-induk') => {
+    setInternalTeam(team);
+    propOnTeamChange?.(team);
+  };
 
   // Shared student state from Google Sheets / mock
   const [students, setStudents] = useState<any[]>([]);

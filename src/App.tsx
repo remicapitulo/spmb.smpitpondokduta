@@ -6,6 +6,7 @@ import { Footer } from './components/Footer';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { GasConfigModal } from './components/GasConfigModal';
 import { PanduanDeployModal } from './components/PanduanDeployModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
 
 import { HomePage } from './pages/HomePage';
 import { SyaratPage } from './pages/SyaratPage';
@@ -19,6 +20,8 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(gasService.getCurrentUser());
   const [userRole, setUserRole] = useState<UserRole>(() => (currentUser ? currentUser.role : 'public'));
   const [currentTab, setCurrentTab] = useState<string>('home');
+  const [siswaSubTab, setSiswaSubTab] = useState<'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu'>('biodata');
+  const [guruSubTeam, setGuruSubTeam] = useState<'ortu' | 'siswa' | 'data-induk'>('ortu');
   const [isGasModalOpen, setIsGasModalOpen] = useState<boolean>(false);
   const [isPanduanModalOpen, setIsPanduanModalOpen] = useState<boolean>(false);
   const [isGasConfigured, setIsGasConfigured] = useState<boolean>(gasService.isLiveGasConfigured());
@@ -142,7 +145,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <main className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 ${currentUser ? 'pb-24 lg:pb-12' : ''}`}>
         {currentTab === 'home' && (
           <HomePage
             onSelectTab={handleSelectTab}
@@ -196,6 +199,8 @@ export default function App() {
             currentUser={currentUser}
             onLogout={handleLogout}
             onGoToLogin={handleGoToLogin}
+            activeTab={siswaSubTab}
+            onTabChange={setSiswaSubTab}
           />
         )}
 
@@ -205,6 +210,8 @@ export default function App() {
             onOpenPanduan={handleOpenPanduan}
             currentUser={currentUser}
             onLogout={handleLogout}
+            activeTeam={guruSubTeam}
+            onTeamChange={setGuruSubTeam}
           />
         )}
       </main>
@@ -219,6 +226,21 @@ export default function App() {
 
       {/* PWA Offline Mode Indicator */}
       <OfflineIndicator />
+
+      {/* Mobile Bottom Navigation Bar (< lg) - Tampil setelah login */}
+      <MobileBottomNav
+        currentUser={currentUser}
+        currentTab={currentTab}
+        onSelectTab={handleSelectTab}
+        onRoleChange={handleRoleChange}
+        siswaSubTab={siswaSubTab}
+        onSiswaSubTabChange={setSiswaSubTab}
+        guruSubTeam={guruSubTeam}
+        onGuruSubTeamChange={setGuruSubTeam}
+        onOpenGasConfig={handleOpenGasConfig}
+        onOpenPanduan={handleOpenPanduan}
+        onLogout={handleLogout}
+      />
 
       {/* Google Apps Script & Google Spreadsheet Database Config Modal — HANYA ADMIN */}
       {currentUser?.role === 'admin' && (
