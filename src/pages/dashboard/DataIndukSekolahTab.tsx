@@ -572,7 +572,7 @@ export const DataIndukSekolahTab: React.FC<Props> = ({
                 <th className="py-3 px-3 min-w-[150px]">Asal Sekolah</th>
                 <th className="py-3 px-3 min-w-[160px]">Nama Orang Tua</th>
                 <th className="py-3 px-3 min-w-[140px]">No HP</th>
-                <th className="py-3 px-3 text-center">Aksi &amp; Cetak</th>
+                <th className="py-3 px-3 text-center">Aksi &amp; Unduh PDF</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -674,11 +674,11 @@ export const DataIndukSekolahTab: React.FC<Props> = ({
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => setSelectedPrintItem(item)}
-                            title="Cetak Lembar Buku Induk Murid"
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition cursor-pointer"
+                            title="Buka & Unduh Lembar Buku Induk Murid (PDF)"
+                            className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition cursor-pointer"
                           >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Cetak</span>
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Unduh PDF</span>
                           </button>
                           <button
                             onClick={() => handleDeleteFromDataInduk(item.noPendaftaran, item.namaLengkap)}

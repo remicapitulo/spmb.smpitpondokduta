@@ -9,6 +9,7 @@ import {
   UserCheck, 
   Award, 
   Printer, 
+  Download,
   Save, 
   CheckCircle2, 
   Database,
@@ -627,8 +628,8 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                   }}
                   className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
                 >
-                  <Printer className="w-4 h-4" />
-                  <span>Pratinjau / Cetak</span>
+                  <Download className="w-4 h-4 text-indigo-600" />
+                  <span>Pratinjau &amp; Unduh PDF</span>
                 </button>
               </div>
             </div>

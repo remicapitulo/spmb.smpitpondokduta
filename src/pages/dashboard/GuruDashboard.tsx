@@ -22,6 +22,7 @@ import {
   AlertTriangle, 
   FileText, 
   Printer, 
+  Download,
   Save, 
   ExternalLink, 
   CheckCircle2, 
@@ -1638,8 +1639,8 @@ export const GuruDashboard: React.FC<Props> = ({
                     }}
                     className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
                   >
-                    <Printer className="w-4 h-4" />
-                    <span>Pratinjau / Cetak</span>
+                    <Download className="w-4 h-4 text-emerald-600" />
+                    <span>Pratinjau &amp; Unduh PDF</span>
                   </button>
                 </div>
               </div>

@@ -1,6 +1,7 @@
-import React from 'react';
-import { ObservasiGuruData } from '../../types';
-import { Printer, X, ShieldCheck } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ObservasiGuruData, getAcademicYear } from '../../types';
+import { Download, X, ShieldCheck, Loader2 } from 'lucide-react';
+import { downloadElementAsPdf } from '../../utils/downloadPdfDocument';
 
 interface Props {
   observasi: ObservasiGuruData;
@@ -8,8 +9,36 @@ interface Props {
 }
 
 export const HasilWawancaraPrintView: React.FC<Props> = ({ observasi, onClose }) => {
-  const handlePrint = () => {
-    window.print();
+  const docRef = useRef<HTMLDivElement | null>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const tahunPelajaran = getAcademicYear();
+
+  const handleDownloadPdf = async () => {
+    if (isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+
+    try {
+      const docElement = docRef.current;
+      if (!docElement) {
+        throw new Error('Elemen dokumen wawancara tidak ditemukan');
+      }
+
+      const safeName = (observasi.namaSiswa || 'Murid').replace(/\s+/g, '_');
+      const safeId = (observasi.noPendaftaran || observasi.id || 'PD').replace(/\s+/g, '_');
+      const fileName = `Lembar_Evaluasi_Wawancara_${safeId}_${safeName}.pdf`;
+
+      await downloadElementAsPdf({
+        element: docElement,
+        fileName,
+        pdfTitle: `Lembar Evaluasi Wawancara - ${observasi.namaSiswa}`,
+        footerText: `Lembar Observasi & Hasil Wawancara Resmi SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · Sah terverifikasi digital.`,
+        margin: 10
+      });
+    } catch (err) {
+      console.warn('Gagal unduh PDF Wawancara:', err);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   React.useEffect(() => {
@@ -40,11 +69,22 @@ export const HasilWawancaraPrintView: React.FC<Props> = ({ observasi, onClose })
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={handlePrint}
-              className="px-3.5 sm:px-4 py-2 bg-purple-700 hover:bg-purple-800 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="px-3.5 sm:px-4 py-2 bg-purple-700 hover:bg-purple-800 disabled:opacity-50 active:scale-95 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
             >
-              <Printer className="w-4 h-4" />
-              <span>Cetak / Cetak PDF</span>
+              {isDownloadingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-200" />
+                  <span>Menyiapkan PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Unduh PDF</span>
+                </>
+              )}
             </button>
             <button
               onClick={onClose}
@@ -60,7 +100,11 @@ export const HasilWawancaraPrintView: React.FC<Props> = ({ observasi, onClose })
         <div className="overflow-y-auto flex-1 p-4 sm:p-8 bg-slate-100/70 custom-scrollbar">
 
         {/* Printable Official Document */}
-        <div className="print-container space-y-5 text-slate-900 text-xs bg-white p-6 sm:p-10 rounded-2xl shadow-md border border-slate-200 max-w-3xl mx-auto">
+        <div 
+          ref={docRef} 
+          id="printable-wawancara-doc" 
+          className="print-container space-y-5 text-slate-900 text-xs bg-white p-6 sm:p-10 rounded-2xl shadow-md border border-slate-200 max-w-3xl mx-auto"
+        >
           {/* Kop Surat */}
           <div className="border-b-4 border-double border-emerald-900 pb-3 text-center space-y-1">
             <div className="text-xs font-bold tracking-widest text-emerald-800 uppercase">
@@ -200,11 +244,22 @@ export const HasilWawancaraPrintView: React.FC<Props> = ({ observasi, onClose })
               Tutup
             </button>
             <button
-              onClick={handlePrint}
-              className="px-3.5 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer"
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="px-3.5 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Cetak / Cetak PDF</span>
+              {isDownloadingPdf ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-200" />
+                  <span>Menyiapkan PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Unduh PDF</span>
+                </>
+              )}
             </button>
           </div>
         </div>

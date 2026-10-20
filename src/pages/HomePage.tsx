@@ -191,9 +191,11 @@ export const HomePage: React.FC<Props> = ({
                 <BookOpen className="w-4 h-4 text-amber-300 shrink-0" />
                 <span>Pembelajaran Al-Qur'an <strong>Metode UMMI</strong></span>
               </div>
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-amber-300 shrink-0" />
-                <span>CS SPMB: <strong>0822-2500-2011</strong> / Telp: (021) 29378301 · Email: info@smpitpondokduta.sch.id</span>
+              <div className="flex items-start sm:items-center gap-2">
+                <Phone className="w-4 h-4 text-amber-300 shrink-0 mt-0.5 sm:mt-0" />
+                <span className="leading-snug break-words">
+                  CS SPMB: <a href="https://wa.me/6282225002011" target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">0822-2500-2011</a> · Telp: (021) 29378301 · Email: <a href="mailto:info@smpitpondokduta.sch.id" className="hover:underline break-all">info@smpitpondokduta.sch.id</a>
+                </span>
               </div>
             </div>
           </div>

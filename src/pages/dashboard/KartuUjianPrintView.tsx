@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DataSiswa, getAcademicYear } from '../../types';
 import { gasService } from '../../services/gasService';
-import { Download, X, CheckCircle2, Printer, Loader2, FileText, Image as ImageIcon, QrCode } from 'lucide-react';
+import { Download, X, CheckCircle2, Loader2, FileText, Image as ImageIcon, QrCode } from 'lucide-react';
 import QRCode from 'qrcode';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -81,30 +81,29 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Handler Unduh Kartu Peserta Format PDF Resmi (Dokumen Cetak Ukuran A4)
+  // Handler Unduh Kartu Peserta Format PDF Resmi (Dokumen Cetak Ukuran A4 - Langsung Unduh File PDF)
   const handleDownloadPdf = async () => {
     if (isDownloadingPdf || isDownloadingPng) return;
     setIsDownloadingPdf(true);
     setDownloadSuccess('');
 
-    // Monkey-patch window.getComputedStyle secara aman selama eksekusi html2canvas
-    // agar seluruh pembacaan warna (termasuk oklch di Tailwind v4) terkonversi ke sRGB murni
     const restoreComputedStyle = patchGetComputedStyle(window);
 
     try {
       const cardElement = cardRef.current;
       if (!cardElement) {
-        window.print();
-        return;
+        throw new Error('Element kartu tidak ditemukan');
       }
 
       // Convert card to high-resolution canvas with onclone sRGB sanitizer
       const canvas = await html2canvas(cardElement, {
-        scale: 2.5,
+        scale: 2,
         useCORS: true,
-        allowTaint: false, // Hindari canvas tainting
+        allowTaint: true,
         backgroundColor: '#ffffff',
         logging: false,
+        scrollX: 0,
+        scrollY: 0,
         onclone: (clonedDoc) => {
           sanitizeDocumentForCanvas(clonedDoc);
         }
@@ -146,8 +145,50 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
       setDownloadSuccess('Berhasil mengunduh dokumen PDF Kartu Peserta!');
       setTimeout(() => setDownloadSuccess(''), 4000);
     } catch (error) {
-      console.error('Gagal generate PDF langsung, membuka dialog cetak:', error);
-      window.print();
+      console.warn('Fallback direct jsPDF generator:', error);
+      // Fallback langsung membuat file PDF tanpa pernah memanggil window.print()
+      try {
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        pdf.setFontSize(11);
+        pdf.setTextColor(4, 120, 87);
+        pdf.text(`PANITIA SELEKSI PENERIMAAN MURID BARU (SPMB) TP ${getAcademicYear()}`, 15, 20);
+        pdf.setFontSize(16);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text('SMPIT PONDOK DUTA CIMANGGIS DEPOK', 15, 28);
+        pdf.setFontSize(9);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text('Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Cimanggis, Kota Depok 16451', 15, 34);
+        pdf.setLineWidth(0.5);
+        pdf.setDrawColor(4, 120, 87);
+        pdf.line(15, 38, 195, 38);
+
+        pdf.setFontSize(13);
+        pdf.setTextColor(4, 120, 87);
+        pdf.text('KARTU PESERTA OBSERVASI & WAWANCARA', 15, 48);
+
+        pdf.setFontSize(10);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(`Nomor Pendaftaran : ${siswa.noPendaftaran || '-'}`, 15, 60);
+        pdf.text(`Nama Calon Murid : ${siswa.namaLengkap || '-'}`, 15, 68);
+        pdf.text(`NISN             : ${siswa.nisn || '-'}`, 15, 76);
+        pdf.text(`Jenis Kelamin    : ${siswa.jenisKelamin || '-'}`, 15, 84);
+        pdf.text(`Asal SD / MI     : ${siswa.asalSekolah || '-'}`, 15, 92);
+        pdf.text(`Nama Orang Tua   : ${siswa.namaAyah || siswa.namaIbu || '-'}`, 15, 100);
+
+        if (qrDataUrl) {
+          try {
+            pdf.addImage(qrDataUrl, 'PNG', 15, 110, 35, 35);
+          } catch {}
+        }
+
+        const safeName = (siswa.namaLengkap || 'Murid').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+        const fileName = `Kartu_Peserta_SPMB_${siswa.noPendaftaran || 'PD'}_${safeName}.pdf`;
+        pdf.save(fileName);
+        setDownloadSuccess('Berhasil mengunduh dokumen PDF Kartu Peserta!');
+        setTimeout(() => setDownloadSuccess(''), 4000);
+      } catch (e) {
+        alert('Gagal mengunduh PDF. Silakan coba kembali.');
+      }
     } finally {
       restoreComputedStyle();
       setIsDownloadingPdf(false);
@@ -160,22 +201,22 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
     setIsDownloadingPng(true);
     setDownloadSuccess('');
 
-    // Monkey-patch window.getComputedStyle secara aman selama eksekusi html2canvas
     const restoreComputedStyle = patchGetComputedStyle(window);
 
     try {
       const cardElement = cardRef.current;
       if (!cardElement) {
-        window.print();
-        return;
+        throw new Error('Element kartu tidak ditemukan');
       }
 
       const canvas = await html2canvas(cardElement, {
-        scale: 3,
+        scale: 2,
         useCORS: true,
-        allowTaint: false,
+        allowTaint: true,
         backgroundColor: '#ffffff',
         logging: false,
+        scrollX: 0,
+        scrollY: 0,
         onclone: (clonedDoc) => {
           sanitizeDocumentForCanvas(clonedDoc);
         }
@@ -184,10 +225,9 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
       const safeName = (siswa.namaLengkap || 'Murid').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
       const fileName = `Kartu_Peserta_SPMB_${siswa.noPendaftaran || 'PD'}_${safeName}.png`;
 
-      // Gunakan toBlob agar aman dan kompatibel di seluruh browser HP & laptop
       canvas.toBlob((blob) => {
         if (!blob) {
-          window.print();
+          alert('Gagal membuat gambar PNG.');
           return;
         }
         const blobUrl = URL.createObjectURL(blob);
@@ -204,16 +244,12 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
         setTimeout(() => setDownloadSuccess(''), 4000);
       }, 'image/png', 1.0);
     } catch (error) {
-      console.error('Gagal unduh PNG, membuka dialog cetak:', error);
-      window.print();
+      console.error('Gagal unduh PNG:', error);
+      alert('Gagal mengunduh gambar PNG. Silakan coba opsi Unduh PDF.');
     } finally {
       restoreComputedStyle();
       setIsDownloadingPng(false);
     }
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   return (
@@ -465,15 +501,6 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
               className="px-3.5 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition cursor-pointer"
             >
               Tutup
-            </button>
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-              title="Cetak langsung ke printer atau Save to PDF via browser"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Cetak</span>
             </button>
             
             {/* Tombol Unduh Gambar PNG */}

@@ -6,6 +6,7 @@ import QRCode from 'qrcode';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { patchGetComputedStyle, sanitizeDocumentForCanvas } from '../utils/colorSanitizer';
+import { downloadElementAsPdf } from '../utils/downloadPdfDocument';
 import { 
   Search, 
   CheckCircle2, 
@@ -176,61 +177,77 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
     handleSearch(code);
   };
 
-  // Handler Unduh PDF Resmi Surat Keterangan Lulus (SKL)
+  // Handler Unduh PDF Resmi Surat Keterangan Lulus (SKL - Langsung Download File PDF)
   const handleDownloadPdf = async () => {
     if (isDownloadingPdf) return;
     setIsDownloadingPdf(true);
 
-    const restoreComputedStyle = patchGetComputedStyle(window);
-
     try {
       const docElement = sklDocRef.current;
       if (!docElement) {
-        window.print();
-        return;
+        throw new Error('Element dokumen SKL tidak ditemukan');
       }
 
-      const canvas = await html2canvas(docElement, {
-        scale: 2.2,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: '#ffffff',
-        logging: false,
-        onclone: (clonedDoc) => {
-          sanitizeDocumentForCanvas(clonedDoc);
-        }
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 14;
-      const printableWidth = pageWidth - margin * 2;
-      const imgHeight = (canvas.height * printableWidth) / canvas.width;
-
-      pdf.addImage(imgData, 'PNG', margin, 14, printableWidth, imgHeight);
-
-      // Keterangan footer PDF
-      pdf.setFontSize(8);
-      pdf.setTextColor(100, 116, 139);
-      pdf.text(
-        `Surat Keterangan Lulus Resmi SPMB SMPIT Pondok Duta · TP ${tahunPelajaran} · Sah terverifikasi via QR Code.`,
-        margin,
-        14 + imgHeight + 7
-      );
-
       const safeName = (result?.namaLengkap || 'Calon_Murid').replace(/\s+/g, '_');
-      pdf.save(`SKL_SPMB_SMPIT_Pondok_Duta_${safeName}_${result?.noPendaftaran || ''}.pdf`);
+      const fileName = `SKL_SPMB_SMPIT_Pondok_Duta_${safeName}_${result?.noPendaftaran || ''}.pdf`;
+
+      await downloadElementAsPdf({
+        element: docElement,
+        fileName,
+        pdfTitle: `Surat Keterangan Lulus SPMB - ${result?.namaLengkap || ''}`,
+        footerText: `Surat Keterangan Lulus Resmi SPMB SMPIT Pondok Duta · TP ${tahunPelajaran} · Sah terverifikasi via QR Code.`,
+        margin: 12
+      });
     } catch (err) {
-      console.warn('Gagal render canvas PDF, dialihkan ke print dialog:', err);
-      window.print();
+      console.warn('Fallback direct jsPDF generator untuk SKL:', err);
+      // Fallback membuat file PDF langsung tanpa pernah memanggil window.print()
+      try {
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        pdf.setFontSize(11);
+        pdf.setTextColor(4, 120, 87);
+        pdf.text('YAYASAN PERGURUAN ISLAM PONDOK DUTA', 14, 20);
+        pdf.setFontSize(15);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text('SMPIT PONDOK DUTA CIMANGGIS DEPOK', 14, 28);
+        pdf.setFontSize(9);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text('Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Cimanggis, Depok 16451', 14, 34);
+        pdf.setLineWidth(0.5);
+        pdf.setDrawColor(4, 120, 87);
+        pdf.line(14, 38, 196, 38);
+
+        pdf.setFontSize(13);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text('SURAT KETERANGAN LULUS SELEKSI SPMB', 14, 48);
+        pdf.setFontSize(9);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(`Nomor: 042/SPMB-SMPIT/PD/I/${new Date().getFullYear()}`, 14, 54);
+
+        pdf.setFontSize(10);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(`Nomor Pendaftaran : ${result?.noPendaftaran || '-'}`, 14, 68);
+        pdf.text(`Nama Calon Murid : ${result?.namaLengkap || '-'}`, 14, 76);
+        pdf.text(`NISN             : ${effectiveNisn}`, 14, 84);
+        pdf.text(`Asal SD / MI     : ${result?.asalSekolah || '-'}`, 14, 92);
+        pdf.text(`Jalur Penerimaan : ${result?.jalur || 'Reguler'}`, 14, 100);
+        pdf.text(`Jadwal Daftar Ulang: ${effectiveJadwalDaftarUlang}`, 14, 108);
+
+        pdf.setFontSize(13);
+        pdf.setTextColor(4, 120, 87);
+        pdf.text('KEPUTUSAN: DITERIMA SEBAGAI MURID BARU', 14, 124);
+
+        if (qrCodeUrl) {
+          try {
+            pdf.addImage(qrCodeUrl, 'PNG', 14, 135, 35, 35);
+          } catch {}
+        }
+
+        const safeName = (result?.namaLengkap || 'Calon_Murid').replace(/\s+/g, '_');
+        pdf.save(`SKL_SPMB_SMPIT_Pondok_Duta_${safeName}_${result?.noPendaftaran || ''}.pdf`);
+      } catch (pdfErr) {
+        alert('Gagal mengunduh file PDF SKL. Silakan coba kembali.');
+      }
     } finally {
-      restoreComputedStyle();
       setIsDownloadingPdf(false);
     }
   };
@@ -381,10 +398,10 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
                 {result.status === 'LULUS' && (
                   <button
                     onClick={() => setShowSklModal(true)}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition cursor-pointer"
                   >
-                    <FileText className="w-4 h-4" />
-                    <span>Cetak Surat Keterangan Lulus (SKL)</span>
+                    <Download className="w-4 h-4 text-amber-300" />
+                    <span>Unduh Surat Keterangan Lulus (SKL)</span>
                   </button>
                 )}
                 <button

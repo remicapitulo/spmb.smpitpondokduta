@@ -413,7 +413,7 @@ export const SiswaDashboard: React.FC<Props> = ({
               : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
           }`}
         >
-          <Printer className="w-4 h-4 shrink-0" />
+          <FileText className="w-4 h-4 shrink-0" />
           <span className="truncate">4. Kartu Peserta</span>
         </button>
       </div>

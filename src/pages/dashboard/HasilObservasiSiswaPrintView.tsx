@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ObservasiSiswaData, getAcademicYear } from '../../types';
 import { gasService } from '../../services/gasService';
 import QRCode from 'qrcode';
-import { Download, X, ShieldCheck, QrCode as QrCodeIcon, CheckCircle2 } from 'lucide-react';
+import { Download, X, ShieldCheck, QrCode as QrCodeIcon, CheckCircle2, Loader2 } from 'lucide-react';
+import { downloadElementAsPdf } from '../../utils/downloadPdfDocument';
 
 interface Props {
   data: ObservasiSiswaData;
@@ -30,8 +31,35 @@ export const HasilObservasiSiswaPrintView: React.FC<Props> = ({ data, onClose })
     }
   }, [data]);
 
-  const handlePrint = () => {
-    window.print();
+  const docRef = React.useRef<HTMLDivElement | null>(null);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+
+    try {
+      const docElement = docRef.current;
+      if (!docElement) {
+        throw new Error('Elemen dokumen observasi tidak ditemukan');
+      }
+
+      const safeName = (data.namaSiswa || 'Murid').replace(/\s+/g, '_');
+      const safeId = (data.noPendaftaran || 'PD').replace(/\s+/g, '_');
+      const fileName = `Lembar_Observasi_Siswa_${safeId}_${safeName}.pdf`;
+
+      await downloadElementAsPdf({
+        element: docElement,
+        fileName,
+        pdfTitle: `Lembar Observasi Siswa - ${data.namaSiswa || ''}`,
+        footerText: `Lembar Observasi Calon Murid SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · Sah terverifikasi via QR Code.`,
+        margin: 10
+      });
+    } catch (err) {
+      console.warn('Gagal unduh PDF Observasi:', err);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   React.useEffect(() => {
@@ -73,7 +101,11 @@ export const HasilObservasiSiswaPrintView: React.FC<Props> = ({ data, onClose })
         <div className="overflow-y-auto flex-1 p-4 sm:p-8 bg-slate-100/70 custom-scrollbar">
 
         {/* Printable Official Document */}
-        <div className="print-container space-y-5 text-slate-900 text-xs bg-white p-6 sm:p-10 rounded-2xl shadow-md border border-slate-200 max-w-3xl mx-auto">
+        <div 
+          ref={docRef} 
+          id="printable-observasi-siswa" 
+          className="print-container space-y-5 text-slate-900 text-xs bg-white p-6 sm:p-10 rounded-2xl shadow-md border border-slate-200 max-w-3xl mx-auto"
+        >
           {/* Kop Surat Resmi dengan Logo Sekolah */}
           <div className="border-b-4 border-double border-emerald-900 pb-3 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-4 text-center sm:text-left">
             <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 p-1 bg-white border border-emerald-200 rounded-2xl flex items-center justify-center shadow-2xs">
@@ -264,11 +296,22 @@ export const HasilObservasiSiswaPrintView: React.FC<Props> = ({ data, onClose })
               Tutup
             </button>
             <button
-              onClick={handlePrint}
-              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
             >
-              <Download className="w-4 h-4" />
-              <span>Unduh PDF</span>
+              {isDownloadingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                  <span>Menyiapkan PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-emerald-400" />
+                  <span>Unduh PDF</span>
+                </>
+              )}
             </button>
           </div>
         </div>

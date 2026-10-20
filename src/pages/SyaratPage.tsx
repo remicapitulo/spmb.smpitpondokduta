@@ -8,7 +8,9 @@ import {
   Users, 
   HelpCircle,
   Phone,
-  MapPin
+  MapPin,
+  Mail,
+  MessageCircle
 } from 'lucide-react';
 
 interface Props {
@@ -190,21 +192,78 @@ export const SyaratPage: React.FC<Props> = ({ onGoToRegister }) => {
           })}
         </div>
 
-        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 text-xs text-amber-900 flex items-start gap-3">
-          <HelpCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="space-y-1 leading-relaxed">
-            <div>
-              <strong>Informasi Kontak & Ruang Pendaftaran:</strong>
+        {/* Informasi Kontak & Ruang Pendaftaran (Responsif & Anti-Overflow di Layar HP) */}
+        <div className="w-full rounded-2xl bg-gradient-to-br from-amber-50 to-orange-50/40 border border-amber-200/90 p-4 sm:p-5 text-xs text-amber-950 shadow-xs overflow-hidden">
+          <div className="flex items-center gap-2.5 mb-3 border-b border-amber-200/60 pb-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 shadow-2xs">
+              <HelpCircle className="w-4 h-4" />
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
-              <span className="inline-flex items-center gap-1">
-                <Phone className="w-3.5 h-3.5 text-amber-700" />
-                <strong>CS SMPIT (WA):</strong> 0822-2500-2011 · <strong>Telp:</strong> (021) 29378301 · <strong>Email:</strong> info@smpitpondokduta.sch.id
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-amber-700" />
-                Jl. Duta Plaza No.1, Perumahan Pondok Duta 1, Tugu, Cimanggis, Depok
-              </span>
+            <div className="min-w-0">
+              <h4 className="font-extrabold text-amber-950 text-xs sm:text-sm leading-tight">
+                Informasi Kontak &amp; Ruang Pendaftaran
+              </h4>
+              <p className="text-[10px] text-amber-800/80">Layanan resmi panitia SPMB SMPIT Pondok Duta</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            {/* WhatsApp CS */}
+            <a
+              href="https://wa.me/6282225002011?text=Assalamu'alaikum%20Panitia%20SPMB%20SMPIT%20Pondok%20Duta..."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-amber-200/80 hover:border-emerald-500 hover:bg-emerald-50/30 text-slate-800 transition group shadow-2xs"
+            >
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition">
+                <MessageCircle className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase tracking-wider">WhatsApp CS (Resmi)</span>
+                <span className="font-mono font-extrabold text-slate-900 text-xs block">0822-2500-2011</span>
+              </div>
+            </a>
+
+            {/* Telepon Kantor */}
+            <a
+              href="tel:02129378301"
+              className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-amber-200/80 hover:border-amber-400 hover:bg-amber-50/30 text-slate-800 transition shadow-2xs"
+            >
+              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                <Phone className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase tracking-wider">Telepon Kantor</span>
+                <span className="font-mono font-bold text-slate-900 text-xs block">(021) 29378301</span>
+              </div>
+            </a>
+
+            {/* Email Resmi */}
+            <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white border border-amber-200/80 text-slate-800 sm:col-span-2 shadow-2xs">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                <Mail className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase tracking-wider">Email Resmi</span>
+                <a 
+                  href="mailto:info@smpitpondokduta.sch.id" 
+                  className="font-medium text-emerald-800 hover:underline text-xs break-all block"
+                >
+                  info@smpitpondokduta.sch.id
+                </a>
+              </div>
+            </div>
+
+            {/* Lokasi Ruang Pendaftaran */}
+            <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white border border-amber-200/80 text-slate-800 sm:col-span-2 shadow-2xs">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 mt-0.5">
+                <MapPin className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 flex-1 text-[11px] leading-relaxed">
+                <span className="text-[10px] text-slate-500 font-bold block uppercase tracking-wider">Lokasi Ruang Pendaftaran</span>
+                <span className="text-slate-800 block">
+                  Jl. Duta Plaza No. 1, Perumahan Pondok Duta 1, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451
+                </span>
+              </div>
             </div>
           </div>
         </div>
