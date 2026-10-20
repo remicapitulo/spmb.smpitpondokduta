@@ -134,10 +134,22 @@ export const GuruDashboard: React.FC<Props> = ({
 
   useEffect(() => {
     loadStudentList();
+    const handleDbUpdate = () => {
+      gasService.getStudentList(false).then((updatedList) => {
+        setStudents(updatedList);
+        const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
+        setDbGuruNames(gurus);
+      });
+    };
+    window.addEventListener('spmb_db_updated', handleDbUpdate);
+    return () => {
+      window.removeEventListener('spmb_db_updated', handleDbUpdate);
+    };
   }, []);
 
   const loadStudentList = async () => {
-    setLoading(true);
+    // Hanya tampilkan loading jika belum ada data siswa sama sekali di memori
+    setLoading(prev => students.length === 0);
     const list = await gasService.getStudentList();
     const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
     setDbGuruNames(gurus);

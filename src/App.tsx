@@ -32,9 +32,8 @@ export default function App() {
   }, [currentTab]);
 
   useEffect(() => {
-    // Sinkronisasi otomatis Sheet "Setting" (Logo, Foto Badge & Folder Drive) dan seluruh database saat pertama dibuka
+    // Sinkronisasi otomatis seluruh database & Sheet Setting dari Spreadsheet saat aplikasi dibuka
     if (gasService.isLiveGasConfigured()) {
-      gasService.syncSettingsFromCloud();
       gasService.syncFromSpreadsheet().then(() => {
         setIsGasConfigured(gasService.isLiveGasConfigured());
       });

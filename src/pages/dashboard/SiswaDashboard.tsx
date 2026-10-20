@@ -100,10 +100,26 @@ export const SiswaDashboard: React.FC<Props> = ({
     } else {
       loadData();
     }
+
+    const handleDbUpdate = () => {
+      const activeNo = currentUser?.role === 'siswa' && currentUser?.kodePendaftaran ? currentUser.kodePendaftaran : selectedNoPendaftaran;
+      if (activeNo) {
+        gasService.getSiswaDetail(activeNo).then(detail => {
+          if (detail) {
+            setBiodataForm(detail.siswa);
+            if (detail.wawancaraSiswa) setWawancaraSiswaForm(detail.wawancaraSiswa);
+          }
+        });
+      }
+    };
+    window.addEventListener('spmb_db_updated', handleDbUpdate);
+    return () => {
+      window.removeEventListener('spmb_db_updated', handleDbUpdate);
+    };
   }, [currentUser]);
 
   const loadData = async (targetNoPend?: string) => {
-    setLoading(true);
+    setLoading(prev => !biodataForm.noPendaftaran);
     const list = await gasService.getStudentList();
     setStudents(list);
 

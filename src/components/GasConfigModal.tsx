@@ -712,7 +712,7 @@ export const GasConfigModal: React.FC<Props> = ({ isOpen, onClose, onConfigChang
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <label className="font-extrabold text-emerald-950 flex items-center gap-2 text-xs sm:text-sm">
                 <FileSpreadsheet className="w-4 h-4 text-emerald-700 shrink-0" />
-                <span>Target Google Spreadsheet Database (8 Sheet)</span>
+                <span>Target Google Spreadsheet Database</span>
               </label>
               <a
                 href={gasService.getSpreadsheetUrl(spreadsheetId)}
@@ -745,7 +745,7 @@ export const GasConfigModal: React.FC<Props> = ({ isOpen, onClose, onConfigChang
             </div>
 
             <div className="flex flex-wrap gap-1.5 pt-0.5">
-              <span className="text-[11px] font-semibold text-emerald-900 mr-1">8 Tabel Sheet Otomatis:</span>
+              <span className="text-[11px] font-semibold text-emerald-900 mr-1">Tabel Sheet Otomatis:</span>
               {['Setting', 'Users', 'Siswa', 'OTM', 'Hasil_Wawancara', 'Observasi_Siswa', 'Wawancara_Siswa', 'Kelulusan'].map((sh) => (
                 <span
                   key={sh}
@@ -854,7 +854,7 @@ export const GasConfigModal: React.FC<Props> = ({ isOpen, onClose, onConfigChang
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2 font-extrabold text-xs sm:text-sm text-amber-300">
                 <Sparkles className="w-4 h-4 shrink-0" />
-                <span>Sinkronisasi Database 2-Arah (8 Sheet Cloud Spreadsheet)</span>
+                <span>Sinkronisasi Database 2-Arah</span>
               </div>
               <button
                 type="button"
@@ -874,7 +874,7 @@ export const GasConfigModal: React.FC<Props> = ({ isOpen, onClose, onConfigChang
                 className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] border border-white/15 transition disabled:opacity-50 cursor-pointer"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span>1. Buat 8 Sheet Otomatis</span>
+                <span>1. Buat Sheet Otomatis</span>
               </button>
               <button
                 type="button"

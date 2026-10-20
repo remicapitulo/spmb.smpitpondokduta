@@ -151,6 +151,10 @@ const LOCAL_USERS_KEY = 'spmb_pd_users_db';
 const LOCAL_CURRENT_USER_KEY = 'spmb_pd_current_user';
 const PURE_DB_MODE_KEY = 'spmb_pd_pure_db_mode_v2';
 
+// State deduplikasi dan throttling sinkronisasi Google Apps Script
+let _lastSyncTimeMs = 0;
+let _ongoingSyncPromise: Promise<{ success: boolean; message: string }> | null = null;
+
 export const INITIAL_USER_ACCOUNTS: UserAccount[] = [];
 export const INITIAL_PEWAWANCARA_ACCOUNTS: UserAccount[] = [];
 export const INITIAL_ADMIN_ACCOUNTS: UserAccount[] = [];
@@ -775,7 +779,7 @@ export const gasService = {
   },
 
   // Tarik / Sinkronisasi seluruh data dari Google Spreadsheet ke aplikasi lokal
-  async syncFromSpreadsheet(customGasUrl?: string): Promise<{
+  async syncFromSpreadsheet(customGasUrl?: string, forceRefresh: boolean = false): Promise<{
     success: boolean;
     message: string;
   }> {
@@ -787,150 +791,179 @@ export const gasService = {
       };
     }
 
-    try {
-      const separator = gasUrl.includes('?') ? '&' : '?';
-      const response = await fetch(`${gasUrl}${separator}action=getAllData`, {
-        method: 'GET',
-        mode: 'cors'
-      });
-      const json = await response.json();
+    // 1. Throttling: Jika baru saja sinkron dalam 15 detik terakhir dan tidak dipaksa (force), gunakan data lokal
+    const now = Date.now();
+    if (!forceRefresh && (now - _lastSyncTimeMs < 15000)) {
+      return {
+        success: true,
+        message: 'Data lokal sudah yang terbaru (sinkronisasi aktif).'
+      };
+    }
 
-      if (json && json.success && json.data) {
-        const db = json.data;
+    // 2. Request Deduplication: Jika ada request sync yang sedang berjalan, ikuti promise yang sama
+    if (_ongoingSyncPromise) {
+      return _ongoingSyncPromise;
+    }
 
-        if (db.settings && typeof db.settings === 'object') {
-          const currentSettings = this.getAppSettings();
-          const needAutoPushHero = !db.settings.heroPhotoUrl && Boolean(currentSettings.heroPhotoUrl);
-          const needAutoPushLogo = !db.settings.logoUrl && Boolean(currentSettings.logoUrl);
+    _ongoingSyncPromise = (async () => {
+      try {
+        const separator = gasUrl.includes('?') ? '&' : '?';
+        const response = await fetch(`${gasUrl}${separator}action=getAllData`, {
+          method: 'GET',
+          mode: 'cors'
+        });
+        const json = await response.json();
 
-          const mergedSettings: AppSettingsConfig = {
-            driveFolderUrl: db.settings.driveFolderUrl || currentSettings.driveFolderUrl || DEFAULT_DRIVE_FOLDER_URL,
-            logoUrl: db.settings.logoUrl || currentSettings.logoUrl || '',
-            logoDriveUrl: db.settings.logoDriveUrl || currentSettings.logoDriveUrl || '',
-            heroPhotoUrl: db.settings.heroPhotoUrl || currentSettings.heroPhotoUrl || '',
-            heroDriveUrl: db.settings.heroDriveUrl || currentSettings.heroDriveUrl || '',
-            heroCropMode: (db.settings.heroCropMode as 'cutout' | 'full') || currentSettings.heroCropMode || 'cutout',
-            isCloudSynced: Boolean(db.settings.logoUrl && db.settings.heroPhotoUrl),
-            updatedAt: new Date().toISOString()
-          };
+        if (json && json.success && json.data) {
+          _lastSyncTimeMs = Date.now();
+          const db = json.data;
 
-          if (needAutoPushHero || needAutoPushLogo) {
-            await this.saveAppSettings(mergedSettings, gasUrl);
-          } else {
-            localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(mergedSettings));
-            if (mergedSettings.heroPhotoUrl) {
-              localStorage.setItem(LEGACY_HERO_PHOTO_KEY, mergedSettings.heroPhotoUrl);
-            }
-            localStorage.setItem(LEGACY_HERO_CROP_KEY, mergedSettings.heroCropMode);
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new Event('spmb_settings_updated'));
-            }
-          }
-        }
+          if (db.settings && typeof db.settings === 'object') {
+            const currentSettings = this.getAppSettings();
+            const needAutoPushHero = !db.settings.heroPhotoUrl && Boolean(currentSettings.heroPhotoUrl);
+            const needAutoPushLogo = !db.settings.logoUrl && Boolean(currentSettings.logoUrl);
 
-        // Timpa penuh data lokal dengan data dari Google Spreadsheet (tanpa sisa data dummy)
-        localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(Array.isArray(db.users) ? db.users : []));
-        localStorage.setItem(LOCAL_SISWA_KEY, JSON.stringify(Array.isArray(db.siswaList) ? db.siswaList : []));
-        if (Array.isArray(db.dataIndukList)) {
-          localStorage.setItem(LOCAL_DATA_INDUK_KEY, JSON.stringify(db.dataIndukList));
-        }
-        localStorage.setItem(LOCAL_OTM_RAW_KEY, JSON.stringify(db.otmMap && typeof db.otmMap === 'object' ? db.otmMap : {}));
-        localStorage.setItem(LOCAL_HASIL_ORTU_KEY, JSON.stringify(db.hasilOrtuMap && typeof db.hasilOrtuMap === 'object' ? db.hasilOrtuMap : {}));
-        localStorage.setItem(LOCAL_OBS_SISWA_KEY, JSON.stringify(Array.isArray(db.observasiList) ? db.observasiList : []));
-        if (Array.isArray(db.wawancaraSiswaList)) {
-          localStorage.setItem(LOCAL_WS_KEY, JSON.stringify(db.wawancaraSiswaList));
-        }
+            const mergedSettings: AppSettingsConfig = {
+              driveFolderUrl: db.settings.driveFolderUrl || currentSettings.driveFolderUrl || DEFAULT_DRIVE_FOLDER_URL,
+              logoUrl: db.settings.logoUrl || currentSettings.logoUrl || '',
+              logoDriveUrl: db.settings.logoDriveUrl || currentSettings.logoDriveUrl || '',
+              heroPhotoUrl: db.settings.heroPhotoUrl || currentSettings.heroPhotoUrl || '',
+              heroDriveUrl: db.settings.heroDriveUrl || currentSettings.heroDriveUrl || '',
+              heroCropMode: (db.settings.heroCropMode as 'cutout' | 'full') || currentSettings.heroCropMode || 'cutout',
+              isCloudSynced: Boolean(db.settings.logoUrl && db.settings.heroPhotoUrl),
+              updatedAt: new Date().toISOString()
+            };
 
-        // Auto-heal kelulusanList agar NISN dan Jadwal Daftar Ulang tidak pernah hilang jika sheet kelulusan kosong/terhapus
-        const rawKelulusan: any[] = Array.isArray(db.kelulusanList) ? db.kelulusanList : [];
-        const healedKelulusan: StatusKelulusanInfo[] = rawKelulusan.map(kl => {
-          let nisn = (kl.nisn || '').trim();
-          let asalSekolah = (kl.asalSekolah || '').trim();
-          let jadwal = (kl.jadwalDaftarUlang || '').trim();
-
-          if (!nisn || nisn === '-') {
-            const st = (db.siswaList || []).find((s: any) => 
-              (s.noPendaftaran || '').toLowerCase() === (kl.noPendaftaran || '').toLowerCase() ||
-              (s.namaLengkap || '').toLowerCase() === (kl.namaLengkap || '').toLowerCase()
-            );
-            if (st?.nisn && st.nisn !== '-') {
-              nisn = st.nisn.trim();
+            if (needAutoPushHero || needAutoPushLogo) {
+              await this.saveAppSettings(mergedSettings, gasUrl);
             } else {
-              const di = (db.dataIndukList || []).find((i: any) => 
-                (i.noPendaftaran || '').toLowerCase() === (kl.noPendaftaran || '').toLowerCase() ||
-                (i.namaLengkap || '').toLowerCase() === (kl.namaLengkap || '').toLowerCase()
-              );
-              if (di?.nisn && di.nisn !== '-') {
-                nisn = di.nisn.trim();
+              localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(mergedSettings));
+              if (mergedSettings.heroPhotoUrl) {
+                localStorage.setItem(LEGACY_HERO_PHOTO_KEY, mergedSettings.heroPhotoUrl);
+              }
+              localStorage.setItem(LEGACY_HERO_CROP_KEY, mergedSettings.heroCropMode);
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new Event('spmb_settings_updated'));
               }
             }
           }
 
-          if (kl.status === 'LULUS' && (!jadwal || jadwal === '-')) {
-            const obs = (db.observasiList || []).find((o: any) => 
-              (o.noPendaftaran || '').toLowerCase() === (kl.noPendaftaran || '').toLowerCase()
-            );
-            if (obs?.tanggalMaksimalDaftarUlang && obs.tanggalMaksimalDaftarUlang !== '-' && obs.tanggalMaksimalDaftarUlang.trim()) {
-              jadwal = obs.tanggalMaksimalDaftarUlang.trim();
-            } else {
-              jadwal = '20 - 25 Januari 2027';
-            }
+          // Timpa penuh data lokal dengan data dari Google Spreadsheet (tanpa sisa data dummy)
+          localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(Array.isArray(db.users) ? db.users : []));
+          localStorage.setItem(LOCAL_SISWA_KEY, JSON.stringify(Array.isArray(db.siswaList) ? db.siswaList : []));
+          if (Array.isArray(db.dataIndukList)) {
+            localStorage.setItem(LOCAL_DATA_INDUK_KEY, JSON.stringify(db.dataIndukList));
+          }
+          localStorage.setItem(LOCAL_OTM_RAW_KEY, JSON.stringify(db.otmMap && typeof db.otmMap === 'object' ? db.otmMap : {}));
+          localStorage.setItem(LOCAL_HASIL_ORTU_KEY, JSON.stringify(db.hasilOrtuMap && typeof db.hasilOrtuMap === 'object' ? db.hasilOrtuMap : {}));
+          localStorage.setItem(LOCAL_OBS_SISWA_KEY, JSON.stringify(Array.isArray(db.observasiList) ? db.observasiList : []));
+          if (Array.isArray(db.wawancaraSiswaList)) {
+            localStorage.setItem(LOCAL_WS_KEY, JSON.stringify(db.wawancaraSiswaList));
           }
 
+          // Auto-heal kelulusanList agar NISN dan Jadwal Daftar Ulang tidak pernah hilang jika sheet kelulusan kosong/terhapus
+          const rawKelulusan: any[] = Array.isArray(db.kelulusanList) ? db.kelulusanList : [];
+          const healedKelulusan: StatusKelulusanInfo[] = rawKelulusan.map(kl => {
+            let nisn = (kl.nisn || '').trim();
+            let asalSekolah = (kl.asalSekolah || '').trim();
+            let jadwal = (kl.jadwalDaftarUlang || '').trim();
+
+            if (!nisn || nisn === '-') {
+              const st = (db.siswaList || []).find((s: any) => 
+                (s.noPendaftaran || '').toLowerCase() === (kl.noPendaftaran || '').toLowerCase() ||
+                (s.namaLengkap || '').toLowerCase() === (kl.namaLengkap || '').toLowerCase()
+              );
+              if (st?.nisn && st.nisn !== '-') {
+                nisn = st.nisn.trim();
+              } else {
+                const di = (db.dataIndukList || []).find((i: any) => 
+                  (i.noPendaftaran || '').toLowerCase() === (kl.noPendaftaran || '').toLowerCase() ||
+                  (i.namaLengkap || '').toLowerCase() === (kl.namaLengkap || '').toLowerCase()
+                );
+                if (di?.nisn && di.nisn !== '-') {
+                  nisn = di.nisn.trim();
+                }
+              }
+            }
+
+            if (kl.status === 'LULUS' && (!jadwal || jadwal === '-')) {
+              const obs = (db.observasiList || []).find((o: any) => 
+                (o.noPendaftaran || '').toLowerCase() === (kl.noPendaftaran || '').toLowerCase()
+              );
+              if (obs?.tanggalMaksimalDaftarUlang && obs.tanggalMaksimalDaftarUlang !== '-' && obs.tanggalMaksimalDaftarUlang.trim()) {
+                jadwal = obs.tanggalMaksimalDaftarUlang.trim();
+              } else {
+                jadwal = '20 - 25 Januari 2027';
+              }
+            }
+
+            return {
+              ...kl,
+              nisn: nisn || '-',
+              asalSekolah: asalSekolah || 'SD/MI Pendaftar',
+              jadwalDaftarUlang: kl.status === 'LULUS' ? (jadwal || '20 - 25 Januari 2027') : '-'
+            };
+          });
+
+          localStorage.setItem(LOCAL_LULUS_KEY, JSON.stringify(healedKelulusan));
+
+          this.setLastSyncTime();
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('spmb_db_updated'));
+          }
           return {
-            ...kl,
-            nisn: nisn || '-',
-            asalSekolah: asalSekolah || 'SD/MI Pendaftar',
-            jadwalDaftarUlang: kl.status === 'LULUS' ? (jadwal || '20 - 25 Januari 2027') : '-'
+            success: true,
+            message: `Sinkronisasi berhasil dari Spreadsheet "${db.spreadsheetName || this.getSpreadsheetId()}"! (${db.siswaList?.length || 0} Data Siswa, ${db.dataIndukList?.length || 0} Data Induk & ${db.users?.length || 0} Akun dimuat dari Database).`
           };
-        });
-
-        localStorage.setItem(LOCAL_LULUS_KEY, JSON.stringify(healedKelulusan));
-
-        this.setLastSyncTime();
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('spmb_db_updated'));
         }
-        return {
-          success: true,
-          message: `Sinkronisasi berhasil dari Spreadsheet "${db.spreadsheetName || this.getSpreadsheetId()}"! (${db.siswaList?.length || 0} Data Siswa, ${db.dataIndukList?.length || 0} Data Induk & ${db.users?.length || 0} Akun dimuat dari Database).`
-        };
-      }
 
-      return {
-        success: false,
-        message: json?.message || json?.error || 'Gagal membaca data dari Spreadsheet.'
-      };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return {
-        success: false,
-        message: `Gagal menarik data dari GAS (${msg}).`
-      };
-    }
+        return {
+          success: false,
+          message: json?.message || json?.error || 'Gagal membaca data dari Spreadsheet.'
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+          success: false,
+          message: `Gagal menarik data dari GAS (${msg}).`
+        };
+      } finally {
+        _ongoingSyncPromise = null;
+      }
+    })();
+
+    return _ongoingSyncPromise;
   },
 
-  // Mendapatkan daftar siswa yang ditarik langsung dari Database Google Spreadsheet
-  async getStudentList() {
+  // Mendapatkan daftar siswa yang ditarik langsung dari Database Google Spreadsheet (High-Performance Engine)
+  // Menerapkan pola Instant Cache-First + Stale-While-Revalidate agar halaman terbuka dalam 0 milidetik
+  async getStudentList(forceRefresh: boolean = false) {
+    const rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
+    const siswaList: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
+
     const gasUrl = this.getGasUrl();
-    if (gasUrl && navigator.onLine) {
+    const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+
+    // Jika data lokal masih kosong sama sekali, tunggu sinkronisasi pertama
+    if (siswaList.length === 0 && gasUrl && isOnline) {
       try {
-        // Pastikan seluruh tabel (Siswa, OTM, Hasil Wawancara, Observasi, Kelulusan, User) sinkron dengan Spreadsheet
-        await this.syncFromSpreadsheet(gasUrl);
-        const separator = gasUrl.includes('?') ? '&' : '?';
-        const res = await fetch(`${gasUrl}${separator}action=getStudentList`, { mode: 'cors' });
-        const json = await res.json();
-        if (json && json.success && Array.isArray(json.data)) {
-          this.setLastSyncTime();
-          return json.data;
-        }
+        await this.syncFromSpreadsheet(gasUrl, true);
       } catch (e) {
-        console.warn('Fallback to synced database cache for getStudentList:', e);
+        console.warn('Initial sync failed for getStudentList:', e);
+      }
+    } else if (gasUrl && isOnline) {
+      // Jika data lokal sudah ada, jalankan sinkronisasi di latar belakang (background sync)
+      // tanpa menahan/memblokir render halaman, sehingga UI langsung tampil seketika (0 ms!)
+      const now = Date.now();
+      if (forceRefresh || (now - _lastSyncTimeMs > 20000)) {
+        this.syncFromSpreadsheet(gasUrl, forceRefresh).catch((e) => {
+          console.warn('Background sync failed for getStudentList:', e);
+        });
       }
     }
 
-    const rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
-    const siswaList: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
+    const currentRawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
+    const currentList: DataSiswa[] = currentRawSiswa ? JSON.parse(currentRawSiswa) : siswaList;
 
     const rawHasil = localStorage.getItem(LOCAL_HASIL_ORTU_KEY);
     const hasilMap: { [noPend: string]: HasilObservasiOrtuData } = rawHasil ? JSON.parse(rawHasil) : {};
@@ -938,7 +971,7 @@ export const gasService = {
     const rawOtm = localStorage.getItem(LOCAL_OTM_RAW_KEY);
     const otmMap = rawOtm ? JSON.parse(rawOtm) : {};
 
-    return siswaList.map((s, idx) => {
+    return currentList.map((s, idx) => {
       const hasil = hasilMap[s.noPendaftaran];
       const hasSignature = Boolean(hasil?.isTtdOrtuSigned || hasil?.ttdOrtuBase64);
       return {
@@ -1398,15 +1431,12 @@ export const gasService = {
     };
   },
 
-  // Cek Status Kelulusan (menarik terbaru dari Sheet Status_Kelulusan di Database Spreadsheet)
+  // Cek Status Kelulusan (Cache-First + Fast Targeted Lookup ke Database Spreadsheet)
   async checkStatusKelulusan(keyword: string): Promise<StatusKelulusanInfo | null> {
     const term = keyword.trim().toLowerCase();
     if (!term) return null;
 
-    if (this.isLiveGasConfigured() && navigator.onLine) {
-      await this.syncFromSpreadsheet();
-    }
-
+    // 1. Cek langsung di cache lokal (0ms response time!)
     const raw = localStorage.getItem(LOCAL_LULUS_KEY);
     const list: StatusKelulusanInfo[] = raw ? JSON.parse(raw) : [];
     
@@ -1415,6 +1445,33 @@ export const gasService = {
       (item.nisn || '').toLowerCase() === term ||
       (item.namaLengkap || '').toLowerCase().includes(term)
     ) || null;
+
+    // Jika belum ditemukan di lokal dan sedang online, tanyakan ke endpoint cepat checkKelulusan di GAS
+    if (!found && this.isLiveGasConfigured() && navigator.onLine) {
+      const gasUrl = this.getGasUrl();
+      try {
+        const separator = gasUrl.includes('?') ? '&' : '?';
+        const res = await fetch(`${gasUrl}${separator}action=checkKelulusan&term=${encodeURIComponent(keyword.trim())}`, {
+          mode: 'cors'
+        });
+        const json = await res.json();
+        if (json && json.success && json.data) {
+          found = json.data;
+        } else {
+          // Fallback sinkronisasi penuh
+          await this.syncFromSpreadsheet(gasUrl, true);
+          const updatedRaw = localStorage.getItem(LOCAL_LULUS_KEY);
+          const updatedList: StatusKelulusanInfo[] = updatedRaw ? JSON.parse(updatedRaw) : [];
+          found = updatedList.find(item => 
+            (item.noPendaftaran || '').toLowerCase() === term || 
+            (item.nisn || '').toLowerCase() === term ||
+            (item.namaLengkap || '').toLowerCase().includes(term)
+          ) || null;
+        }
+      } catch (err) {
+        console.warn('Fast kelulusan check failed:', err);
+      }
+    }
 
     // Sinkronisasi otomatis & pemulihan jika calon murid ada di data pendaftar/observasi
     if (!found) {
