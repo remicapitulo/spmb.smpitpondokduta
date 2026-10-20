@@ -4,7 +4,7 @@ import { gasService } from '../../services/gasService';
 import { Download, X, CheckCircle2, Loader2, FileText, Image as ImageIcon, QrCode } from 'lucide-react';
 import QRCode from 'qrcode';
 import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { downloadElementAsPdf } from '../../utils/downloadPdfDocument';
 import { patchGetComputedStyle, sanitizeDocumentForCanvas } from '../../utils/colorSanitizer';
 
 interface Props {
@@ -87,110 +87,29 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
     setIsDownloadingPdf(true);
     setDownloadSuccess('');
 
-    const restoreComputedStyle = patchGetComputedStyle(window);
-
     try {
       const cardElement = cardRef.current;
       if (!cardElement) {
         throw new Error('Element kartu tidak ditemukan');
       }
 
-      // Convert card to high-resolution canvas with onclone sRGB sanitizer
-      const canvas = await html2canvas(cardElement, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
-        onclone: (clonedDoc) => {
-          sanitizeDocumentForCanvas(clonedDoc);
-        }
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const margin = 15; // 15mm margin kiri & kanan
-      const printableWidth = pageWidth - margin * 2;
-      const imgHeight = (canvas.height * printableWidth) / canvas.width;
-
-      // Sisipkan gambar kartu resmi ke dokumen PDF
-      pdf.addImage(imgData, 'PNG', margin, 15, printableWidth, imgHeight);
-
-      // Footer keterangan keaslian dokumen PDF
-      pdf.setFontSize(8);
-      pdf.setTextColor(100, 116, 139);
-      const safeDate = new Date().toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
-      pdf.text(
-        `Dokumen resmi SPMB SMPIT Pondok Duta. Diterbitkan digital & sah terverifikasi via QR Code pada ${safeDate}.`,
-        margin,
-        15 + imgHeight + 8
-      );
-
       const safeName = (siswa.namaLengkap || 'Murid').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
       const fileName = `Kartu_Peserta_SPMB_${siswa.noPendaftaran || 'PD'}_${safeName}.pdf`;
 
-      pdf.save(fileName);
+      await downloadElementAsPdf({
+        element: cardElement,
+        fileName,
+        pdfTitle: `Kartu Peserta SPMB - ${siswa.namaLengkap}`,
+        footerText: `Dokumen resmi SPMB SMPIT Pondok Duta · TP ${getAcademicYear()} · Diterbitkan digital & sah terverifikasi via QR Code.`,
+        margin: 12
+      });
+
       setDownloadSuccess('Berhasil mengunduh dokumen PDF Kartu Peserta!');
       setTimeout(() => setDownloadSuccess(''), 4000);
     } catch (error) {
-      console.warn('Fallback direct jsPDF generator:', error);
-      // Fallback langsung membuat file PDF tanpa pernah memanggil window.print()
-      try {
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        pdf.setFontSize(11);
-        pdf.setTextColor(4, 120, 87);
-        pdf.text(`PANITIA SELEKSI PENERIMAAN MURID BARU (SPMB) TP ${getAcademicYear()}`, 15, 20);
-        pdf.setFontSize(16);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text('SMPIT PONDOK DUTA CIMANGGIS DEPOK', 15, 28);
-        pdf.setFontSize(9);
-        pdf.setTextColor(100, 116, 139);
-        pdf.text('Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Cimanggis, Kota Depok 16451', 15, 34);
-        pdf.setLineWidth(0.5);
-        pdf.setDrawColor(4, 120, 87);
-        pdf.line(15, 38, 195, 38);
-
-        pdf.setFontSize(13);
-        pdf.setTextColor(4, 120, 87);
-        pdf.text('KARTU PESERTA OBSERVASI & WAWANCARA', 15, 48);
-
-        pdf.setFontSize(10);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text(`Nomor Pendaftaran : ${siswa.noPendaftaran || '-'}`, 15, 60);
-        pdf.text(`Nama Calon Murid : ${siswa.namaLengkap || '-'}`, 15, 68);
-        pdf.text(`NISN             : ${siswa.nisn || '-'}`, 15, 76);
-        pdf.text(`Jenis Kelamin    : ${siswa.jenisKelamin || '-'}`, 15, 84);
-        pdf.text(`Asal SD / MI     : ${siswa.asalSekolah || '-'}`, 15, 92);
-        pdf.text(`Nama Orang Tua   : ${siswa.namaAyah || siswa.namaIbu || '-'}`, 15, 100);
-
-        if (qrDataUrl) {
-          try {
-            pdf.addImage(qrDataUrl, 'PNG', 15, 110, 35, 35);
-          } catch {}
-        }
-
-        const safeName = (siswa.namaLengkap || 'Murid').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
-        const fileName = `Kartu_Peserta_SPMB_${siswa.noPendaftaran || 'PD'}_${safeName}.pdf`;
-        pdf.save(fileName);
-        setDownloadSuccess('Berhasil mengunduh dokumen PDF Kartu Peserta!');
-        setTimeout(() => setDownloadSuccess(''), 4000);
-      } catch (e) {
-        alert('Gagal mengunduh PDF. Silakan coba kembali.');
-      }
+      console.error('Gagal mengunduh PDF Kartu Peserta:', error);
+      alert('Gagal mengunduh dokumen PDF. ' + (error instanceof Error ? error.message : ''));
     } finally {
-      restoreComputedStyle();
       setIsDownloadingPdf(false);
     }
   };
@@ -212,7 +131,7 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
       const canvas = await html2canvas(cardElement, {
         scale: 2,
         useCORS: true,
-        allowTaint: true,
+        allowTaint: false,
         backgroundColor: '#ffffff',
         logging: false,
         scrollX: 0,
@@ -341,7 +260,7 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
                   </div>
                 </div>
               </div>
-              <div className="w-full h-[1px] bg-emerald-700/30 mt-1"></div>
+              <div className="w-full h-[1px] bg-emerald-200 mt-1"></div>
             </div>
 
             {/* Main Card Content */}
@@ -465,7 +384,7 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
             </div>
 
             {/* Blok Verifikasi Keabsahan Dokumen via QR Code (Sah Tanpa Tanda Tangan Basah) */}
-            <div className="p-3 sm:p-3.5 rounded-xl border border-emerald-300 bg-emerald-50/80 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-emerald-950">
+            <div className="p-3 sm:p-3.5 rounded-xl border border-emerald-300 bg-emerald-50 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-emerald-950">
               <div className="flex items-center gap-2.5 text-left w-full sm:w-auto">
                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-800 text-amber-300 flex items-center justify-center shrink-0 shadow-xs">
                   <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300" />
@@ -479,7 +398,7 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
                   </p>
                 </div>
               </div>
-              <div className="shrink-0 text-center sm:text-right border-t sm:border-t-0 sm:border-l border-emerald-200/80 pt-2 sm:pt-0 sm:pl-3 w-full sm:w-auto">
+              <div className="shrink-0 text-center sm:text-right border-t sm:border-t-0 sm:border-l border-emerald-200 pt-2 sm:pt-0 sm:pl-3 w-full sm:w-auto">
                 <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-800 text-white font-extrabold text-[9px] tracking-wide shadow-xs">
                   ✓ SAH &amp; TERDAFTAR
                 </span>

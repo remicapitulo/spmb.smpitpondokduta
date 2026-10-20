@@ -56,7 +56,8 @@ export const HasilObservasiSiswaPrintView: React.FC<Props> = ({ data, onClose })
         margin: 10
       });
     } catch (err) {
-      console.warn('Gagal unduh PDF Observasi:', err);
+      console.error('Gagal unduh PDF Observasi:', err);
+      alert('Gagal mengunduh dokumen PDF Observasi. ' + (err instanceof Error ? err.message : ''));
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -120,7 +121,7 @@ export const HasilObservasiSiswaPrintView: React.FC<Props> = ({ data, onClose })
                 YAYASAN PERGURUAN ISLAM PONDOK DUTA
               </div>
               <div className="text-base sm:text-xl font-black text-slate-900 uppercase tracking-wide">
-                SMPIT PONDOK DUTA CIMANGGIS DEPOK
+                SMPIT PONDOK DUTA
               </div>
               <p className="text-[10px] text-slate-600 font-medium">
                 <span className="font-bold text-emerald-800">Terakreditasi "A" (BAN-PDM)</span> | NPSN: 20276180 | NSS: 202026601007

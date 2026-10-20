@@ -35,7 +35,8 @@ export const HasilWawancaraPrintView: React.FC<Props> = ({ observasi, onClose })
         margin: 10
       });
     } catch (err) {
-      console.warn('Gagal unduh PDF Wawancara:', err);
+      console.error('Gagal unduh PDF Wawancara:', err);
+      alert('Gagal mengunduh dokumen PDF Wawancara. ' + (err instanceof Error ? err.message : ''));
     } finally {
       setIsDownloadingPdf(false);
     }

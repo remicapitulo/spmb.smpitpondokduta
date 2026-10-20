@@ -37,7 +37,8 @@ export const BukuIndukPrintView: React.FC<Props> = ({ data, onClose }) => {
         margin: 10
       });
     } catch (err) {
-      console.warn('Gagal unduh PDF Buku Induk:', err);
+      console.error('Gagal unduh PDF Buku Induk:', err);
+      alert('Gagal mengunduh dokumen PDF Buku Induk. ' + (err instanceof Error ? err.message : ''));
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -100,7 +101,7 @@ export const BukuIndukPrintView: React.FC<Props> = ({ data, onClose }) => {
                   YAYASAN PERGURUAN ISLAM PONDOK DUTA
                 </div>
                 <h1 className="text-xl sm:text-2xl font-black font-sans tracking-wide text-slate-900 mt-0.5">
-                  SMPIT PONDOK DUTA CIMANGGIS DEPOK
+                  SMPIT PONDOK DUTA
                 </h1>
                 <p className="text-[10px] sm:text-xs text-slate-600 font-sans mt-0.5">
                   Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok 16451 | NPSN: 20276180 | Telp: (021) 29378301
@@ -283,7 +284,7 @@ export const BukuIndukPrintView: React.FC<Props> = ({ data, onClose }) => {
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Data Ayah */}
-                <div className="border border-slate-300 p-2.5 rounded bg-slate-50/50">
+                <div className="border border-slate-300 p-2.5 rounded bg-slate-50">
                   <div className="font-sans font-bold text-xs text-slate-800 border-b pb-1 mb-1">
                     1. DATA AYAH KANDUNG
                   </div>
@@ -298,7 +299,7 @@ export const BukuIndukPrintView: React.FC<Props> = ({ data, onClose }) => {
                 </div>
 
                 {/* Data Ibu */}
-                <div className="border border-slate-300 p-2.5 rounded bg-slate-50/50">
+                <div className="border border-slate-300 p-2.5 rounded bg-slate-50">
                   <div className="font-sans font-bold text-xs text-slate-800 border-b pb-1 mb-1">
                     2. DATA IBU KANDUNG
                   </div>
@@ -315,7 +316,7 @@ export const BukuIndukPrintView: React.FC<Props> = ({ data, onClose }) => {
 
               {/* Data Wali jika ada */}
               {data.namaWali && data.namaWali !== '-' && (
-                <div className="border border-slate-300 p-2.5 rounded bg-slate-50/50 mt-2 text-[11px]">
+                <div className="border border-slate-300 p-2.5 rounded bg-slate-50 mt-2 text-[11px]">
                   <span className="font-bold text-slate-800 font-sans">3. DATA WALI: </span>
                   <span>{data.namaWali} (Hubungan: {data.statusHubunganWali || '-'}) | Pekerjaan: {data.pekerjaanWali || '-'} | No HP: {data.noHpWali || '-'}</span>
                 </div>

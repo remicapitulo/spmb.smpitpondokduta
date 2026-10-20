@@ -52,7 +52,8 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
         margin: 10
       });
     } catch (err) {
-      console.warn('Gagal unduh PDF Wawancara:', err);
+      console.error('Gagal unduh PDF Wawancara:', err);
+      alert('Gagal mengunduh dokumen PDF. ' + (err instanceof Error ? err.message : ''));
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -132,7 +133,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                   YAYASAN PERGURUAN ISLAM PONDOK DUTA
                 </div>
                 <div className="text-base sm:text-xl font-black text-slate-900 uppercase tracking-wide">
-                  SMPIT PONDOK DUTA CIMANGGIS DEPOK
+                  SMPIT PONDOK DUTA
                 </div>
                 <p className="text-[10px] text-slate-600 font-medium">
                   <span className="font-bold text-emerald-800">Terakreditasi "A" (BAN-PDM)</span> | NPSN: 20276180 | NSS: 202026601007
@@ -196,7 +197,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                   if (isCatatanKhusus) {
                     if (!item.newAnswer || !item.newAnswer.trim()) return null;
                     return (
-                      <div key={idx} className="bg-amber-50/70 rounded-xl border border-amber-300 p-3 shadow-2xs space-y-2">
+                      <div key={idx} className="bg-amber-50 rounded-xl border border-amber-300 p-3 shadow-2xs space-y-2">
                         <div className="font-bold text-amber-950 text-xs leading-snug">
                           📌 {item.question}
                         </div>
@@ -246,7 +247,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                         <div className="font-bold text-slate-900 text-xs leading-snug">
                           {item.question}
                         </div>
-                        <div className="bg-emerald-50/80 rounded-lg p-2.5 text-[11px] text-emerald-950 border border-emerald-200/80">
+                        <div className="bg-emerald-50 rounded-lg p-2.5 text-[11px] text-emerald-950 border border-emerald-200">
                           <span className="font-bold text-emerald-800 text-[10px] block uppercase tracking-wider mb-0.5">
                             Hasil Wawancara / Tanggapan:
                           </span>
@@ -261,7 +262,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                   // G: Hilangkan kotak isian jawaban. Isian orang tua diletakkan di bawah pertanyaan
                   if (isSectionG) {
                     return (
-                      <div key={idx} className="bg-white rounded-xl border border-emerald-200 bg-emerald-50/30 p-3 shadow-2xs space-y-2">
+                      <div key={idx} className="bg-white rounded-xl border border-emerald-200 bg-emerald-50 p-3 shadow-2xs space-y-2">
                         <div className="font-bold text-slate-900 text-xs leading-snug">
                           {item.question}
                         </div>
@@ -288,7 +289,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                           <span className="leading-relaxed">{item.refAnswer}</span>
                         </div>
                       )}
-                      <div className="bg-emerald-50/80 rounded-lg p-2.5 text-[11px] text-emerald-950 border border-emerald-200/80">
+                      <div className="bg-emerald-50 rounded-lg p-2.5 text-[11px] text-emerald-950 border border-emerald-200">
                         <span className="font-bold text-emerald-800 text-[10px] block uppercase tracking-wider mb-0.5">
                           Hasil Wawancara / Catatan:
                         </span>
@@ -325,7 +326,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                       if (isCatatanKhusus) {
                         if (!item.newAnswer || !item.newAnswer.trim()) return null;
                         return (
-                          <tr key={idx} className="bg-amber-50/60">
+                          <tr key={idx} className="bg-amber-50">
                             <td colSpan={3} className="border border-slate-300 p-2.5 align-top space-y-1.5">
                               <div className="font-bold text-amber-950 text-xs">
                                 📌 {item.question}
@@ -372,7 +373,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                               <div className="font-semibold text-slate-900 whitespace-pre-line leading-relaxed">
                                 {item.question}
                               </div>
-                              <div className="p-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 text-slate-900">
+                              <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-slate-900">
                                 <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block mb-0.5">
                                   Hasil Wawancara / Tanggapan:
                                 </span>
@@ -388,7 +389,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                       // G: Hilangkan kotak isian jawaban. Isian orang tua diletakkan di bawah pertanyaan
                       if (isSectionG) {
                         return (
-                          <tr key={idx} className="hover:bg-slate-50 bg-slate-50/40">
+                          <tr key={idx} className="hover:bg-slate-50 bg-slate-50">
                             <td colSpan={3} className="border border-slate-300 p-2.5 align-top space-y-1.5">
                               <div className="font-semibold text-slate-900 whitespace-pre-line leading-relaxed">
                                 {item.question}
@@ -410,7 +411,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                           <td className="border border-slate-300 p-2 align-top font-medium text-slate-900 whitespace-pre-line leading-relaxed">
                             {item.question}
                           </td>
-                          <td className="border border-slate-300 p-2 align-top bg-slate-50/70 text-slate-700 leading-relaxed">
+                          <td className="border border-slate-300 p-2 align-top bg-slate-50 text-slate-700 leading-relaxed">
                             {item.refAnswer || '-'}
                           </td>
                           <td className="border border-slate-300 p-2 align-top text-slate-900 font-medium leading-relaxed">

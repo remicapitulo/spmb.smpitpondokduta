@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# AI Studio Temporary Prompt & Attachment Cache
+.aistudio/
+**/.tempmediaStorage/
+public/assets/aistudio/

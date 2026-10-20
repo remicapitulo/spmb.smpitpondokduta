@@ -3,9 +3,6 @@ import { gasService } from '../services/gasService';
 import { StatusKelulusanInfo, getAcademicYear } from '../types';
 import confetti from 'canvas-confetti';
 import QRCode from 'qrcode';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-import { patchGetComputedStyle, sanitizeDocumentForCanvas } from '../utils/colorSanitizer';
 import { downloadElementAsPdf } from '../utils/downloadPdfDocument';
 import { 
   Search, 
@@ -199,54 +196,8 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
         margin: 12
       });
     } catch (err) {
-      console.warn('Fallback direct jsPDF generator untuk SKL:', err);
-      // Fallback membuat file PDF langsung tanpa pernah memanggil window.print()
-      try {
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        pdf.setFontSize(11);
-        pdf.setTextColor(4, 120, 87);
-        pdf.text('YAYASAN PERGURUAN ISLAM PONDOK DUTA', 14, 20);
-        pdf.setFontSize(15);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text('SMPIT PONDOK DUTA CIMANGGIS DEPOK', 14, 28);
-        pdf.setFontSize(9);
-        pdf.setTextColor(100, 116, 139);
-        pdf.text('Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Cimanggis, Depok 16451', 14, 34);
-        pdf.setLineWidth(0.5);
-        pdf.setDrawColor(4, 120, 87);
-        pdf.line(14, 38, 196, 38);
-
-        pdf.setFontSize(13);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text('SURAT KETERANGAN LULUS SELEKSI SPMB', 14, 48);
-        pdf.setFontSize(9);
-        pdf.setTextColor(100, 116, 139);
-        pdf.text(`Nomor: 042/SPMB-SMPIT/PD/I/${new Date().getFullYear()}`, 14, 54);
-
-        pdf.setFontSize(10);
-        pdf.setTextColor(15, 23, 42);
-        pdf.text(`Nomor Pendaftaran : ${result?.noPendaftaran || '-'}`, 14, 68);
-        pdf.text(`Nama Calon Murid : ${result?.namaLengkap || '-'}`, 14, 76);
-        pdf.text(`NISN             : ${effectiveNisn}`, 14, 84);
-        pdf.text(`Asal SD / MI     : ${result?.asalSekolah || '-'}`, 14, 92);
-        pdf.text(`Jalur Penerimaan : ${result?.jalur || 'Reguler'}`, 14, 100);
-        pdf.text(`Jadwal Daftar Ulang: ${effectiveJadwalDaftarUlang}`, 14, 108);
-
-        pdf.setFontSize(13);
-        pdf.setTextColor(4, 120, 87);
-        pdf.text('KEPUTUSAN: DITERIMA SEBAGAI MURID BARU', 14, 124);
-
-        if (qrCodeUrl) {
-          try {
-            pdf.addImage(qrCodeUrl, 'PNG', 14, 135, 35, 35);
-          } catch {}
-        }
-
-        const safeName = (result?.namaLengkap || 'Calon_Murid').replace(/\s+/g, '_');
-        pdf.save(`SKL_SPMB_SMPIT_Pondok_Duta_${safeName}_${result?.noPendaftaran || ''}.pdf`);
-      } catch (pdfErr) {
-        alert('Gagal mengunduh file PDF SKL. Silakan coba kembali.');
-      }
+      console.error('Gagal mengunduh dokumen SKL PDF:', err);
+      alert('Gagal mengunduh dokumen SKL PDF. ' + (err instanceof Error ? err.message : ''));
     } finally {
       setIsDownloadingPdf(false);
     }
