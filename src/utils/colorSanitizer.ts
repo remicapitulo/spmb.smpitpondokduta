@@ -320,21 +320,33 @@ export function wrapComputedStyle(styles: CSSStyleDeclaration): CSSStyleDeclarat
     get(target, prop) {
       if (prop === 'getPropertyValue') {
         return (propertyName: string) => {
-          const val = target.getPropertyValue(propertyName);
-          return typeof val === 'string' ? sanitizeColorString(val) : val;
+          try {
+            const val = target.getPropertyValue(propertyName);
+            return typeof val === 'string' ? sanitizeColorString(val) : val;
+          } catch {
+            return '';
+          }
         };
       }
 
-      // Selalu gunakan target asli sebagai receiver
-      const val = Reflect.get(target, prop, target);
+      try {
+        // Selalu gunakan target asli sebagai receiver
+        const val = Reflect.get(target, prop, target);
 
-      if (typeof val === 'function') {
-        return val.bind(target);
+        if (typeof val === 'function') {
+          return val.bind(target);
+        }
+        if (typeof val === 'string') {
+          return sanitizeColorString(val);
+        }
+        return val;
+      } catch {
+        try {
+          return (target as any)[prop];
+        } catch {
+          return '';
+        }
       }
-      if (typeof val === 'string') {
-        return sanitizeColorString(val);
-      }
-      return val;
     }
   });
 }

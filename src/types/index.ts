@@ -11,6 +11,7 @@ export const getAcademicYear = (): string => {
 export interface DataSiswa {
   id: string;
   noPendaftaran: string;
+  jalurPendaftaran?: string;
   nis?: string; // Nomor Induk Siswa (NIS) Sekolah
   nik?: string; // NIK dari KK
   createdAt: string;

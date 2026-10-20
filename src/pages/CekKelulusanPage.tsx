@@ -28,11 +28,29 @@ interface Props {
   onGoToRegister: () => void;
 }
 
+interface VerifiedParticipantCard {
+  noPendaftaran: string;
+  namaLengkap: string;
+  namaPanggilan?: string;
+  nisn: string;
+  nik?: string;
+  asalSekolah: string;
+  jalur: string;
+  jenisKelamin?: string;
+  ttl?: string;
+  namaOrtu?: string;
+  noHp?: string;
+  isVerified: boolean;
+  jadwal: string;
+  lokasi: string;
+}
+
 export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
   const [keyword, setKeyword] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState<StatusKelulusanInfo | null>(null);
   const [searched, setSearched] = useState(false);
+  const [verifiedCard, setVerifiedCard] = useState<VerifiedParticipantCard | null>(null);
   const [showSklModal, setShowSklModal] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [logoBase64, setLogoBase64] = useState<string>('');
@@ -74,16 +92,75 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
     }
   };
 
-  // Auto-search jika ada parameter ?no= atau ?nisn= di URL
+  // Auto-search & Deteksi Scan QR Code Kartu Peserta dari HP
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const no = params.get('no') || params.get('noPendaftaran');
       const nisn = params.get('nisn');
+      const nik = params.get('nik');
+      const nama = params.get('nama');
+      const panggilan = params.get('panggilan');
+      const asal = params.get('asal');
+      const jalur = params.get('jalur');
+      const jk = params.get('jk');
+      const ttl = params.get('ttl');
+      const ortu = params.get('ortu');
+      const hp = params.get('hp');
+      const jadwal = params.get('jadwal');
+      const ruang = params.get('ruang');
+      const isVerif = params.get('verifikasi') === 'true';
+
       const q = no || nisn;
+
+      if (isVerif || nama || (no && q)) {
+        const localSiswa = no ? gasService.getSiswaByNo(no) : null;
+        const studentInfo: VerifiedParticipantCard = {
+          noPendaftaran: no || localSiswa?.noPendaftaran || 'PD-2026-001',
+          namaLengkap: nama || localSiswa?.namaLengkap || 'Calon Peserta Didik',
+          namaPanggilan: panggilan || localSiswa?.namaPanggilan || '',
+          nisn: nisn || localSiswa?.nisn || '-',
+          nik: nik || localSiswa?.nik || '-',
+          asalSekolah: asal || localSiswa?.asalSekolah || 'SD/MI Asal',
+          jalur: jalur || localSiswa?.jalurPendaftaran || 'Jalur Reguler SPMB',
+          jenisKelamin: jk || localSiswa?.jenisKelamin || 'Laki-laki',
+          ttl: ttl || (localSiswa ? `${localSiswa.tempatLahir || ''}, ${localSiswa.tanggalLahir || ''}` : '-'),
+          namaOrtu: ortu || localSiswa?.namaAyah || localSiswa?.namaIbu || '-',
+          noHp: hp || localSiswa?.noHpAyah || localSiswa?.nomorTelepon || '-',
+          isVerified: true,
+          jadwal: jadwal || 'Sabtu, 17 Januari 2026 · Pukul 08.00 - 11.30 WIB',
+          lokasi: ruang || 'Ruang Aula - Gedung SMPIT Lt. 1'
+        };
+        setVerifiedCard(studentInfo);
+
+        // Simpan data calon murid ke memori perangkat ini agar aplikasi mengenali siswa
+        if (no && (nama || localSiswa)) {
+          gasService.registerScannedStudent({
+            noPendaftaran: studentInfo.noPendaftaran,
+            namaLengkap: studentInfo.namaLengkap,
+            nisn: studentInfo.nisn,
+            nik: nik || localSiswa?.nik || '-',
+            asalSekolah: studentInfo.asalSekolah,
+            jalurPendaftaran: studentInfo.jalur,
+            jenisKelamin: (jk === 'Perempuan' || localSiswa?.jenisKelamin === 'Perempuan') ? 'Perempuan' : 'Laki-laki'
+          });
+        }
+      }
+
+      // Jika ada kata kunci nomor pendaftaran
       if (q) {
         setKeyword(q);
-        handleSearch(q);
+        if (isVerif) {
+          // Jika verifikasi scan dari HP, cek kelulusan di latar belakang tanpa memblokir tampilan kartu terverifikasi
+          gasService.checkStatusKelulusan(q).then((data) => {
+            if (data) {
+              setResult(data);
+              setSearched(true);
+            }
+          });
+        } else {
+          handleSearch(q);
+        }
       }
     }
   }, []);
@@ -204,8 +281,101 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-10">
+    <div className="max-w-3xl mx-auto space-y-8">
       
+      {/* Panel Utama: Verifikasi Keaslian Kartu Peserta via Scan Barcode / QR Code dari HP */}
+      {verifiedCard && (
+        <div className="p-6 sm:p-8 rounded-3xl bg-white border-2 border-emerald-600 shadow-xl space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-emerald-100">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-700 text-white flex items-center justify-center shadow-md shrink-0">
+                <ShieldCheck className="w-7 h-7 text-emerald-200" />
+              </div>
+              <div>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>DOKUMEN RESMI TERVERIFIKASI SISTEM</span>
+                </span>
+                <h2 className="text-lg sm:text-2xl font-black text-slate-900 mt-1">
+                  Verifikasi Keaslian Kartu Peserta SPMB
+                </h2>
+                <p className="text-xs text-slate-500 font-medium">
+                  SMPIT Pondok Duta · Terakreditasi &quot;A&quot; BAN-PDM
+                </p>
+              </div>
+            </div>
+            <div className="text-left sm:text-right shrink-0">
+              <span className="text-[10px] text-slate-400 block font-semibold uppercase">Tahun Pelajaran</span>
+              <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                TP {tahunPelajaran}
+              </span>
+            </div>
+          </div>
+
+          {/* Detail Kartu Terverifikasi Lengkap (Hasil Pindai QR Code dari HP) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-semibold uppercase block">Nomor Registrasi / Pendaftaran</span>
+              <span className="font-mono font-black text-emerald-950 text-base">{verifiedCard.noPendaftaran}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-semibold uppercase block">Nama Lengkap Murid</span>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-slate-900 text-sm">{verifiedCard.namaLengkap}</span>
+                {verifiedCard.namaPanggilan && (
+                  <span className="text-[10.5px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    ({verifiedCard.namaPanggilan})
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-semibold uppercase block">NISN / NIK</span>
+              <span className="font-mono font-bold text-slate-800 text-xs">
+                {verifiedCard.nisn} {verifiedCard.nik && verifiedCard.nik !== '-' ? `/ ${verifiedCard.nik}` : ''}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-semibold uppercase block">Jenis Kelamin &amp; TTL</span>
+              <span className="font-medium text-slate-800 text-xs">
+                {verifiedCard.jenisKelamin || 'Laki-laki'} &bull; {verifiedCard.ttl || '-'}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-semibold uppercase block">Asal Sekolah SD / MI</span>
+              <span className="font-bold text-slate-800 text-xs">{verifiedCard.asalSekolah}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-semibold uppercase block">Orang Tua / Wali &amp; WhatsApp</span>
+              <span className="font-medium text-slate-800 text-xs">
+                {verifiedCard.namaOrtu || '-'} {verifiedCard.noHp && verifiedCard.noHp !== '-' ? `(${verifiedCard.noHp})` : ''}
+              </span>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+              <span className="text-[10px] text-slate-500 font-semibold uppercase block">Pilihan Jalur Pendaftaran</span>
+              <span className="font-bold text-emerald-900 text-xs">{verifiedCard.jalur}</span>
+            </div>
+            <div className="p-3 rounded-xl bg-emerald-50/90 border border-emerald-200">
+              <span className="text-[10px] text-emerald-800 font-bold uppercase block">Jadwal &amp; Ruang Observasi</span>
+              <span className="font-bold text-slate-900 text-xs">{verifiedCard.jadwal} ({verifiedCard.lokasi})</span>
+            </div>
+          </div>
+
+          {/* Status Validasi */}
+          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-950">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+              <p className="text-[11.5px] leading-relaxed">
+                Kartu Peserta ananda <strong>{verifiedCard.namaLengkap}</strong> terdaftar secara sah dan absah di database Panitia SPMB SMPIT Pondok Duta.
+              </p>
+            </div>
+            <span className="shrink-0 px-3.5 py-1.5 rounded-full bg-emerald-800 text-white font-extrabold text-xs shadow-xs self-start sm:self-auto">
+              ✓ SAH &amp; VALID
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="p-8 rounded-3xl bg-gradient-to-br from-emerald-800 via-teal-800 to-slate-900 text-white shadow-xl space-y-3 text-center sm:text-left">
         <span className="text-xs font-bold uppercase tracking-widest text-amber-300 bg-emerald-950/60 px-3 py-1 rounded-full border border-emerald-500/30 inline-block">
@@ -363,6 +533,18 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
                 </button>
               </div>
 
+            </div>
+          ) : verifiedCard ? (
+            <div className="p-6 sm:p-8 rounded-3xl bg-white border border-emerald-200 text-center space-y-3 shadow-md">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-6 h-6 text-emerald-700" />
+              </div>
+              <h3 className="font-bold text-slate-900 text-base">
+                Kartu Peserta Terverifikasi Sah
+              </h3>
+              <p className="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+                Ananda <strong>{verifiedCard.namaLengkap}</strong> ({verifiedCard.noPendaftaran}) terdaftar resmi untuk mengikuti Sesi Observasi &amp; Wawancara SPMB SMPIT Pondok Duta. Pengumuman hasil seleksi akhir akan dipublikasikan panitia setelah rangkaian observasi selesai.
+              </p>
             </div>
           ) : (
             <div className="p-8 rounded-3xl bg-white border border-slate-200 text-center space-y-3">

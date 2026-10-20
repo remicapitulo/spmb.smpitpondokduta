@@ -1399,6 +1399,24 @@ export const gasService = {
     return list.find(s => (s.noPendaftaran || '').toLowerCase() === noPendaftaran.toLowerCase()) || null;
   },
 
+  // Simpan / update data calon murid yang dipindai via QR Code ke storage perangkat
+  registerScannedStudent(scanned: Partial<DataSiswa>): void {
+    if (!scanned.noPendaftaran) return;
+    try {
+      const raw = localStorage.getItem(LOCAL_SISWA_KEY);
+      const list: DataSiswa[] = raw ? JSON.parse(raw) : [];
+      const idx = list.findIndex(s => (s.noPendaftaran || '').toLowerCase() === (scanned.noPendaftaran || '').toLowerCase());
+      if (idx >= 0) {
+        list[idx] = { ...list[idx], ...scanned } as DataSiswa;
+      } else {
+        list.push(scanned as DataSiswa);
+      }
+      localStorage.setItem(LOCAL_SISWA_KEY, JSON.stringify(list));
+    } catch {
+      // Safe fallback
+    }
+  },
+
   async getSiswaDetail(noPendaftaran: string) {
     if (!noPendaftaran) return null;
     let rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);

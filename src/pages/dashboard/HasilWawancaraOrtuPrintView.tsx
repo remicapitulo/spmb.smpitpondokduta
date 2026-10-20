@@ -4,6 +4,7 @@ import { gasService } from '../../services/gasService';
 import { SignaturePad } from '../../components/SignaturePad';
 import { Download, X, FileText, CheckCircle2, PenTool, Save, Check, Smartphone, Loader2 } from 'lucide-react';
 import { downloadElementAsPdf } from '../../utils/downloadPdfDocument';
+import { LOGO_PONDOK_DUTA_BASE64 } from '../../assets/logoBase64';
 
 interface Props {
   data: HasilObservasiOrtuData;
@@ -24,8 +25,39 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
 }) => {
   const [ttdOrtu, setTtdOrtu] = useState<string>(data.ttdOrtuBase64 || '');
   const [ttdPewawancara, setTtdPewawancara] = useState<string>(data.ttdPewawancaraBase64 || '');
-  const logoUrl = gasService.resolveImageUrl(gasService.getAppSettings().logoUrl) || '/logo-smpit-pondok-duta.png';
+  const [logoBase64, setLogoBase64] = useState<string>(LOGO_PONDOK_DUTA_BASE64);
+  const [downloadFeedback, setDownloadFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const tahunPelajaran = getAcademicYear();
+
+  // Preload logo kustom dari pengaturan jika ada, fallback ke logo lokal resmi Base64 (100% aman CORS)
+  React.useEffect(() => {
+    const rawLogo = gasService.getAppSettings().logoUrl;
+    if (!rawLogo || rawLogo === '/logo-smpit-pondok-duta.png') {
+      setLogoBase64(LOGO_PONDOK_DUTA_BASE64);
+      return;
+    }
+    const resolvedUrl = gasService.resolveImageUrl(rawLogo);
+    if (!resolvedUrl) return;
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || 200;
+        canvas.height = img.naturalHeight || 200;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          setLogoBase64(canvas.toDataURL('image/png'));
+        }
+      } catch {
+        setLogoBase64(LOGO_PONDOK_DUTA_BASE64);
+      }
+    };
+    img.onerror = () => setLogoBase64(LOGO_PONDOK_DUTA_BASE64);
+    img.src = resolvedUrl;
+  }, []);
 
   const docRef = React.useRef<HTMLDivElement | null>(null);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
@@ -33,6 +65,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
   const handleDownloadPdf = async () => {
     if (isDownloadingPdf) return;
     setIsDownloadingPdf(true);
+    setDownloadFeedback(null);
 
     try {
       const docElement = docRef.current;
@@ -51,9 +84,19 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
         footerText: `Hasil Wawancara Orang Tua Murid SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · Sah terverifikasi digital.`,
         margin: 10
       });
+
+      setDownloadFeedback({
+        type: 'success',
+        text: `Dokumen PDF "${fileName}" berhasil diunduh ke perangkat Anda.`
+      });
+      setTimeout(() => setDownloadFeedback(null), 6000);
     } catch (err) {
       console.error('Gagal unduh PDF Wawancara:', err);
-      alert('Gagal mengunduh dokumen PDF. ' + (err instanceof Error ? err.message : ''));
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setDownloadFeedback({
+        type: 'error',
+        text: 'Gagal mengunduh dokumen PDF. ' + errMsg
+      });
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -108,6 +151,19 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
           </button>
         </div>
 
+        {/* Notifikasi Status Unduh Dokumen */}
+        {downloadFeedback && (
+          <div className={`no-print px-4 py-2 text-xs font-semibold flex items-center justify-between shrink-0 transition-all ${
+            downloadFeedback.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+          }`}>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+              <span>{downloadFeedback.text}</span>
+            </div>
+            <button onClick={() => setDownloadFeedback(null)} className="text-white hover:opacity-80 text-xs">✕</button>
+          </div>
+        )}
+
         {/* Scrollable Preview Canvas & Signature Area */}
         <div className="overflow-y-auto flex-1 p-3 sm:p-8 bg-slate-100/70 custom-scrollbar space-y-4 sm:space-y-6">
 
@@ -117,13 +173,14 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
           <div 
             ref={docRef} 
             id="printable-wawancara-doc" 
-            className="print-container space-y-4 sm:space-y-6 text-slate-900 text-xs sm:text-sm bg-white p-4 sm:p-10 rounded-2xl shadow-md border border-slate-200 max-w-3xl mx-auto"
+            className="print-container space-y-4 sm:space-y-6 text-slate-900 text-xs sm:text-sm bg-white p-4 sm:p-10 rounded-2xl shadow-md border border-slate-200 max-w-3xl mx-auto font-sans"
+            style={{ fontFamily: "'Plus Jakarta Sans', Arial, Helvetica, sans-serif" }}
           >
             {/* Kop Surat Resmi dengan Logo Sekolah */}
             <div className="border-b-4 border-double border-emerald-900 pb-3 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-4 text-center sm:text-left">
               <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 p-1 bg-white border border-emerald-200 rounded-2xl flex items-center justify-center shadow-2xs">
                 <img
-                  src={logoUrl}
+                  src={logoBase64 || LOGO_PONDOK_DUTA_BASE64}
                   alt="Logo Resmi SMPIT Pondok Duta"
                   className="w-full h-full object-contain"
                 />

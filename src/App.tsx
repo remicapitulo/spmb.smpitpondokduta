@@ -19,7 +19,17 @@ import { GuruDashboard } from './pages/dashboard/GuruDashboard';
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(gasService.getCurrentUser());
   const [userRole, setUserRole] = useState<UserRole>(() => (currentUser ? currentUser.role : 'public'));
-  const [currentTab, setCurrentTab] = useState<string>('home');
+  const [currentTab, setCurrentTab] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam) return tabParam;
+      if (params.get('no') || params.get('nisn') || params.get('noPendaftaran') || params.get('verifikasi')) {
+        return 'cek-kelulusan';
+      }
+    }
+    return 'home';
+  });
   const [siswaSubTab, setSiswaSubTab] = useState<'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu'>('biodata');
   const [guruSubTeam, setGuruSubTeam] = useState<'ortu' | 'siswa' | 'data-induk'>('ortu');
   const [isGasModalOpen, setIsGasModalOpen] = useState<boolean>(false);
@@ -30,6 +40,21 @@ export default function App() {
     // Scroll to top on tab change
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentTab]);
+
+  useEffect(() => {
+    // Listen for browser navigation / scan URL updates
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam) {
+        setCurrentTab(tabParam);
+      } else if (params.get('no') || params.get('nisn') || params.get('noPendaftaran') || params.get('verifikasi')) {
+        setCurrentTab('cek-kelulusan');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     // Sinkronisasi otomatis seluruh database & Sheet Setting dari Spreadsheet saat aplikasi dibuka
@@ -57,34 +82,31 @@ export default function App() {
   };
 
   const handleSelectTab = (tab: string) => {
+    let targetTab = tab;
     // Jika tidak login, maka menu akses portal ditutup (arahkan ke halaman login)
     if (tab === 'dashboard-siswa' || tab === 'dashboard-guru') {
       if (!currentUser) {
         setUserRole('public');
-        setCurrentTab('login');
-        return;
-      }
-      // Role 3: Admin -> boleh mengakses Portal Siswa maupun Menu Pewawancara
-      if (currentUser.role === 'admin') {
+        targetTab = 'login';
+      } else if (currentUser.role === 'admin') {
         setUserRole('admin');
-        setCurrentTab(tab);
-        return;
-      }
-      // Role 2: Pewawancara -> hanya menu pewawancara yang dibuka
-      if (currentUser.role === 'guru') {
+        targetTab = tab;
+      } else if (currentUser.role === 'guru') {
         setUserRole('guru');
-        setCurrentTab('dashboard-guru');
-        return;
-      }
-      // Role 1: Calon Siswa -> hanya portal siswa yang terbuka
-      if (currentUser.role === 'siswa') {
+        targetTab = 'dashboard-guru';
+      } else {
         setUserRole('siswa');
-        setCurrentTab('dashboard-siswa');
-        return;
+        targetTab = 'dashboard-siswa';
       }
     }
 
-    setCurrentTab(tab);
+    setCurrentTab(targetTab);
+    try {
+      const url = targetTab === 'home' ? '/' : `/?tab=${targetTab}`;
+      window.history.pushState({}, '', url);
+    } catch {
+      // Safe fallback
+    }
   };
 
   const handleLoginSuccess = (user: UserAccount) => {

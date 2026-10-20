@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DataSiswa, getAcademicYear } from '../../types';
 import { gasService } from '../../services/gasService';
-import { Download, X, CheckCircle2, Loader2, FileText, Image as ImageIcon, QrCode } from 'lucide-react';
+import { Download, X, CheckCircle2, Loader2, FileText, Image as ImageIcon, QrCode, ShieldCheck } from 'lucide-react';
 import QRCode from 'qrcode';
 import html2canvas from 'html2canvas';
 import { downloadElementAsPdf } from '../../utils/downloadPdfDocument';
 import { patchGetComputedStyle, sanitizeDocumentForCanvas } from '../../utils/colorSanitizer';
+import { LOGO_PONDOK_DUTA_BASE64 } from '../../assets/logoBase64';
 
 interface Props {
   siswa: DataSiswa;
@@ -13,19 +14,23 @@ interface Props {
 }
 
 export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
-  const [logoBase64, setLogoBase64] = useState<string>('');
+  const [logoBase64, setLogoBase64] = useState<string>(LOGO_PONDOK_DUTA_BASE64);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
   const [isDownloadingPng, setIsDownloadingPng] = useState<boolean>(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string>('');
   const cardRef = useRef<HTMLDivElement | null>(null);
 
-  // Preload logo resmi sekolah ke format Base64 agar html2canvas tidak pernah tainted / error CORS
+  // Preload logo kustom dari pengaturan jika ada, fallback ke Base64 lokal resmi
   useEffect(() => {
-    const rawLogo = gasService.getAppSettings().logoUrl || '/logo-smpit-pondok-duta.png';
-    const resolvedUrl = gasService.resolveImageUrl(rawLogo) || '/logo-smpit-pondok-duta.png';
+    const rawLogo = gasService.getAppSettings().logoUrl;
+    if (!rawLogo || rawLogo === '/logo-smpit-pondok-duta.png') {
+      setLogoBase64(LOGO_PONDOK_DUTA_BASE64);
+      return;
+    }
+    const resolvedUrl = gasService.resolveImageUrl(rawLogo);
+    if (!resolvedUrl) return;
 
-    // Buat image element untuk convert ke Base64 Data URI
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -38,31 +43,58 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
           ctx.drawImage(img, 0, 0);
           setLogoBase64(canvas.toDataURL('image/png'));
         } else {
-          setLogoBase64(resolvedUrl);
+          setLogoBase64(LOGO_PONDOK_DUTA_BASE64);
         }
       } catch {
-        setLogoBase64(resolvedUrl);
+        setLogoBase64(LOGO_PONDOK_DUTA_BASE64);
       }
     };
-    img.onerror = () => {
-      // Fallback ke logo lokal png
-      setLogoBase64('/logo-smpit-pondok-duta.png');
-    };
+    img.onerror = () => setLogoBase64(LOGO_PONDOK_DUTA_BASE64);
     img.src = resolvedUrl;
   }, []);
 
   useEffect(() => {
-    // Generate 100% Real Scannable QR Code
-    // Menggunakan warna hitam pekat (#000000) dan margin standard (2)
-    // agar 100% kamera smartphone (iPhone/Android/Google Lens) mendeteksi secara instan
-    const hostOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
-    const verificationUrl = `${hostOrigin}/?tab=cek-kelulusan&no=${encodeURIComponent(siswa.noPendaftaran || '')}&nisn=${encodeURIComponent(siswa.nisn || '')}`;
+    // Generate 100% Real Scannable QR Code yang dapat dibuka langsung dari HP
+    let hostOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+    // Jika dibuka di localhost atau IP lokal komputer, gunakan domain publik Cloud Run atau spmb.smpitpondokduta.sch.id
+    // agar HP pengguna dapat membuka verifikasi data secara langsung tanpa error connection refused!
+    if (hostOrigin.includes('localhost') || hostOrigin.includes('127.0.0.1')) {
+      hostOrigin = 'https://ais-pre-v4ovydp5l654kzwgy4biwq-755407641990.asia-southeast1.run.app';
+    } else if (hostOrigin.includes('ais-dev-')) {
+      hostOrigin = hostOrigin.replace('ais-dev-', 'ais-pre-');
+    }
+
+    const ttlStr = (siswa.tempatLahir ? siswa.tempatLahir + ', ' : '') + (siswa.tanggalLahir || '-');
+    const ortuStr = siswa.namaAyah || siswa.namaIbu || '-';
+    const hpStr = siswa.noHpAyah || siswa.noHpIbu || siswa.nomorTelepon || '-';
+
+    // Sertakan seluruh parameter verifikasi lengkap langsung di dalam URL QR Code
+    // sehingga saat di-scan HP mana pun, halaman verifikasi langsung tampil 100% utuh tanpa ketergantungan localStorage!
+    const queryParams = new URLSearchParams({
+      tab: 'cek-kelulusan',
+      verifikasi: 'true',
+      no: siswa.noPendaftaran || '',
+      nama: siswa.namaLengkap || '',
+      panggilan: siswa.namaPanggilan || '',
+      nisn: siswa.nisn || '',
+      nik: siswa.nik || '',
+      asal: siswa.asalSekolah || '',
+      jalur: siswa.jalurPendaftaran || 'Jalur Reguler SPMB',
+      jk: siswa.jenisKelamin || 'Laki-laki',
+      ttl: ttlStr,
+      ortu: ortuStr,
+      hp: hpStr,
+      jadwal: 'Sabtu, 17 Januari 2026 · Pukul 08.00 - 11.30 WIB',
+      ruang: 'Ruang Aula - Gedung SMPIT Lt. 1'
+    });
+
+    const verificationUrl = `${hostOrigin}/?${queryParams.toString()}`;
 
     QRCode.toDataURL(verificationUrl, {
-      width: 400,
+      width: 480,
       margin: 2,
       color: {
-        dark: '#000000', // Hitam pekat solid untuk deteksi optik kamera 100% akurat
+        dark: '#000000', // Hitam pekat solid untuk deteksi optik kamera HP instan & akurat
         light: '#ffffff'
       },
       errorCorrectionLevel: 'M'
@@ -101,7 +133,7 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
         fileName,
         pdfTitle: `Kartu Peserta SPMB - ${siswa.namaLengkap}`,
         footerText: `Dokumen resmi SPMB SMPIT Pondok Duta · TP ${getAcademicYear()} · Diterbitkan digital & sah terverifikasi via QR Code.`,
-        margin: 12
+        margin: 10
       });
 
       setDownloadSuccess('Berhasil mengunduh dokumen PDF Kartu Peserta!');
@@ -210,81 +242,105 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
         )}
 
         {/* Scrollable Preview Canvas */}
-        <div className="overflow-y-auto flex-1 p-3 sm:p-6 bg-slate-100/70 custom-scrollbar">
+        <div className="overflow-y-auto overflow-x-auto flex-1 p-3 sm:p-6 bg-slate-100/70 custom-scrollbar">
 
-          {/* Printable Official Card Body */}
+          {/* Printable Official Card Body (Fixed 760px width for 100% reliable A4 PDF Capture) */}
           <div 
             ref={cardRef}
             id="printable-kartu-peserta"
-            className="print-container border-2 border-emerald-800 rounded-2xl p-4 sm:p-6 bg-white space-y-4 text-slate-900 shadow-sm relative overflow-hidden"
+            className="print-container w-[760px] min-w-[760px] max-w-[760px] mx-auto border-4 border-double border-emerald-900 rounded-2xl p-7 bg-white space-y-4 text-slate-900 shadow-sm relative overflow-hidden font-sans"
+            style={{ fontFamily: "'Plus Jakarta Sans', Arial, Helvetica, sans-serif" }}
           >
             {/* Background Accent Subtle Watermark */}
-            <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4 w-72 h-72 bg-emerald-50 rounded-full blur-2xl pointer-events-none opacity-40"></div>
+            <div className="absolute right-0 top-0 translate-x-1/4 -translate-y-1/4 w-80 h-80 bg-emerald-50 rounded-full blur-3xl pointer-events-none opacity-40"></div>
             
-            {/* Kop Kartu Resmi Sekolah */}
-            <div className="border-b-2 border-emerald-800 pb-3.5 space-y-2 relative">
-              <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-3 sm:gap-4 text-center sm:text-left">
-                <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                  {/* Logo Resmi Sekolah */}
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center p-1.5 shadow-xs shrink-0 overflow-hidden">
+            {/* KOP KARTU RESMI DINAS SEKOLAH (GARIS GANDA TEBAL-TIPIS RESMI) */}
+            <div className="border-b-4 border-double border-slate-900 pb-3 relative">
+              <div className="flex items-center justify-between gap-4 text-left">
+                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                  {/* Logo Resmi Sekolah Base64 (0% Taint / 100% CORS Safe) */}
+                  <div className="w-18 h-18 rounded-2xl bg-white border border-emerald-300 flex items-center justify-center p-1 shadow-2xs shrink-0 overflow-hidden">
                     <img
-                      src={logoBase64 || '/logo-smpit-pondok-duta.png'}
+                      src={logoBase64 || LOGO_PONDOK_DUTA_BASE64}
                       alt="Logo Resmi SMPIT Pondok Duta"
                       className="w-full h-full object-contain"
                     />
                   </div>
                   <div className="min-w-0 space-y-0.5">
-                    <div className="text-[10px] sm:text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                      PANITIA SELEKSI PENERIMAAN MURID BARU (SPMB)
+                    <div className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">
+                      YAYASAN PERGURUAN ISLAM PONDOK DUTA
                     </div>
-                    <div className="text-lg sm:text-2xl font-black text-slate-900 leading-tight tracking-tight">
+                    <div className="text-2xl font-black text-slate-900 leading-tight tracking-wide">
                       SMPIT PONDOK DUTA
                     </div>
-                    <div className="text-[9px] sm:text-[10px] text-slate-600 leading-snug">
-                      Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok 16451
+                    <div className="text-[9.5px] text-slate-600 leading-snug">
+                      <span className="font-bold text-emerald-800">Terakreditasi "A" BAN-PDM</span> | NPSN: 20276180 | NSS: 202026601007
                     </div>
-                    <div className="text-[8.5px] sm:text-[9.5px] text-emerald-900 font-semibold pt-0.5">
-                      Telp: (021) 29378301 · NPSN: 20276180 · Terakreditasi &quot;A&quot; BAN-PDM
+                    <div className="text-[9px] text-slate-500 leading-snug">
+                      Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok 16451 | Telp: (021) 29378301
                     </div>
                   </div>
                 </div>
 
-                <div className="shrink-0 self-center sm:self-start">
-                  <div className="px-3.5 py-1.5 rounded-xl bg-emerald-800 text-white text-center shadow-xs border border-emerald-700">
-                    <span className="block text-[10px] sm:text-xs font-black uppercase tracking-wider leading-none">
-                      KARTU PESERTA
+                <div className="shrink-0 text-right">
+                  <div className="px-4 py-2 rounded-xl bg-slate-900 text-white text-center shadow-xs border border-slate-800 space-y-0.5">
+                    <span className="block text-[11.5px] font-black uppercase tracking-wider leading-none">
+                      KARTU TANDA PESERTA
                     </span>
-                    <span className="block text-[8px] sm:text-[9px] font-mono text-emerald-100 font-semibold mt-1 leading-none">
-                      OBSERVASI TP {getAcademicYear()}
+                    <span className="block text-[9.5px] text-emerald-300 font-semibold leading-none pt-0.5">
+                      OBSERVASI &amp; WAWANCARA
+                    </span>
+                    <span className="block text-[9px] font-mono text-slate-300 font-bold leading-none pt-0.5">
+                      TP {getAcademicYear()}
                     </span>
                   </div>
                 </div>
               </div>
-              <div className="w-full h-[1px] bg-emerald-200 mt-1"></div>
             </div>
 
-            {/* Main Card Content */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 items-start relative">
+            {/* Banner Nomor Registrasi */}
+            <div className="p-3 bg-emerald-50/90 border border-emerald-200 rounded-xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                  NOMOR REGISTRASI / PENDAFTARAN
+                </span>
+                <span className="text-2xl font-black font-mono text-emerald-950 tracking-wider">
+                  {siswa.noPendaftaran}
+                </span>
+              </div>
+              <div className="text-right flex items-center gap-2">
+                <span className="px-3 py-1 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold text-xs">
+                  {siswa.jalurPendaftaran || 'Jalur Reguler SPMB'}
+                </span>
+                <span className="px-3 py-1 rounded-lg bg-emerald-800 text-white text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+                  <span>TERDAFTAR RESMI</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Main Card Content (2 Columns: Foto+QR di kiri, Biodata Lengkap di kanan) */}
+            <div className="flex items-start gap-5 relative">
               
-              {/* Foto 3x4 & QR Code Verifikasi Resmi Scannable */}
-              <div className="sm:col-span-1 flex flex-row sm:flex-col items-center justify-around sm:justify-center gap-3 bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200">
+              {/* Kolom Kiri: Foto 3x4 & QR Code Verifikasi HP */}
+              <div className="w-[175px] shrink-0 flex flex-col items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 {/* 3x4 Pas Foto Box */}
-                <div className="w-20 sm:w-28 h-28 sm:h-36 border-2 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center p-1.5 text-center text-slate-400 shrink-0">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 mb-1 text-[11px]">
+                <div className="w-[136px] h-[175px] border-2 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center p-2 text-center text-slate-400 shrink-0 shadow-2xs">
+                  <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 mb-1.5 text-xs">
                     3x4
                   </div>
-                  <span className="text-[8px] sm:text-[9px] font-bold text-slate-700">PAS FOTO</span>
-                  <span className="text-[7px] sm:text-[8px] text-slate-400">Tempel di sini</span>
-                  <span className="text-[6.5px] sm:text-[7.5px] text-slate-400">Latar Biru/Merah</span>
+                  <span className="text-[10px] font-bold text-slate-700">PAS FOTO RESMI</span>
+                  <span className="text-[8.5px] text-slate-500">Ukuran 3 x 4 cm</span>
+                  <span className="text-[8px] text-slate-400 mt-0.5">Warna (Biru / Merah)</span>
                 </div>
 
                 {/* 100% Real Scannable QR Code */}
-                <div className="text-center shrink-0">
-                  <span className="text-[8px] sm:text-[9px] font-bold text-slate-700 flex items-center justify-center gap-1 mb-1">
+                <div className="w-[136px] border border-slate-200 rounded-xl p-2 bg-white flex flex-col items-center text-center shadow-2xs">
+                  <span className="text-[8.5px] font-bold text-slate-700 flex items-center justify-center gap-1 mb-1">
                     <QrCode className="w-3 h-3 text-emerald-800" />
-                    <span>SCAN VERIFIKASI</span>
+                    <span>PINDAI DARI HP</span>
                   </span>
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 border border-slate-300 rounded-xl p-1 mx-auto flex flex-col items-center justify-center bg-white shadow-xs">
+                  <div className="w-[110px] h-[110px] border border-slate-200 rounded-lg p-1 mx-auto flex items-center justify-center bg-white">
                     {qrDataUrl ? (
                       <img 
                         src={qrDataUrl} 
@@ -292,115 +348,122 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
                         className="w-full h-full object-contain"
                       />
                     ) : (
-                      <div className="w-full h-full bg-slate-50 animate-pulse rounded-lg flex items-center justify-center text-[9px] text-slate-500 font-mono">
+                      <div className="w-full h-full bg-slate-50 animate-pulse rounded flex items-center justify-center text-[9px] text-slate-500 font-mono">
                         Membuat QR...
                       </div>
                     )}
                   </div>
-                  <span className="text-[7.5px] sm:text-[8.5px] font-mono font-bold text-slate-900 mt-1 block truncate max-w-[90px] mx-auto bg-slate-100 px-1 py-0.5 rounded">
+                  <span className="text-[8.5px] font-mono font-bold text-slate-800 mt-1 block truncate max-w-[120px] bg-slate-100 px-1 py-0.5 rounded">
                     {siswa.noPendaftaran}
+                  </span>
+                  <span className="text-[7.5px] text-emerald-700 font-bold block mt-0.5">
+                    Verifikasi Data Resmi
                   </span>
                 </div>
               </div>
 
-              {/* Biodata Lengkap Murid */}
-              <div className="sm:col-span-3 space-y-2 text-xs">
-                {/* Banner Nomor Registrasi */}
-                <div className="p-2.5 sm:p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
-                  <div>
-                    <span className="text-[9px] sm:text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
-                      Nomor Registrasi / Pendaftaran
-                    </span>
-                    <span className="text-base sm:text-xl font-black font-mono text-emerald-950 tracking-wider">
-                      {siswa.noPendaftaran}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-800 text-white font-mono text-[9px] sm:text-[10px] font-bold inline-block shadow-2xs">
-                      VERIFIED
-                    </span>
-                    <span className="block text-[8px] text-emerald-700 font-semibold mt-0.5">
-                      TP {getAcademicYear()}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Tabel Data Diri */}
-                <table className="w-full text-[10px] sm:text-xs">
+              {/* Kolom Kanan: Biodata Lengkap Murid & Jadwal */}
+              <div className="flex-1 space-y-3 text-xs">
+                {/* Tabel Data Diri dengan Align Kolom Sempurna (100% Rapi & Sejajar) */}
+                <table className="w-full text-xs font-sans table-fixed">
                   <tbody>
                     <tr className="border-b border-slate-100">
-                      <td className="py-1 text-slate-500 w-28 sm:w-36 font-medium">Nama Lengkap Murid</td>
-                      <td className="py-1 font-bold text-slate-900">: {siswa.namaLengkap}</td>
+                      <td className="py-1.5 text-slate-600 w-44 font-semibold">Nama Lengkap Murid</td>
+                      <td className="py-1.5 text-slate-400 w-3 font-bold">:</td>
+                      <td className="py-1.5 font-bold text-slate-900 text-[13px]">{siswa.namaLengkap}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      <td className="py-1 text-slate-500 font-medium">NISN / NIK</td>
-                      <td className="py-1 text-slate-800">: {siswa.nisn || '-'} / {siswa.nik || '-'}</td>
+                      <td className="py-1.5 text-slate-600 font-semibold">Nama Panggilan</td>
+                      <td className="py-1.5 text-slate-400 font-bold">:</td>
+                      <td className="py-1.5 text-slate-800 font-medium">{siswa.namaPanggilan || siswa.namaLengkap?.split(' ')[0] || '-'}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      <td className="py-1 text-slate-500 font-medium">Jenis Kelamin</td>
-                      <td className="py-1 text-slate-800">: {siswa.jenisKelamin || '-'}</td>
+                      <td className="py-1.5 text-slate-600 font-semibold">NISN / NIK</td>
+                      <td className="py-1.5 text-slate-400 font-bold">:</td>
+                      <td className="py-1.5 text-slate-800 font-mono font-semibold">{siswa.nisn || '-'} / {siswa.nik || '-'}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      <td className="py-1 text-slate-500 font-medium">Tempat, Tanggal Lahir</td>
-                      <td className="py-1 text-slate-800">: {siswa.tempatLahir || '-'}, {siswa.tanggalLahir || '-'}</td>
+                      <td className="py-1.5 text-slate-600 font-semibold">Jenis Kelamin</td>
+                      <td className="py-1.5 text-slate-400 font-bold">:</td>
+                      <td className="py-1.5 text-slate-800">{siswa.jenisKelamin || 'Laki-laki'}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      <td className="py-1 text-slate-500 font-medium">Asal Sekolah SD/MI</td>
-                      <td className="py-1 font-semibold text-slate-900">: {siswa.asalSekolah || '-'}</td>
+                      <td className="py-1.5 text-slate-600 font-semibold">Tempat, Tanggal Lahir</td>
+                      <td className="py-1.5 text-slate-400 font-bold">:</td>
+                      <td className="py-1.5 text-slate-800">{siswa.tempatLahir || '-'}, {siswa.tanggalLahir || '-'}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
-                      <td className="py-1 text-slate-500 font-medium">Nama Orang Tua / No. HP</td>
-                      <td className="py-1 text-slate-800">: {siswa.namaAyah || siswa.namaIbu || '-'} ({siswa.noHpAyah || siswa.noHpIbu || '-'})</td>
+                      <td className="py-1.5 text-slate-600 font-semibold">Asal Sekolah SD/MI</td>
+                      <td className="py-1.5 text-slate-400 font-bold">:</td>
+                      <td className="py-1.5 font-bold text-slate-900">{siswa.asalSekolah || '-'}</td>
+                    </tr>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-1.5 text-slate-600 font-semibold">Nama Orang Tua / Wali</td>
+                      <td className="py-1.5 text-slate-400 font-bold">:</td>
+                      <td className="py-1.5 text-slate-800 font-medium">{siswa.namaAyah || siswa.namaIbu || '-'}</td>
+                    </tr>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-1.5 text-slate-600 font-semibold">Nomor WhatsApp / HP</td>
+                      <td className="py-1.5 text-slate-400 font-bold">:</td>
+                      <td className="py-1.5 text-slate-800 font-mono">{siswa.noHpAyah || siswa.noHpIbu || siswa.nomorTelepon || '-'}</td>
+                    </tr>
+                    <tr className="border-b border-slate-100">
+                      <td className="py-1.5 text-slate-600 font-semibold">Pilihan Jalur SPMB</td>
+                      <td className="py-1.5 text-slate-400 font-bold">:</td>
+                      <td className="py-1.5 font-bold text-emerald-800">{siswa.jalurPendaftaran || 'Jalur Reguler SPMB'}</td>
                     </tr>
                   </tbody>
                 </table>
 
                 {/* Jadwal & Lokasi Ujian / Observasi Resmi */}
-                <div className="p-2.5 sm:p-3 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] sm:text-[11px]">
-                  <div>
-                    <span className="text-slate-400 block font-semibold">Jadwal Pelaksanaan:</span>
-                    <span className="font-bold text-slate-900">Sabtu, 17 Januari 2026</span>
-                    <span className="block text-slate-600 font-medium">Pukul 08.00 - 11.30 WIB</span>
+                <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 grid grid-cols-2 gap-3 text-xs">
+                  <div className="border-l-3 border-emerald-600 pl-2.5">
+                    <span className="text-slate-500 block font-semibold text-[10px] uppercase">Jadwal Pelaksanaan:</span>
+                    <span className="font-bold text-slate-900 block text-xs">Sabtu, 17 Januari 2026</span>
+                    <span className="block text-emerald-900 font-semibold text-[11px]">Pukul 08.00 - 11.30 WIB</span>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block font-semibold">Ruang &amp; Lokasi:</span>
-                    <span className="font-bold text-emerald-900">Ruang Aula - Gedung SMPIT Lt. 1</span>
-                    <span className="block text-slate-600 font-medium">Observasi Murid &amp; Observasi OTM</span>
+                  <div className="border-l-3 border-emerald-600 pl-2.5">
+                    <span className="text-slate-500 block font-semibold text-[10px] uppercase">Ruang &amp; Agenda:</span>
+                    <span className="font-bold text-slate-900 block text-xs">Ruang Aula - Gedung SMPIT Lt. 1</span>
+                    <span className="block text-slate-600 font-medium text-[11px]">Observasi Murid &amp; Wawancara OTM</span>
                   </div>
                 </div>
               </div>
 
             </div>
 
-            {/* Tata Tertib Sesi Observasi (Tanpa kata: putra berpeci) */}
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[9px] sm:text-[10px] text-slate-600 space-y-1">
-              <span className="font-bold text-slate-800 block text-[10px] sm:text-[11px]">Tata Tertib Peserta:</span>
-              <p className="leading-relaxed space-y-0.5">
+            {/* Tata Tertib Sesi Observasi */}
+            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[10px] text-slate-600 space-y-1">
+              <span className="font-bold text-slate-800 block text-[11px]">Tata Tertib Peserta:</span>
+              <p className="leading-relaxed">
                 1. Wajib hadir di lokasi 15 menit sebelum observasi dimulai dengan membawa Kartu Peserta ini.<br />
-                2. Mengenakan seragam asal SD/MI masing-masing (putri berjilbab syar'i).<br />
-                3. Orang tua / wali murid wajib hadir mendampingi untuk sesi observasi OTM.<br />
-                4. Membawa alat tulis pensil 2B, pulpen, dan Al-Qur'an / Juz 'Amma pribadi.
+                2. Mengenakan seragam asal SD/MI masing-masing (putri berjilbab syar&apos;i).<br />
+                3. Orang tua / wali murid wajib hadir mendampingi untuk sesi observasi wawancara orang tua (OTM).<br />
+                4. Membawa perlengkapan alat tulis pensil 2B, pulpen, dan Al-Qur&apos;an / Juz &apos;Amma pribadi.
               </p>
             </div>
 
-            {/* Blok Verifikasi Keabsahan Dokumen via QR Code (Sah Tanpa Tanda Tangan Basah) */}
-            <div className="p-3 sm:p-3.5 rounded-xl border border-emerald-300 bg-emerald-50 flex flex-col sm:flex-row items-center justify-between gap-2.5 text-emerald-950">
-              <div className="flex items-center gap-2.5 text-left w-full sm:w-auto">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-800 text-amber-300 flex items-center justify-center shrink-0 shadow-xs">
-                  <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-amber-300" />
+            {/* Blok Pengesahan Digital Resmi & Stempel Panitia SPMB */}
+            <div className="p-3 rounded-xl border border-emerald-300 bg-emerald-50/90 flex items-center justify-between gap-3 text-emerald-950">
+              <div className="flex items-center gap-3 text-left">
+                <div className="w-10 h-10 rounded-xl bg-emerald-800 text-amber-300 flex items-center justify-center shrink-0 shadow-xs">
+                  <ShieldCheck className="w-6 h-6 text-emerald-200" />
                 </div>
                 <div className="space-y-0.5">
-                  <div className="font-bold text-[10px] sm:text-xs text-emerald-950">
-                    DOKUMEN RESMI TERVERIFIKASI SAH SECARA HUKUM
+                  <div className="font-bold text-xs text-emerald-950 flex items-center gap-1.5">
+                    <span>DOKUMEN RESMI TERVERIFIKASI SAH SECARA HUKUM</span>
                   </div>
-                  <p className="text-[8.5px] sm:text-[9.5px] text-slate-600 leading-tight">
-                    Kartu Peserta ini diterbitkan digital oleh Sistem SPMB SMPIT Pondok Duta. Keaslian dokumen terverifikasi via QR Code. <strong>Sah tanpa memerlukan tanda tangan basah panitia / calon murid.</strong>
+                  <p className="text-[9.5px] text-slate-600 leading-tight">
+                    Kartu Peserta ini diterbitkan secara digital oleh Sistem SPMB SMPIT Pondok Duta. Keaslian dokumen terverifikasi via QR Code. <strong>Sah dan absah tanpa memerlukan tanda tangan basah panitia / calon murid.</strong>
                   </p>
                 </div>
               </div>
-              <div className="shrink-0 text-center sm:text-right border-t sm:border-t-0 sm:border-l border-emerald-200 pt-2 sm:pt-0 sm:pl-3 w-full sm:w-auto">
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-800 text-white font-extrabold text-[9px] tracking-wide shadow-xs">
+              <div className="shrink-0 text-right pl-3 border-l border-emerald-200">
+                <span className="inline-block px-3 py-1.5 rounded-full bg-emerald-800 text-white font-extrabold text-[10.5px] tracking-wide shadow-xs">
                   ✓ SAH &amp; TERDAFTAR
+                </span>
+                <span className="block text-[8px] text-slate-400 font-mono mt-0.5 text-center">
+                  PANITIA SPMB SMPIT PD
                 </span>
               </div>
             </div>
