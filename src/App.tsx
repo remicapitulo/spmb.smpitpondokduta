@@ -17,7 +17,18 @@ import { SiswaDashboard } from './pages/dashboard/SiswaDashboard';
 import { GuruDashboard } from './pages/dashboard/GuruDashboard';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(gasService.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    const saved = gasService.getCurrentUser();
+    if (typeof window !== 'undefined' && saved && saved.role === 'siswa') {
+      const params = new URLSearchParams(window.location.search);
+      const scannedNo = (params.get('no') || params.get('noPendaftaran') || '').trim().toUpperCase();
+      if (scannedNo && saved.kodePendaftaran && saved.kodePendaftaran.trim().toUpperCase() !== scannedNo) {
+        gasService.logoutUser();
+        return null;
+      }
+    }
+    return saved;
+  });
   const [userRole, setUserRole] = useState<UserRole>(() => (currentUser ? currentUser.role : 'public'));
   const [currentTab, setCurrentTab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -31,7 +42,7 @@ export default function App() {
     return 'home';
   });
   const [siswaSubTab, setSiswaSubTab] = useState<'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu'>('biodata');
-  const [guruSubTeam, setGuruSubTeam] = useState<'ortu' | 'siswa' | 'data-induk'>('ortu');
+  const [guruSubTeam, setGuruSubTeam] = useState<'ortu' | 'siswa' | 'data-induk' | 'whatsapp'>('ortu');
   const [isGasModalOpen, setIsGasModalOpen] = useState<boolean>(false);
   const [isPanduanModalOpen, setIsPanduanModalOpen] = useState<boolean>(false);
   const [isGasConfigured, setIsGasConfigured] = useState<boolean>(gasService.isLiveGasConfigured());
@@ -45,6 +56,13 @@ export default function App() {
     // Listen for browser navigation / scan URL updates
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
+      const scannedNo = (params.get('no') || params.get('noPendaftaran') || '').trim().toUpperCase();
+      const activeUser = gasService.getCurrentUser();
+      if (scannedNo && activeUser && activeUser.role === 'siswa' && activeUser.kodePendaftaran.trim().toUpperCase() !== scannedNo) {
+        gasService.logoutUser();
+        setCurrentUser(null);
+        setUserRole('public');
+      }
       const tabParam = params.get('tab');
       if (tabParam) {
         setCurrentTab(tabParam);

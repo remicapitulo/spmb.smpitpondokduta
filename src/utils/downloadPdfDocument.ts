@@ -9,20 +9,20 @@ export interface DownloadPdfOptions {
   pdfTitle?: string;
   footerText?: string;
   margin?: number;
+  format?: 'a4' | 'f4' | [number, number];
 }
 
 /**
- * Mengonversi elemen DOM dokumen ke file PDF berstandar A4 resmi dan langsung mengunduhnya ke perangkat pengguna.
- * Mendukung dokumen 1 halaman (Kartu Peserta, SKL), dokumen multi-halaman berbasis flow (Wawancara OTM),
- * serta dokumen multi-halaman berbasis halaman terstruktur .a4-page-slice (Buku Induk Murid).
- * Hasil capture 100% presisi dan sama persis dengan preview resmi sekolah.
+ * Mengonversi elemen DOM dokumen ke file PDF resmi berstandar F4 (Folio 215 x 330 mm) / A4 dan langsung mengunduhnya.
+ * Standar F4 memberikan keleluasaan vertikal (tinggi 330mm vs 297mm A4) sehingga tata letak tidak terkompresi.
  */
 export async function downloadElementAsPdf({
   element,
   fileName,
   pdfTitle,
   footerText,
-  margin = 10
+  margin = 10,
+  format = 'f4'
 }: DownloadPdfOptions): Promise<void> {
   const restoreComputedStyle = patchGetComputedStyle(window);
 
@@ -52,10 +52,12 @@ export async function downloadElementAsPdf({
       }
     }
 
+    // Default kertas F4 (Folio) 215mm x 330mm sesuai standar persuratan & administrasi sekolah
+    const pageFormat = format === 'a4' ? 'a4' : (Array.isArray(format) ? format : [215, 330]);
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
-      format: 'a4'
+      format: pageFormat
     });
 
     if (pdfTitle) {
@@ -77,7 +79,7 @@ export async function downloadElementAsPdf({
     const structuredPages = Array.from(element.querySelectorAll<HTMLElement>('.a4-page-slice'));
 
     if (structuredPages.length > 0) {
-      // DOKUMEN TERSTRUKTUR MULTI-HALAMAN (Misal Buku Induk Halaman 1 & Halaman 2)
+      // DOKUMEN TERSTRUKTUR MULTI-HALAMAN (SKL Halaman 1 & Halaman 2, Buku Induk, dll.)
       // Setiap halaman dirender ke canvas secara mandiri sehingga dijamin 0% risiko baris teks terpotong!
       for (let pIdx = 0; pIdx < structuredPages.length; pIdx++) {
         const pageEl = structuredPages[pIdx];
@@ -95,22 +97,36 @@ export async function downloadElementAsPdf({
           windowWidth: 1024,
           scrollX: 0,
           scrollY: 0,
-          onclone: (clonedDoc, clonedTarget) => {
-            prepareClonedDocument(clonedDoc, clonedTarget);
+          onclone: async (clonedDoc, clonedTarget) => {
+            await prepareClonedDocument(clonedDoc, clonedTarget);
           }
         });
 
-        const imgData = pageCanvas.toDataURL('image/png');
-        const imgH = (pageCanvas.height * printableWidth) / pageCanvas.width;
-        const renderedHeight = Math.min(printableHeight, imgH);
-        pdf.addImage(imgData, 'PNG', margin, margin, printableWidth, renderedHeight);
+        // Gunakan JPEG kualitas tinggi 0.95: ukuran file hemat (<500KB vs 25MB uncompressed PNG) dan teks tetap tajam
+        const imgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+        const naturalImgH = (pageCanvas.height * printableWidth) / pageCanvas.width;
+        
+        // Jaga rasio aspek proporsional (preserve aspect ratio) agar teks dan tabel TIDAK TERGEPENGKAN
+        let renderW = printableWidth;
+        let renderH = naturalImgH;
+        let offsetX = margin;
+        let offsetY = margin;
+
+        if (renderH > printableHeight) {
+          const ratio = printableHeight / renderH;
+          renderH = printableHeight;
+          renderW = printableWidth * ratio;
+          offsetX = margin + (printableWidth - renderW) / 2;
+        }
+
+        pdf.addImage(imgData, 'JPEG', offsetX, offsetY, renderW, renderH, undefined, 'FAST');
 
         pdf.setFontSize(7.5);
         pdf.setTextColor(100, 116, 139);
         pdf.text(`${defaultFooter} (Halaman ${pIdx + 1} dari ${structuredPages.length})`, margin, pageHeight - 6);
       }
     } else {
-      // DOKUMEN STANDARD / FLOW (Kartu Peserta, SKL, atau Hasil Wawancara OTM)
+      // DOKUMEN STANDARD / FLOW (Kartu Peserta atau Dokumen 1 Halaman)
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
@@ -121,23 +137,23 @@ export async function downloadElementAsPdf({
         windowWidth: 1024,
         scrollX: 0,
         scrollY: 0,
-        onclone: (clonedDoc, clonedEl) => {
-          prepareClonedDocument(clonedDoc, clonedEl, element.id);
+        onclone: async (clonedDoc, clonedEl) => {
+          await prepareClonedDocument(clonedDoc, clonedEl, element.id);
         }
       });
 
       const totalImgHeight = (canvas.height * printableWidth) / canvas.width;
 
       if (totalImgHeight <= printableHeight) {
-        // 1 HALAMAN PAS (seperti Kartu Peserta Ujian & SKL)
-        const imgData = canvas.toDataURL('image/png');
-        pdf.addImage(imgData, 'PNG', margin, margin, printableWidth, totalImgHeight);
+        // 1 HALAMAN PAS
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        pdf.addImage(imgData, 'JPEG', margin, margin, printableWidth, totalImgHeight, undefined, 'FAST');
 
         pdf.setFontSize(7.5);
         pdf.setTextColor(100, 116, 139);
         pdf.text(defaultFooter, margin, Math.min(pageHeight - 6, margin + totalImgHeight + 5));
       } else {
-        // DOKUMEN MULTI-HALAMAN BERBASIS SLICE (Hasil Wawancara OTM)
+        // DOKUMEN MULTI-HALAMAN BERBASIS SLICE
         const pxPerMm = canvas.width / printableWidth;
         const pageHeightPx = Math.floor(printableHeight * pxPerMm);
         let sourceY = 0;
@@ -165,8 +181,8 @@ export async function downloadElementAsPdf({
               0, sourceY, canvas.width, currentSliceHeightPx,
               0, 0, canvas.width, currentSliceHeightPx
             );
-            const pageImgData = pageCanvas.toDataURL('image/png');
-            pdf.addImage(pageImgData, 'PNG', margin, margin, printableWidth, sliceHeightMm);
+            const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+            pdf.addImage(pageImgData, 'JPEG', margin, margin, printableWidth, sliceHeightMm, undefined, 'FAST');
           }
 
           pdf.setFontSize(7.5);
@@ -222,18 +238,32 @@ export async function downloadElementAsPdf({
 
 /**
  * Mempersiapkan dokumen klon html2canvas:
- * 1. Menghilangkan elemen web chrome & tombol (no-print, sm:hidden summary mobile).
+ * 1. Berbagi font yang sudah dimuat ke dokumen klon dan memastikan fonts.ready.
  * 2. Memaksa tabel desktop & elemen cetak tampil utuh (hidden sm:block -> block).
  * 3. Memaksa font seragam Plus Jakarta Sans pada SEMUA elemen (tanpa serif/Times New Roman).
  * 4. Mengganti semua gambar logo dengan Data URI Base64 (0% CORS taint / error).
  * 5. Membuka semua overflow modal dan menstabilkan lebar dokumen ke 794px A4 standard.
  */
-function prepareClonedDocument(clonedDoc: Document, clonedEl?: HTMLElement | null, fallbackId?: string): void {
-  // 1. Suntikkan font Plus Jakarta Sans dan CSS reset seragam
-  const fontLink = clonedDoc.createElement('link');
-  fontLink.rel = 'stylesheet';
-  fontLink.href = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap';
-  (clonedDoc.head || clonedDoc.documentElement).appendChild(fontLink);
+async function prepareClonedDocument(clonedDoc: Document, clonedEl?: HTMLElement | null, fallbackId?: string): Promise<void> {
+  // 1. Berbagi FontFace yang sudah aktif di parent window ke dalam iframe klon
+  if (typeof document !== 'undefined' && document.fonts && (clonedDoc as any).fonts) {
+    try {
+      document.fonts.forEach((font) => {
+        (clonedDoc as any).fonts.add(font);
+      });
+    } catch {
+      // fallback
+    }
+  }
+
+  // Tunggu kesiapan font di clonedDoc jika didukung
+  if ((clonedDoc as any).fonts?.ready) {
+    try {
+      await (clonedDoc as any).fonts.ready;
+    } catch {
+      // lanjut tanpa jeda
+    }
+  }
 
   const uniformStyle = clonedDoc.createElement('style');
   uniformStyle.textContent = `
@@ -241,6 +271,8 @@ function prepareClonedDocument(clonedDoc: Document, clonedEl?: HTMLElement | nul
       font-family: 'Plus Jakarta Sans', Arial, Helvetica, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
     }
     table, tr, td, th {
       font-family: 'Plus Jakarta Sans', Arial, Helvetica, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
@@ -250,6 +282,15 @@ function prepareClonedDocument(clonedDoc: Document, clonedEl?: HTMLElement | nul
     }
     .no-print {
       display: none !important;
+    }
+    .a4-page-slice {
+      width: 794px !important;
+      max-width: 794px !important;
+      min-width: 794px !important;
+      box-sizing: border-box !important;
+      background-color: #ffffff !important;
+      box-shadow: none !important;
+      margin: 0 auto !important;
     }
     /* Sembunyikan ringkasan card mobile pada capture cetak resmi */
     .block.sm\\:hidden, div.block.sm\\:hidden {

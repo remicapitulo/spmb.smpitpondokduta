@@ -6,7 +6,8 @@ import {
   ObservasiSiswaData, 
   WawancaraOrtuAnswerItem,
   UserAccount,
-  StatusKelulusanInfo
+  StatusKelulusanInfo,
+  PembiayaanCategory
 } from '../../types';
 import { 
   QUESTIONS_CONFIG, 
@@ -15,7 +16,11 @@ import {
 } from '../../services/questionsConfig';
 import { HasilWawancaraOrtuPrintView } from './HasilWawancaraOrtuPrintView';
 import { HasilObservasiSiswaPrintView } from './HasilObservasiSiswaPrintView';
+import { RincianPembiayaanModal } from './RincianPembiayaanModal';
+import { SklKelulusanPrintModal } from './SklKelulusanPrintModal';
+import { formatRupiah } from '../../services/pembiayaanData';
 import { DataIndukSekolahTab } from './DataIndukSekolahTab';
+import { WhatsappKelulusanTab } from './WhatsappKelulusanTab';
 import { 
   Users, 
   UserCheck, 
@@ -43,7 +48,11 @@ import {
   Check,
   Smartphone,
   LogOut,
-  Calendar
+  Calendar,
+  CreditCard,
+  Tag,
+  BadgePercent,
+  MessageCircle
 } from 'lucide-react';
 
 interface Props {
@@ -51,8 +60,8 @@ interface Props {
   onOpenPanduan: () => void;
   currentUser?: UserAccount | null;
   onLogout?: () => void;
-  activeTeam?: 'ortu' | 'siswa' | 'data-induk';
-  onTeamChange?: (team: 'ortu' | 'siswa' | 'data-induk') => void;
+  activeTeam?: 'ortu' | 'siswa' | 'data-induk' | 'whatsapp';
+  onTeamChange?: (team: 'ortu' | 'siswa' | 'data-induk' | 'whatsapp') => void;
 }
 
 export const GuruDashboard: React.FC<Props> = ({ 
@@ -63,10 +72,10 @@ export const GuruDashboard: React.FC<Props> = ({
   activeTeam: propActiveTeam,
   onTeamChange: propOnTeamChange
 }) => {
-  // Mode Menu: 'ortu' (Tim Wawancara OTM) vs 'siswa' (Tim Observasi Murid) vs 'data-induk' (Buku Induk Sekolah & NIS)
-  const [internalTeam, setInternalTeam] = useState<'ortu' | 'siswa' | 'data-induk'>('ortu');
+  // Mode Menu: 'ortu' (Tim Wawancara OTM) vs 'siswa' (Tim Observasi Murid) vs 'data-induk' (Buku Induk Sekolah & NIS) vs 'whatsapp' (WhatsApp Kelulusan)
+  const [internalTeam, setInternalTeam] = useState<'ortu' | 'siswa' | 'data-induk' | 'whatsapp'>('ortu');
   const activeTeam = propActiveTeam !== undefined ? propActiveTeam : internalTeam;
-  const setActiveTeam = (team: 'ortu' | 'siswa' | 'data-induk') => {
+  const setActiveTeam = (team: 'ortu' | 'siswa' | 'data-induk' | 'whatsapp') => {
     setInternalTeam(team);
     propOnTeamChange?.(team);
   };
@@ -129,21 +138,65 @@ export const GuruDashboard: React.FC<Props> = ({
   const [rekomendasiSiswa, setRekomendasiSiswa] = useState<'Diterima' | 'Cadangan' | 'Tidak Diterima'>('Diterima');
   const [catatanPengujiSiswa, setCatatanPengujiSiswa] = useState('');
   const [tanggalMaksimalDaftarUlang, setTanggalMaksimalDaftarUlang] = useState<string>('20 - 25 Januari 2027');
+  const [pembiayaanCategories, setPembiayaanCategories] = useState<PembiayaanCategory[]>(() => gasService.getPembiayaanList());
+  const [kategoriPembiayaanSiswa, setKategoriPembiayaanSiswa] = useState<string>(() => gasService.getPembiayaanList()[0]?.kategori || '');
+  const [isRefreshingKategori, setIsRefreshingKategori] = useState<boolean>(false);
+  const [kategoriSyncMsg, setKategoriSyncMsg] = useState<string>('');
+  const [showRincianPembiayaanModal, setShowRincianPembiayaanModal] = useState<boolean>(false);
+  const [showSklKelulusanModal, setShowSklKelulusanModal] = useState<boolean>(false);
   const [savedSiswaResult, setSavedSiswaResult] = useState<ObservasiSiswaData | null>(null);
   const [previewSiswaModal, setPreviewSiswaModal] = useState<ObservasiSiswaData | null>(null);
 
+  const handleRefreshKategoriSheet = async () => {
+    setIsRefreshingKategori(true);
+    setKategoriSyncMsg('Menarik data dari Sheet "Pembiayaan" di Google Spreadsheet...');
+    try {
+      const res = await gasService.fetchPembiayaanFromSpreadsheet();
+      if (res.success && res.categories && res.categories.length > 0) {
+        setPembiayaanCategories(res.categories);
+        if (!kategoriPembiayaanSiswa || !res.categories.some(c => c.kategori === kategoriPembiayaanSiswa)) {
+          setKategoriPembiayaanSiswa(res.categories[0].kategori);
+        }
+        setKategoriSyncMsg(`Alhamdulillah! Berhasil memuat ${res.categories.length} kategori dari Sheet Pembiayaan.`);
+      } else {
+        setKategoriSyncMsg(res.message || 'Gagal memuat kategori dari Spreadsheet.');
+      }
+    } catch {
+      setKategoriSyncMsg('Terjadi kendala saat menghubungi Google Apps Script.');
+    } finally {
+      setIsRefreshingKategori(false);
+      setTimeout(() => setKategoriSyncMsg(''), 7000);
+    }
+  };
+
   useEffect(() => {
     loadStudentList();
+    if (gasService.isLiveGasConfigured() && typeof navigator !== 'undefined' && navigator.onLine) {
+      handleRefreshKategoriSheet();
+    }
     const handleDbUpdate = () => {
       gasService.getStudentList(false).then((updatedList) => {
         setStudents(updatedList);
         const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
         setDbGuruNames(gurus);
       });
+      const freshCategories = gasService.getPembiayaanList();
+      if (freshCategories && freshCategories.length > 0) {
+        setPembiayaanCategories(freshCategories);
+      }
+    };
+    const handleSwitchTeam = (e: any) => {
+      if (e?.detail) {
+        setActiveTeam(e.detail);
+      }
     };
     window.addEventListener('spmb_db_updated', handleDbUpdate);
+    window.addEventListener('storage', handleDbUpdate);
+    window.addEventListener('switch_guru_team', handleSwitchTeam);
     return () => {
       window.removeEventListener('spmb_db_updated', handleDbUpdate);
+      window.removeEventListener('storage', handleDbUpdate);
+      window.removeEventListener('switch_guru_team', handleSwitchTeam);
     };
   }, []);
 
@@ -254,8 +307,11 @@ export const GuruDashboard: React.FC<Props> = ({
       setCatatanPsikotes(existing.catatanPsikotes || '');
       setRekomendasiSiswa(existing.rekomendasi);
       setCatatanPengujiSiswa(existing.catatanPenguji);
+      const defaultKat = pembiayaanCategories[0]?.kategori || gasService.getPembiayaanList()[0]?.kategori || '';
       setTanggalMaksimalDaftarUlang(existing.tanggalMaksimalDaftarUlang || (existingLulus?.jadwalDaftarUlang && existingLulus.jadwalDaftarUlang !== '-' ? existingLulus.jadwalDaftarUlang : '20 - 25 Januari 2027'));
+      setKategoriPembiayaanSiswa(existing.kategoriPembiayaan || defaultKat);
     } else {
+      const defaultKat = pembiayaanCategories[0]?.kategori || gasService.getPembiayaanList()[0]?.kategori || '';
       setNilaiTahsin(85);
       setCatatanTahsin('');
       setNilaiTahfidz(88);
@@ -270,6 +326,7 @@ export const GuruDashboard: React.FC<Props> = ({
       setRekomendasiSiswa('Diterima');
       setCatatanPengujiSiswa('');
       setTanggalMaksimalDaftarUlang(existingLulus?.jadwalDaftarUlang && existingLulus.jadwalDaftarUlang !== '-' ? existingLulus.jadwalDaftarUlang : '20 - 25 Januari 2027');
+      setKategoriPembiayaanSiswa(existingLulus?.kategoriPembiayaan || defaultKat);
     }
   };
 
@@ -477,6 +534,8 @@ export const GuruDashboard: React.FC<Props> = ({
       rekomendasi: rekomendasiSiswa,
       catatanPenguji: catatanPengujiSiswa,
       tanggalMaksimalDaftarUlang: tanggalMaksimalDaftarUlang.trim() || '20 - 25 Januari 2027',
+      kategoriPembiayaan: kategoriPembiayaanSiswa,
+      rincianBiaya: gasService.getPembiayaanByCategory(kategoriPembiayaanSiswa),
       createdAt: new Date().toISOString()
     };
 
@@ -520,10 +579,10 @@ export const GuruDashboard: React.FC<Props> = ({
         </div>
 
         {/* TEAM SELECTOR BUTTONS (Responsive Grid on Mobile & Tablet) */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700 shadow-lg w-full lg:w-auto">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700 shadow-lg w-full lg:w-auto">
           <button
             onClick={() => setActiveTeam('ortu')}
-            className={`px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition cursor-pointer ${
               activeTeam === 'ortu'
                 ? 'bg-emerald-600 text-white shadow-md'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
@@ -538,7 +597,7 @@ export const GuruDashboard: React.FC<Props> = ({
 
           <button
             onClick={() => setActiveTeam('siswa')}
-            className={`px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition cursor-pointer ${
               activeTeam === 'siswa'
                 ? 'bg-indigo-600 text-white shadow-md'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
@@ -553,7 +612,7 @@ export const GuruDashboard: React.FC<Props> = ({
 
           <button
             onClick={() => setActiveTeam('data-induk')}
-            className={`px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2.5 transition cursor-pointer ${
+            className={`px-3 sm:px-3.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition cursor-pointer ${
               activeTeam === 'data-induk'
                 ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                 : 'text-slate-300 hover:text-white hover:bg-white/5'
@@ -563,6 +622,21 @@ export const GuruDashboard: React.FC<Props> = ({
             <div className="text-left min-w-0">
               <span className="block leading-tight truncate">3. Data Induk</span>
               <span className="text-[10px] opacity-80 font-normal truncate">Buku Induk &amp; NIS</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTeam('whatsapp')}
+            className={`px-3 sm:px-3.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition cursor-pointer ${
+              activeTeam === 'whatsapp'
+                ? 'bg-teal-600 text-white shadow-md'
+                : 'text-slate-300 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <MessageCircle className="w-4 h-4 text-teal-200 shrink-0" />
+            <div className="text-left min-w-0">
+              <span className="block leading-tight truncate">4. WhatsApp Pengumuman</span>
+              <span className="text-[10px] opacity-80 font-normal truncate">Kirim Pengumuman</span>
             </div>
           </button>
         </div>
@@ -611,12 +685,12 @@ export const GuruDashboard: React.FC<Props> = ({
               {/* Quick Select Chips jika ada filter */}
               {searchKeywordOrtu && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  {filteredStudentsOrtu.map((st) => {
+                  {filteredStudentsOrtu.map((st, i) => {
                     const origIndex = students.findIndex(s => s.id === st.id);
                     const isSelected = selectedOrtuIndex === origIndex;
                     return (
                       <button
-                        key={st.id}
+                        key={`chip-ortu-${st.id}-${origIndex >= 0 ? origIndex : i}`}
                         type="button"
                         onClick={() => handleSelectStudentOrtu(origIndex)}
                         className={`px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer ${
@@ -648,10 +722,10 @@ export const GuruDashboard: React.FC<Props> = ({
                   onChange={(e) => handleSelectStudentOrtu(Number(e.target.value))}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-blue-500 shadow-xs"
                 >
-                  {filteredStudentsOrtu.map((st) => {
+                  {filteredStudentsOrtu.map((st, i) => {
                     const origIndex = students.findIndex(s => s.id === st.id);
                     return (
-                      <option key={st.id || origIndex} value={origIndex}>
+                      <option key={`opt-ortu-${st.id}-${origIndex >= 0 ? origIndex : i}`} value={origIndex}>
                         {st.nama} {st.sekolah ? `(${st.sekolah})` : ''} — [{st.id}] {st.existingPdf ? '✓ Sudah Wawancara' : '⏳ Siap Diwawancara'}
                       </option>
                     );
@@ -1196,12 +1270,12 @@ export const GuruDashboard: React.FC<Props> = ({
               {/* Quick Select Chips */}
               {searchKeywordSiswa && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  {filteredStudentsSiswa.map((st) => {
+                  {filteredStudentsSiswa.map((st, i) => {
                     const origIndex = students.findIndex(s => s.id === st.id);
                     const isSelected = selectedSiswaIndex === origIndex;
                     return (
                       <button
-                        key={st.id}
+                        key={`chip-siswa-${st.id}-${origIndex >= 0 ? origIndex : i}`}
                         type="button"
                         onClick={() => handleSelectStudentSiswa(origIndex)}
                         className={`px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer ${
@@ -1228,10 +1302,10 @@ export const GuruDashboard: React.FC<Props> = ({
                   onChange={(e) => handleSelectStudentSiswa(Number(e.target.value))}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-indigo-500 shadow-xs"
                 >
-                  {filteredStudentsSiswa.map((st) => {
+                  {filteredStudentsSiswa.map((st, i) => {
                     const origIndex = students.findIndex(s => s.id === st.id);
                     return (
-                      <option key={st.id || origIndex} value={origIndex}>
+                      <option key={`opt-siswa-${st.id}-${origIndex >= 0 ? origIndex : i}`} value={origIndex}>
                         {st.nama} ({st.sekolah || '-'}) — [{st.id}]
                       </option>
                     );
@@ -1589,12 +1663,154 @@ export const GuruDashboard: React.FC<Props> = ({
                 </div>
               </div>
 
+              {/* Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori Pembiayaan) */}
+              <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-50 via-purple-50 to-emerald-50 border-2 border-indigo-400 space-y-3.5 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 rounded-xl bg-indigo-700 text-white shrink-0 shadow-xs">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs sm:text-sm font-extrabold text-indigo-950 flex items-center gap-1.5 flex-wrap">
+                        <span>Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori)</span>
+                        <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded-md border border-indigo-300">
+                          Database Sheet: Pembiayaan
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-indigo-800 leading-snug">
+                        Pilih rujukan kategori biaya SPMB murid. Klik tombol untuk memunculkan rincian pembiayaan modern yang dilampirkan pada PDF SKL lembar ke-2.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleRefreshKategoriSheet}
+                      disabled={isRefreshingKategori}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-900 font-black text-[11px] transition shadow-md flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50 border-2 border-amber-300"
+                      title="Klik untuk menarik dan menyinkronkan daftar kategori pembiayaan langsung dari Sheet Pembiayaan di Google Spreadsheet"
+                    >
+                      <RefreshCw className={`w-4 h-4 text-slate-900 ${isRefreshingKategori ? 'animate-spin' : ''}`} />
+                      <span>{isRefreshingKategori ? 'Sedang Menarik Kategori...' : 'Tarik Kategori dari Sheet'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowRincianPembiayaanModal(true)}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                      title="Klik untuk membuka rincian pembiayaan yang akan dilampirkan di PDF SKL lembar ke-2"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-indigo-200" />
+                      <span>Rincian Daftar Ulang (Lembar 2)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowSklKelulusanModal(true)}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                      title="Klik untuk melihat pratinjau SKL kelulusan lengkap (2 Halaman)"
+                    >
+                      <GraduationCap className="w-3.5 h-3.5 text-emerald-200" />
+                      <span>Pratinjau SKL Kelulusan</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Dropdown Pemilihan Kategori Rujukan */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                      <Tag className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Pilih Kategori Rujukan Pembiayaan Murid:</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                        pembiayaanCategories.length > 0 
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                          : 'bg-amber-100 text-amber-800 border-amber-300'
+                      }`}>
+                        {pembiayaanCategories.length > 0 ? `${pembiayaanCategories.length} Kategori Murni dari Sheet` : 'Belum Ada Kategori — Klik Tarik Kategori dari Sheet'}
+                      </span>
+                    </label>
+                  </div>
+
+                  {kategoriSyncMsg && (
+                    <div className="p-2.5 rounded-xl bg-indigo-50/90 border border-indigo-200 text-indigo-900 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                      <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <span>{kategoriSyncMsg}</span>
+                    </div>
+                  )}
+
+                  <select
+                    value={kategoriPembiayaanSiswa}
+                    onChange={(e) => setKategoriPembiayaanSiswa(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-indigo-300 bg-white font-bold text-xs text-indigo-950 focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
+                  >
+                    {pembiayaanCategories.length === 0 ? (
+                      <option value="">
+                        {isRefreshingKategori
+                          ? '⏳ Sedang menarik kategori dari Sheet Pembiayaan di Google Spreadsheet...'
+                          : '⚠️ Belum ada kategori dari database. Klik tombol "Tarik Kategori dari Sheet" di atas'}
+                      </option>
+                    ) : (
+                      pembiayaanCategories.map((c, i) => (
+                        <option key={i} value={c.kategori}>
+                          {c.kategori}{c.catatan ? ` — ${c.catatan}` : ''}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                {/* Ringkasan Live Biaya Kategori Terpilih */}
+                {(() => {
+                  const currCat = gasService.getPembiayaanByCategory(kategoriPembiayaanSiswa);
+                  return (
+                    <>
+                      <div className="p-3.5 rounded-xl bg-white border border-indigo-200 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs shadow-2xs">
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">Subtotal I (Gedung/BPP/Seragam):</span>
+                          <span className="font-mono font-bold text-slate-800">{formatRupiah(currCat.subtotalI)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">Subtotal II (Kegiatan/Buku/KBM):</span>
+                          <span className="font-mono font-bold text-slate-800">{formatRupiah(currCat.subtotalII)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">SPP Juli (Flat 3 Thn):</span>
+                          <span className="font-mono font-bold text-slate-800">{formatRupiah(currCat.spp)}</span>
+                        </div>
+                        <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                          <span className="text-[10px] text-emerald-800 font-bold block">Total Biaya Daftar Ulang:</span>
+                          <span className="font-mono font-black text-emerald-900 text-sm">{formatRupiah(currCat.totalBiaya)}</span>
+                        </div>
+                      </div>
+
+                      {currCat.catatan && (
+                        <div className="flex items-center gap-2 text-[11px] text-indigo-900 bg-indigo-100/70 p-2 rounded-lg border border-indigo-200">
+                          <BadgePercent className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                          <span><strong>Catatan:</strong> {currCat.catatan}</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
               {/* Actions */}
               <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
                 <span className="text-[11px] text-slate-400">
-                  Data tersimpan mandiri di sheet Observasi_Siswa terpisah dari Wawancara Orang Tua.
+                  Data tersimpan mandiri di sheet Observasi_Siswa &amp; terintegrasi ke SKL Kelulusan murid.
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setShowSklKelulusanModal(true)}
+                    className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                  >
+                    <GraduationCap className="w-4 h-4" />
+                    <span>Pratinjau SKL</span>
+                  </button>
+
                   <button
                     type="submit"
                     disabled={saving || !currentStudentSiswa}
@@ -1645,6 +1861,8 @@ export const GuruDashboard: React.FC<Props> = ({
                           rekomendasi: rekomendasiSiswa,
                           catatanPenguji: catatanPengujiSiswa,
                           tanggalMaksimalDaftarUlang: tanggalMaksimalDaftarUlang.trim() || '20 - 25 Januari 2027',
+                          kategoriPembiayaan: kategoriPembiayaanSiswa,
+                          rincianBiaya: gasService.getPembiayaanByCategory(kategoriPembiayaanSiswa),
                           createdAt: new Date().toISOString()
                         });
                       }
@@ -1652,7 +1870,7 @@ export const GuruDashboard: React.FC<Props> = ({
                     className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
                   >
                     <Download className="w-4 h-4 text-emerald-600" />
-                    <span>Pratinjau &amp; Unduh PDF</span>
+                    <span>Lembar Observasi Resmi</span>
                   </button>
                 </div>
               </div>
@@ -1671,6 +1889,15 @@ export const GuruDashboard: React.FC<Props> = ({
           students={students}
           currentUser={currentUser}
           onRefreshStudentList={loadStudentList}
+        />
+      )}
+
+      {/* ===================================================================== */}
+      {/* MENU 4: PENGIRIMAN INFORMASI KELULUSAN VIA WHATSAPP (ACUAN NOMOR AKUN) */}
+      {/* ===================================================================== */}
+      {activeTeam === 'whatsapp' && (
+        <WhatsappKelulusanTab
+          currentUser={currentUser}
         />
       )}
 
@@ -1704,6 +1931,48 @@ export const GuruDashboard: React.FC<Props> = ({
         <HasilObservasiSiswaPrintView
           data={previewSiswaModal}
           onClose={() => setPreviewSiswaModal(null)}
+        />
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 4: PRATINJAU RINCIAN PEMBIAYAAN DAFTAR ULANG LEMBAR KE-2        */}
+      {/* ===================================================================== */}
+      {showRincianPembiayaanModal && currentStudentSiswa && (
+        <RincianPembiayaanModal
+          siswa={{
+            noPendaftaran: currentStudentSiswa.id,
+            namaLengkap: currentStudentSiswa.nama,
+            asalSekolah: currentStudentSiswa.sekolah
+          }}
+          selectedKategori={kategoriPembiayaanSiswa}
+          onSelectKategori={(k) => setKategoriPembiayaanSiswa(k)}
+          onClose={() => setShowRincianPembiayaanModal(false)}
+          onOpenFullSklPreview={() => {
+            setShowRincianPembiayaanModal(false);
+            setShowSklKelulusanModal(true);
+          }}
+          tanggalDaftarUlang={tanggalMaksimalDaftarUlang}
+        />
+      )}
+
+      {/* ===================================================================== */}
+      {/* MODAL 5: PRATINJAU SURAT KETERANGAN LULUS (SKL) RESMI (2 HALAMAN)     */}
+      {/* ===================================================================== */}
+      {showSklKelulusanModal && currentStudentSiswa && (
+        <SklKelulusanPrintModal
+          data={{
+            noPendaftaran: currentStudentSiswa.id,
+            namaLengkap: currentStudentSiswa.nama,
+            asalSekolah: currentStudentSiswa.sekolah,
+            status: rekomendasiSiswa === 'Diterima' ? 'LULUS' : (rekomendasiSiswa === 'Cadangan' ? 'CADANGAN' : 'TIDAK_LULUS'),
+            jadwalDaftarUlang: tanggalMaksimalDaftarUlang,
+            kategoriPembiayaan: kategoriPembiayaanSiswa
+          }}
+          onClose={() => setShowSklKelulusanModal(false)}
+          onOpenRincianKategori={() => {
+            setShowSklKelulusanModal(false);
+            setShowRincianPembiayaanModal(true);
+          }}
         />
       )}
 

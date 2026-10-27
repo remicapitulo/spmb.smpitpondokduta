@@ -6,8 +6,17 @@ import {
   StatusKelulusanInfo,
   FormWawancaraOrtuPDF,
   UserAccount,
-  DataIndukSiswa
+  DataIndukSiswa,
+  PembiayaanCategory,
+  MuridLulusWaItem,
+  getAcademicYear
 } from '../types';
+import { 
+  DEFAULT_PEMBIAYAAN_LIST, 
+  EMPTY_PEMBIAYAAN_CATEGORY,
+  PEMBIAYAAN_HEADERS, 
+  calculatePembiayaanTotals 
+} from './pembiayaanData';
 import { DEFAULT_SPREADSHEET_ID, DEFAULT_GAS_WEB_APP_URL, DEFAULT_DRIVE_FOLDER_URL } from './gasCodeSnippet';
 
 export interface AppSettingsConfig {
@@ -21,9 +30,193 @@ export interface AppSettingsConfig {
   updatedAt?: string;
 }
 
+// Header Kolom Lengkap Biodata Siswa (65 Kolom - 100% Cocok dengan fullRow & Sheet Siswa)
+export const SISWA_HEADERS: string[] = [
+  "No Pendaftaran",
+  "Nama Lengkap",
+  "Nama Panggilan",
+  "NISN",
+  "Jenis Kelamin",
+  "Tempat Lahir",
+  "Tanggal Lahir",
+  "Agama",
+  "Asal Sekolah",
+  "Alamat",
+  "Kelurahan",
+  "Kecamatan",
+  "Kota/Kabupaten",
+  "No HP Ortu",
+  "Nama Ayah",
+  "Pekerjaan Ayah",
+  "Penghasilan Ayah",
+  "No HP Ayah",
+  "Nama Ibu",
+  "Pekerjaan Ibu",
+  "Penghasilan Ibu",
+  "No HP Ibu",
+  "NIK Siswa",
+  "Kewarganegaraan",
+  "Anak Ke",
+  "Jml Sdr Kandung",
+  "Jml Sdr Tiri",
+  "Jml Sdr Angkat",
+  "Bahasa Sehari-hari",
+  "Berat Badan (kg)",
+  "Tinggi Badan (cm)",
+  "Golongan Darah",
+  "Penyakit Berat",
+  "Kelainan Jasmani",
+  "Bertempat Tinggal Pada",
+  "Jarak ke Sekolah (km)",
+  "Sarana Berangkat",
+  "Masuk Sebagai",
+  "Nomor Ijazah SD",
+  "Kesenian",
+  "Olahraga",
+  "Organisasi",
+  "Menerima Beasiswa",
+  "Prestasi",
+  "TTL Ayah",
+  "Agama Ayah",
+  "Pendidikan Ayah",
+  "Alamat Ayah",
+  "Email Ayah",
+  "TTL Ibu",
+  "Agama Ibu",
+  "Pendidikan Ibu",
+  "Alamat Ibu",
+  "Email Ibu",
+  "Nama Wali",
+  "TTL Wali",
+  "Agama Wali",
+  "Pendidikan Wali",
+  "Pekerjaan Wali",
+  "Penghasilan Wali",
+  "Alamat Wali",
+  "No HP Wali",
+  "Hubungan Wali",
+  "JSON Biodata Lengkap",
+  "Updated At"
+];
+
+// Header Kolom Lengkap Buku Induk Siswa (Standar Resmi Dikdasmen / Dapodik - 74 Kolom)
+export const DATA_INDUK_HEADERS: string[] = [
+  "No Urut",
+  "NIS / NISS",
+  "NISN",
+  "NIK Siswa",
+  "No Pendaftaran",
+  "Nama Lengkap Siswa",
+  "Nama Panggilan",
+  "Jenis Kelamin",
+  "Tempat Lahir",
+  "Tanggal Lahir",
+  "Agama",
+  "Kewarganegaraan",
+  "Anak Ke",
+  "Jml Saudara Kandung",
+  "Jml Saudara Tiri",
+  "Jml Saudara Angkat",
+  "Bahasa Sehari-hari",
+  "Berat Badan (kg)",
+  "Tinggi Badan (cm)",
+  "Golongan Darah",
+  "Penyakit Berat Pernah Diderita",
+  "Kelainan Jasmani",
+  "Alamat Tempat Tinggal",
+  "Kelurahan",
+  "Kecamatan",
+  "Kota / Kabupaten",
+  "No Telepon / Handphone",
+  "Bertempat Tinggal Pada",
+  "Jarak ke Sekolah (km)",
+  "Sarana Berangkat Sekolah",
+  "Masuk Sebagai",
+  "Asal Sekolah (SD/MI)",
+  "Nomor Ijazah SD",
+  "Kesenian",
+  "Olahraga",
+  "Organisasi",
+  "Menerima Beasiswa",
+  "Prestasi / Kejuaraan",
+  "Nama Lengkap Ayah",
+  "TTL Ayah",
+  "Agama Ayah",
+  "Pendidikan Terakhir Ayah",
+  "Pekerjaan Ayah",
+  "Penghasilan Ayah",
+  "Alamat Ayah",
+  "No HP / WhatsApp Ayah",
+  "Email Ayah",
+  "Status Perkawinan Ayah",
+  "Nama Lengkap Ibu",
+  "TTL Ibu",
+  "Agama Ibu",
+  "Pendidikan Terakhir Ibu",
+  "Pekerjaan Ibu",
+  "Penghasilan Ibu",
+  "Alamat Ibu",
+  "No HP / WhatsApp Ibu",
+  "Email Ibu",
+  "Status Perkawinan Ibu",
+  "Nama Wali",
+  "TTL Wali",
+  "Agama Wali",
+  "Pendidikan Wali",
+  "Pekerjaan Wali",
+  "Penghasilan Wali",
+  "Alamat Wali",
+  "No HP Wali",
+  "Status Hubungan Wali",
+  "Status Kelulusan",
+  "Tahun Pelajaran",
+  "Tanggal Diterima",
+  "Catatan Khusus",
+  "Updated At"
+];
+
 /**
- * Mengubah link Google Drive (misal https://drive.google.com/file/d/ID/view atau link thumbnail)
- * menjadi direct high-resolution image URL (=s0) agar 100% jernih, tajam, dan tidak pecah/buram.
+/**
+ * Mengekstrak ID file Google Drive dari beragam format URL Google Drive:
+ * - https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+ * - https://drive.google.com/open?id=FILE_ID
+ * - https://drive.google.com/uc?id=FILE_ID
+ * - https://drive.google.com/thumbnail?id=FILE_ID
+ * - https://lh3.googleusercontent.com/d/FILE_ID
+ * - Raw string ID (misal: 1sKTeUlnxa9aquB8rBZfULrx7ZUaP1v-7pFBzu5EW3m8)
+ */
+export function extractDriveFileId(input?: string): string {
+  if (!input) return '';
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+
+  // 1. Format /file/d/FILE_ID
+  const mFile = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (mFile && mFile[1]) return mFile[1];
+
+  // 2. Format ?id=FILE_ID atau &id=FILE_ID
+  const mId = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (mId && mId[1]) return mId[1];
+
+  // 3. Format lh3.googleusercontent.com/d/FILE_ID
+  const mLh3 = trimmed.match(/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+  if (mLh3 && mLh3[1]) return mLh3[1];
+
+  // 4. Format uc?export=view&id=FILE_ID
+  const mUc = trimmed.match(/\/uc\?[^#]*\bid=([a-zA-Z0-9_-]+)/);
+  if (mUc && mUc[1]) return mUc[1];
+
+  // 5. Jika input langsung berupa ID mentah Drive (panjang 20-55 karakter alfanumerik)
+  if (/^[a-zA-Z0-9_-]{20,55}$/.test(trimmed) && !trimmed.startsWith('http')) {
+    return trimmed;
+  }
+
+  return '';
+}
+
+/**
+ * Mengubah link Google Drive menjadi direct high-resolution image URL (=s0)
+ * agar 100% jernih, tajam, dan tidak pecah/buram.
  */
 export function resolveRenderableImageUrl(rawUrl?: string): string {
   if (!rawUrl) return '';
@@ -31,28 +224,74 @@ export function resolveRenderableImageUrl(rawUrl?: string): string {
   if (!trimmed) return '';
   if (trimmed.startsWith('data:image/')) return trimmed;
 
-  // 1. Format: https://drive.google.com/file/d/FILE_ID/...
-  const fileMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9-_]+)/);
-  if (fileMatch && fileMatch[1]) {
-    // Parameter =s0 memastikan Google CDN mengirimkan resolusi asli/maksimal tanpa kompresi buram
-    return `https://lh3.googleusercontent.com/d/${fileMatch[1]}=s0`;
-  }
-
-  // 2. Format: https://drive.google.com/open?id=FILE_ID atau ?id=FILE_ID
-  const idMatch = trimmed.match(/[?&]id=([a-zA-Z0-9-_]+)/);
-  if (idMatch && idMatch[1] && trimmed.includes('drive.google.com')) {
-    return `https://lh3.googleusercontent.com/d/${idMatch[1]}=s0`;
-  }
-
-  // 3. Format: https://lh3.googleusercontent.com/d/FILE_ID (tambahkan =s0 jika belum memiliki parameter scale)
-  const lh3Match = trimmed.match(/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9-_]+)/);
-  if (lh3Match && lh3Match[1]) {
-    if (!trimmed.includes('=') && !trimmed.includes('&sz=')) {
-      return `https://lh3.googleusercontent.com/d/${lh3Match[1]}=s0`;
-    }
+  const fileId = extractDriveFileId(trimmed);
+  if (fileId) {
+    // Parameter =s0 memastikan CDN Google mengirimkan resolusi asli/maksimal tanpa kompresi buram
+    return `https://lh3.googleusercontent.com/d/${fileId}=s0`;
   }
 
   return trimmed;
+}
+
+/**
+ * URL Thumbnail alternatif beresolusi tinggi (w2000) untuk Google Drive
+ */
+export function resolveDriveThumbnailUrl(rawUrl?: string, width = 2000): string {
+  if (!rawUrl) return '';
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('data:image/')) return trimmed;
+
+  const fileId = extractDriveFileId(trimmed);
+  if (fileId) {
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${width}`;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Deduplikasi daftar siswa berdasarkan No Pendaftaran untuk mencegah duplicate React keys
+ * dan entri ganda dari spreadsheet.
+ */
+export function deduplicateSiswaByNo(list: DataSiswa[]): DataSiswa[] {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set<string>();
+  const result: DataSiswa[] = [];
+  for (const s of list) {
+    const key = (s.noPendaftaran || '').trim().toUpperCase();
+    if (!key) {
+      result.push(s);
+      continue;
+    }
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(s);
+    }
+  }
+  return result;
+}
+
+/**
+ * Deduplikasi daftar data induk berdasarkan No Pendaftaran untuk mencegah duplicate React keys
+ * dan entri ganda dari spreadsheet.
+ */
+export function deduplicateDataIndukByNo(list: DataIndukSiswa[]): DataIndukSiswa[] {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set<string>();
+  const result: DataIndukSiswa[] = [];
+  for (const d of list) {
+    const key = (d.noPendaftaran || '').trim().toUpperCase();
+    if (!key) {
+      result.push(d);
+      continue;
+    }
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(d);
+    }
+  }
+  return result;
 }
 
 /**
@@ -147,9 +386,105 @@ const LOCAL_HASIL_ORTU_KEY = 'spmb_pd_hasil_ortu_map';
 const LOCAL_OBS_SISWA_KEY = 'spmb_pd_observasi_siswa_list';
 const LOCAL_WS_KEY = 'spmb_pd_wawancara_siswa_data';
 const LOCAL_LULUS_KEY = 'spmb_pd_status_kelulusan';
+const LOCAL_PEMBIAYAAN_KEY = 'spmb_pd_pembiayaan_list';
 const LOCAL_USERS_KEY = 'spmb_pd_users_db';
 const LOCAL_CURRENT_USER_KEY = 'spmb_pd_current_user';
 const PURE_DB_MODE_KEY = 'spmb_pd_pure_db_mode_v2';
+export const LOCAL_WA_LOGS_KEY = 'spmb_pd_wa_kelulusan_logs';
+export const LOCAL_WA_TEMPLATE_KEY = 'spmb_pd_wa_kelulusan_template';
+
+/**
+ * Membersihkan dan memformat nomor HP menjadi format standar WhatsApp internasional.
+ * Mendukung berbagai kode negara internasional (Indonesia 62, Malaysia 60, Arab Saudi 966, Singapura 65, dll)
+ * sekaligus memulihkan otomatis nomor Indonesia jika angka 0 di depan hilang di Google Spreadsheet:
+ * - 08561234567 -> 628561234567
+ * - 8561234567 (angka 0 hilang di Spreadsheet, 9-11 digit berawalan 8) -> 628561234567
+ * - +62 856-1234-567 -> 628561234567
+ * - 6208561234567 -> 628561234567
+ * - +60 12-345 6789 (Malaysia) -> 60123456789
+ * - +966 50 123 4567 (Arab Saudi) -> 966501234567
+ */
+export function formatPhoneNumberForWa(phone: unknown, defaultCountryCode = '62'): string {
+  if (phone === undefined || phone === null) return '';
+  const rawStr = String(phone).trim();
+  if (!rawStr || rawStr === '-' || rawStr === '0') return '';
+
+  const hasExplicitPlus = rawStr.startsWith('+');
+  let clean = rawStr.replace(/[^0-9]/g, '');
+  if (!clean || clean.length < 7) return '';
+
+  // Jika pengguna mengetik awalan 00 (standar panggilan internasional, misal 0060...), buang 00 di depan
+  if (clean.startsWith('00') && clean.length > 9) {
+    clean = clean.slice(2);
+  }
+
+  // Jika diawali kode negara + angka 0 (misal 620812... atau 60012...), hapus angka 0 setelah kode negara
+  if (clean.startsWith('620')) {
+    return '62' + clean.slice(3);
+  }
+
+  // Jika sudah diawali tanda '+' pada input asli, hormati kode negara internasional tersebut
+  if (hasExplicitPlus) {
+    return clean;
+  }
+
+  // Jika diawali angka 0 (misal 08561234567), ganti angka 0 di depan dengan kode negara pilihan (default 62)
+  if (clean.startsWith('0')) {
+    return defaultCountryCode + clean.slice(1);
+  }
+
+  // Jika diawali angka 8 dan panjangnya 8 s/d 11 digit (kasus klasik nomor HP Indonesia 08xx yang angka 0-nya hilang di Google Spreadsheet)
+  if (clean.startsWith('8') && clean.length >= 8 && clean.length <= 11) {
+    return '62' + clean;
+  }
+
+  // Selain itu, nomor sudah memiliki kode negara di depannya (62..., 60..., 65..., 966..., 971..., dll)
+  return clean;
+}
+
+export const DEFAULT_WA_PENGUMUMAN_TEMPLATE = `*INFORMASI PENGUMUMAN SELEKSI PENERIMAAN MURID BARU (SPMB)*
+*SMPIT PONDOK DUTA TAHUN PELAJARAN {tahunPelajaran}*
+
+_Assalamu'alaikum Warahmatullahi Wabarakatuh_
+
+Kepada Yth.
+*Ayah / Bunda Orang Tua / Wali*
+dari Calon Murid:
+
+👤 *Nama Calon Murid:* {namaLengkap}
+🏷️ *Nomor Pendaftaran:* *{noPendaftaran}*
+🔢 *NISN:* {nisn}
+🏫 *Asal Sekolah:* {asalSekolah}
+
+Dengan ini kami sampaikan bahwa *Hasil Seleksi Penerimaan Murid Baru (SPMB) SMPIT Pondok Duta Tahun Pelajaran {tahunPelajaran}* telah resmi diumumkan.
+
+━━━━━━━━━━━━━━━━━━━━━
+*CARA PENGECEKAN HASIL SELEKSI DI WEBSITE:*
+━━━━━━━━━━━━━━━━━━━━━
+Untuk melihat pengumuman hasil seleksi ananda secara lengkap dan resmi, silakan ikuti petunjuk berikut:
+
+1️⃣ *Akses Tautan Langsung Pengumuman:*
+👉 {directLink}
+
+2️⃣ *Atau Buka Melalui Menu Cek Kelulusan di Website:*
+🌐 {websiteUrl}
+• Buka menu *Cek Kelulusan*
+• Masukkan Nomor Pendaftaran ananda: *{noPendaftaran}* (atau nomor NISN: *{nisn}*)
+• Klik tombol *Cek Kelulusan*
+
+3️⃣ *Hasil Seleksi & Dokumen Pengumuman Resmi:*
+Di halaman pengumuman tersebut, Ayah/Bunda dapat melihat rincian status hasil seleksi ananda serta mengunduh dokumen resmi bertanda tangan digital dan QR Code validasi sekolah.
+
+Jika Ayah/Bunda membutuhkan informasi lebih lanjut mengenai pengumuman hasil seleksi, silakan menghubungi Panitia SPMB SMPIT Pondok Duta.
+
+Terima kasih atas partisipasi dan kepercayaan Ayah/Bunda kepada SMPIT Pondok Duta.
+
+_Wassalamu'alaikum Warahmatullahi Wabarakatuh_
+
+*Panitia SPMB SMPIT Pondok Duta*
+Jl. Duta Indah No. 1, Duta Mekar, Pondok Duta, Cimanggis, Depok`;
+
+export const DEFAULT_WA_KELULUSAN_TEMPLATE = DEFAULT_WA_PENGUMUMAN_TEMPLATE;
 
 // State deduplikasi dan throttling sinkronisasi Google Apps Script
 let _lastSyncTimeMs = 0;
@@ -304,6 +639,30 @@ function initLocalStorage() {
       localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify([]));
     }
   }
+
+  // Bersihkan sisa cache dummy kategori pembiayaan lama di browser agar 100% murni membaca dari Spreadsheet
+  const PURE_PEMBIAYAAN_CLEAN_KEY = 'spmb_pd_pure_pembiayaan_v3';
+  if (!localStorage.getItem(PURE_PEMBIAYAAN_CLEAN_KEY)) {
+    const rawPem = localStorage.getItem(LOCAL_PEMBIAYAAN_KEY);
+    if (rawPem) {
+      try {
+        const items = JSON.parse(rawPem);
+        const hasDummy = Array.isArray(items) && items.some((it: any) => 
+          it.kategori === 'Standar Acuan (Umum)' || 
+          it.kategori === 'Alumni SDIT Pondok Duta (Ring 1)' ||
+          it.kategori === 'Alumni SDIT Pondok Duta (Ring 2)' ||
+          it.kategori === 'Prestasi Akademik / Tahfidz (Ring 1)' ||
+          it.kategori === 'Prestasi Akademik / Tahfidz (Ring 2)' ||
+          it.kategori === 'Keringanan Khusus Gedung Rp 450.000' ||
+          it.kategori === 'Keringanan Khusus Gedung Rp 550.000'
+        );
+        if (hasDummy) {
+          localStorage.removeItem(LOCAL_PEMBIAYAAN_KEY);
+        }
+      } catch {}
+    }
+    localStorage.setItem(PURE_PEMBIAYAAN_CLEAN_KEY, 'true');
+  }
 }
 
 initLocalStorage();
@@ -373,6 +732,31 @@ export const gasService = {
     return resolveRenderableImageUrl(rawUrl);
   },
 
+  resolveDriveThumbnailUrl(rawUrl?: string, width = 2000): string {
+    return resolveDriveThumbnailUrl(rawUrl, width);
+  },
+
+  extractDriveFileId(input?: string): string {
+    return extractDriveFileId(input);
+  },
+
+  getEffectiveHeroImage(): string {
+    const s = this.getAppSettings();
+    const heroRaw = (s.heroPhotoUrl || '').trim();
+    const driveRaw = (s.heroDriveUrl || '').trim();
+
+    // 1. Jika heroPhotoUrl adalah link web / Drive (bukan base64)
+    if (heroRaw && !heroRaw.startsWith('data:image/')) {
+      return heroRaw;
+    }
+    // 2. Jika ada heroDriveUrl
+    if (driveRaw) {
+      return driveRaw;
+    }
+    // 3. Fallback ke data:image/ atau default
+    return heroRaw;
+  },
+
   getAppSettings(): AppSettingsConfig {
     try {
       const raw = localStorage.getItem(APP_SETTINGS_KEY);
@@ -435,6 +819,26 @@ export const gasService = {
       heroPhotoUrl: safeHero,
       updatedAt: new Date().toISOString()
     };
+
+    // Jika pengguna memasukkan link Google Drive untuk Hero Photo, sinkronkan ke heroDriveUrl
+    if (safeHero && !safeHero.startsWith('data:image/')) {
+      const heroDriveId = extractDriveFileId(safeHero);
+      if (heroDriveId) {
+        const canonicalDriveUrl = `https://drive.google.com/file/d/${heroDriveId}/view`;
+        updated.heroPhotoUrl = canonicalDriveUrl;
+        updated.heroDriveUrl = canonicalDriveUrl;
+      }
+    }
+
+    // Jika pengguna memasukkan link Google Drive untuk Logo, sinkronkan ke logoDriveUrl
+    if (safeLogo && !safeLogo.startsWith('data:image/')) {
+      const logoDriveId = extractDriveFileId(safeLogo);
+      if (logoDriveId) {
+        const canonicalLogoUrl = `https://drive.google.com/file/d/${logoDriveId}/view`;
+        updated.logoUrl = canonicalLogoUrl;
+        updated.logoDriveUrl = canonicalLogoUrl;
+      }
+    }
 
     try {
       localStorage.setItem(APP_SETTINGS_KEY, JSON.stringify(updated));
@@ -681,23 +1085,30 @@ export const gasService = {
     }
   },
 
-  // Inisialisasi 7 Sheet Database di Spreadsheet secara remote melalui GAS Web App
+  // Inisialisasi 9 Sheet Database di Spreadsheet secara remote melalui GAS Web App
+  // Serta otomatis memeriksa dan memperbarui baris 1 Header kolom agar selalu sinkron dengan kode
   async setupRemoteSheets(customGasUrl?: string): Promise<{
     success: boolean;
     message: string;
     sheets?: string[];
+    updatedHeaders?: string[];
   }> {
     const gasUrl = (customGasUrl || this.getGasUrl()).trim();
     if (!gasUrl) {
       return {
         success: false,
-        message: 'Masukkan URL Web App Google Apps Script (/exec) terlebih dahulu untuk membuat 7 Sheet otomatis.'
+        message: 'Masukkan URL Web App Google Apps Script (/exec) terlebih dahulu untuk membuat 9 Sheet otomatis.'
       };
     }
 
     const res = await postToGas(gasUrl, {
       action: 'setupSheets',
-      spreadsheetId: this.getSpreadsheetId()
+      spreadsheetId: this.getSpreadsheetId(),
+      headers: {
+        Siswa: SISWA_HEADERS,
+        DataInduk: DATA_INDUK_HEADERS,
+        Pembiayaan: PEMBIAYAAN_HEADERS
+      }
     });
 
     if (res && res.success) {
@@ -705,13 +1116,53 @@ export const gasService = {
       return {
         success: true,
         sheets: res.allSheets,
-        message: res.message || 'Berhasil membuat 7 Sheet Database di Google Spreadsheet!'
+        updatedHeaders: res.updatedHeaders || [],
+        message: res.message || 'Berhasil menginisialisasi 9 Sheet Database dan memperbarui Header di Google Spreadsheet!'
       };
     }
 
     return {
       success: false,
       message: res?.message || res?.error || 'Gagal menjalankan setupSheets di Google Apps Script.'
+    };
+  },
+
+  // Sinkronisasi khusus baris Header seluruh sheet di Google Spreadsheet
+  async syncHeadersWithSpreadsheet(customGasUrl?: string): Promise<{
+    success: boolean;
+    message: string;
+    updatedHeaders?: string[];
+  }> {
+    const gasUrl = (customGasUrl || this.getGasUrl()).trim();
+    if (!gasUrl) {
+      return {
+        success: false,
+        message: 'Masukkan URL Web App Google Apps Script (/exec) terlebih dahulu.'
+      };
+    }
+
+    const res = await postToGas(gasUrl, {
+      action: 'syncHeaders',
+      spreadsheetId: this.getSpreadsheetId(),
+      headers: {
+        Siswa: SISWA_HEADERS,
+        DataInduk: DATA_INDUK_HEADERS,
+        Pembiayaan: PEMBIAYAAN_HEADERS
+      }
+    });
+
+    if (res && res.success) {
+      this.setLastSyncTime();
+      return {
+        success: true,
+        updatedHeaders: res.updatedHeaders || [],
+        message: res.message || 'Header kolom di Google Spreadsheet berhasil diperbarui dan diselaraskan!'
+      };
+    }
+
+    return {
+      success: false,
+      message: res?.message || res?.error || 'Gagal menyinkronkan header ke Spreadsheet.'
     };
   },
 
@@ -749,11 +1200,17 @@ export const gasService = {
     const rawDataInduk = localStorage.getItem(LOCAL_DATA_INDUK_KEY);
     const dataIndukList: DataIndukSiswa[] = rawDataInduk ? JSON.parse(rawDataInduk) : [];
 
+    const pembiayaanList = this.getPembiayaanList();
     const settings = this.getAppSettings();
 
     const res = await postToGas(gasUrl, {
       action: 'syncAllToSheet',
       spreadsheetId: this.getSpreadsheetId(),
+      headers: {
+        Siswa: SISWA_HEADERS,
+        DataInduk: DATA_INDUK_HEADERS,
+        Pembiayaan: PEMBIAYAAN_HEADERS
+      },
       settings,
       users: allUsers,
       siswaList,
@@ -761,14 +1218,15 @@ export const gasService = {
       otmMap,
       hasilOrtuMap,
       observasiList,
-      kelulusanList
+      kelulusanList,
+      pembiayaanList
     });
 
     if (res && res.success) {
       this.setLastSyncTime();
       return {
         success: true,
-        message: res.message || `Seluruh data (${siswaList.length} Siswa, ${dataIndukList.length} Data Induk, ${allUsers.length} Akun, Sheet Setting, Jawaban OTM, Wawancara & Kelulusan) berhasil diunggah ke Spreadsheet!`
+        message: res.message || `Seluruh data (${siswaList.length} Siswa, ${dataIndukList.length} Data Induk, ${pembiayaanList.length} Kategori Biaya, ${allUsers.length} Akun, Sheet Setting, Jawaban OTM, Wawancara & Kelulusan) berhasil diunggah ke Spreadsheet!`
       };
     }
 
@@ -848,11 +1306,145 @@ export const gasService = {
             }
           }
 
-          // Timpa penuh data lokal dengan data dari Google Spreadsheet (tanpa sisa data dummy)
-          localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(Array.isArray(db.users) ? db.users : []));
-          localStorage.setItem(LOCAL_SISWA_KEY, JSON.stringify(Array.isArray(db.siswaList) ? db.siswaList : []));
+          // Simpan daftar user lokal sebelum ditimpa agar akun yang baru saja mendaftar tidak hilang karena race condition sync
+          const prevRawUsers = localStorage.getItem(LOCAL_USERS_KEY);
+          const prevUsers: UserAccount[] = prevRawUsers ? JSON.parse(prevRawUsers) : [];
+          const activeCurrentUser = this.getCurrentUser();
+
+          const normalizedUsers: UserAccount[] = (Array.isArray(db.users) ? db.users : []).map((u: any) => ({
+            ...u,
+            id: String(u.id || ''),
+            kodePendaftaran: String(u.kodePendaftaran || '').trim(),
+            namaSiswa: String(u.namaSiswa || '').trim(),
+            namaOrangTua: String(u.namaOrangTua || '').trim(),
+            sekolahAsal: String(u.sekolahAsal || '').trim(),
+            nomorHp: formatPhoneNumberForWa(u.nomorHp) || String(u.nomorHp || '').trim(),
+            emailOrangTua: String(u.emailOrangTua || '').trim(),
+            role: (['admin', 'guru'].includes(String(u.role || '').trim().toLowerCase())
+              ? String(u.role).trim().toLowerCase()
+              : 'siswa') as 'siswa' | 'guru' | 'admin'
+          }));
+
+          // Pertahankan user lokal yang baru mendaftar (dalam 15 menit terakhir atau user yang sedang login) bila belum masuk ke cache Spreadsheet
+          prevUsers.forEach(localU => {
+            const code = (localU.kodePendaftaran || '').trim().toUpperCase();
+            if (!code) return;
+            const existsInRemote = normalizedUsers.some(ru => (ru.kodePendaftaran || '').trim().toUpperCase() === code);
+            const isRecent = localU.createdAt && (Date.now() - new Date(localU.createdAt).getTime() < 15 * 60 * 1000);
+            const isCurrentActive = activeCurrentUser && (activeCurrentUser.kodePendaftaran || '').trim().toUpperCase() === code;
+            if (!existsInRemote && (isRecent || isCurrentActive)) {
+              normalizedUsers.push(localU);
+            }
+          });
+          localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(normalizedUsers));
+
+          const prevRawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
+          const prevSiswaList: DataSiswa[] = prevRawSiswa ? JSON.parse(prevRawSiswa) : [];
+
+          const rawSiswaArr: DataSiswa[] = (Array.isArray(db.siswaList) ? db.siswaList : []).map((s: any) => {
+            const noPend = String(s.noPendaftaran || '').trim();
+            const matchingUser = normalizedUsers.find(
+              u => u.role === 'siswa' && (u.kodePendaftaran || '').trim().toUpperCase() === noPend.toUpperCase()
+            );
+            const rawNama = String(s.namaLengkap || '').trim();
+            const validNama = (rawNama && rawNama !== 'Calon Peserta Didik') ? rawNama : (matchingUser?.namaSiswa || '');
+            const rawAsal = String(s.asalSekolah || '').trim();
+            const validAsal = (rawAsal && rawAsal !== 'SD/MI Asal') ? rawAsal : (matchingUser?.sekolahAsal || '');
+
+            return {
+              ...s,
+              noPendaftaran: noPend,
+              namaLengkap: validNama,
+              namaPanggilan: String(s.namaPanggilan || (validNama ? validNama.split(' ')[0] : '')).trim(),
+              asalSekolah: validAsal,
+              namaAyah: String(s.namaAyah || matchingUser?.namaOrangTua || '').trim(),
+              nomorHandphone: formatPhoneNumberForWa(s.nomorHandphone || matchingUser?.nomorHp) || String(s.nomorHandphone || matchingUser?.nomorHp || '').trim(),
+              nomorTelepon: formatPhoneNumberForWa(s.nomorTelepon || matchingUser?.nomorHp) || String(s.nomorTelepon || matchingUser?.nomorHp || '').trim(),
+              noHpAyah: formatPhoneNumberForWa(s.noHpAyah || matchingUser?.nomorHp) || String(s.noHpAyah || matchingUser?.nomorHp || '').trim(),
+              noHpIbu: formatPhoneNumberForWa(s.noHpIbu) || String(s.noHpIbu || '').trim()
+            };
+          });
+
+          // Pastikan setiap akun siswa di Sheet Users juga memiliki entri di Data_Siswa dengan data yang konsisten
+          normalizedUsers.filter(u => u.role === 'siswa' && u.kodePendaftaran).forEach(u => {
+            const code = u.kodePendaftaran.trim().toUpperCase();
+            const existsInSiswa = rawSiswaArr.some(s => (s.noPendaftaran || '').trim().toUpperCase() === code);
+            if (!existsInSiswa) {
+              const localSt = prevSiswaList.find(ps => (ps.noPendaftaran || '').trim().toUpperCase() === code);
+              if (localSt && localSt.namaLengkap && localSt.namaLengkap !== 'Calon Peserta Didik') {
+                rawSiswaArr.push(localSt);
+              } else {
+                rawSiswaArr.push({
+                  id: `SISWA-${u.kodePendaftaran}`,
+                  noPendaftaran: u.kodePendaftaran,
+                  createdAt: u.createdAt || new Date().toISOString(),
+                  namaLengkap: u.namaSiswa,
+                  namaPanggilan: u.namaSiswa ? u.namaSiswa.split(' ')[0] : '',
+                  nisn: '',
+                  jenisKelamin: 'Laki-laki',
+                  tempatLahir: '',
+                  tanggalLahir: '',
+                  agama: 'Islam',
+                  kewarganegaraan: 'Indonesia',
+                  anakNomorKe: 1,
+                  jumlahSaudaraKandung: 0,
+                  jumlahSaudaraTiri: 0,
+                  jumlahSaudaraAngkat: 0,
+                  bahasaSehariHari: 'Bahasa Indonesia',
+                  alamat: '',
+                  kelurahan: '',
+                  kecamatan: '',
+                  kotaKabupaten: '',
+                  nomorTelepon: u.nomorHp,
+                  nomorHandphone: u.nomorHp,
+                  bertempatTinggalPada: 'Orang Tua',
+                  jarakKeSekolahKm: '',
+                  saranaBerangkatSekolah: 'Motor',
+                  beratBadanKg: 0,
+                  tinggiBadanCm: 0,
+                  golonganDarah: 'O',
+                  penyakitBerat: '-',
+                  kelainanJasmani: '-',
+                  masukSebagai: 'Siswa Baru',
+                  asalSekolah: u.sekolahAsal,
+                  nomorIjazah: '-',
+                  kegemaranKesenian: '-',
+                  kegemaranOlahraga: '-',
+                  kegemaranOrganisasi: '-',
+                  menerimaBeasiswa: '-',
+                  memenangkanKejuaraan: '-',
+                  namaAyah: u.namaOrangTua,
+                  tempatTanggalLahirAyah: '',
+                  agamaAyah: 'Islam',
+                  kewarganegaraanAyah: 'Indonesia',
+                  pendidikanAyah: 'S1',
+                  pekerjaanAyah: '',
+                  penghasilanAyah: 'Rp. 5jt - Rp. 10jt',
+                  alamatAyah: '',
+                  noHpAyah: u.nomorHp,
+                  emailAyah: u.emailOrangTua,
+                  statusPerkawinanAyah: 'Suami',
+                  namaIbu: u.namaOrangTua,
+                  tempatTanggalLahirIbu: '',
+                  agamaIbu: 'Islam',
+                  kewarganegaraanIbu: 'Indonesia',
+                  pendidikanIbu: 'S1',
+                  pekerjaanIbu: '',
+                  penghasilanIbu: 'dibawah Rp. 5jt',
+                  alamatIbu: '',
+                  noHpIbu: u.nomorHp,
+                  emailIbu: u.emailOrangTua,
+                  statusPerkawinanIbu: 'Istri'
+                } as DataSiswa);
+              }
+            }
+          });
+
+          const cleanSiswaList = deduplicateSiswaByNo(rawSiswaArr);
+          localStorage.setItem(LOCAL_SISWA_KEY, JSON.stringify(cleanSiswaList));
           if (Array.isArray(db.dataIndukList)) {
-            localStorage.setItem(LOCAL_DATA_INDUK_KEY, JSON.stringify(db.dataIndukList));
+            const cleanIndukList = deduplicateDataIndukByNo(db.dataIndukList);
+            localStorage.setItem(LOCAL_DATA_INDUK_KEY, JSON.stringify(cleanIndukList));
           }
           localStorage.setItem(LOCAL_OTM_RAW_KEY, JSON.stringify(db.otmMap && typeof db.otmMap === 'object' ? db.otmMap : {}));
           localStorage.setItem(LOCAL_HASIL_ORTU_KEY, JSON.stringify(db.hasilOrtuMap && typeof db.hasilOrtuMap === 'object' ? db.hasilOrtuMap : {}));
@@ -861,24 +1453,38 @@ export const gasService = {
             localStorage.setItem(LOCAL_WS_KEY, JSON.stringify(db.wawancaraSiswaList));
           }
 
-          // Auto-heal kelulusanList agar NISN dan Jadwal Daftar Ulang tidak pernah hilang jika sheet kelulusan kosong/terhapus
+          // Auto-heal kelulusanList & pastikan tidak ada data kelulusan yang salah nama / tidak sesuai pemilik nomor pendaftaran
           const rawKelulusan: any[] = Array.isArray(db.kelulusanList) ? db.kelulusanList : [];
-          const healedKelulusan: StatusKelulusanInfo[] = rawKelulusan.map(kl => {
+          const healedKelulusan: StatusKelulusanInfo[] = [];
+
+          rawKelulusan.forEach(kl => {
+            const noPendKey = String(kl.noPendaftaran || '').trim().toUpperCase();
+            if (!noPendKey) return;
+
+            const ownerUser = normalizedUsers.find(u => u.role === 'siswa' && (u.kodePendaftaran || '').trim().toUpperCase() === noPendKey);
+            const ownerSiswa = cleanSiswaList.find(s => (s.noPendaftaran || '').trim().toUpperCase() === noPendKey);
+            const ownerObs = (db.observasiList || []).find((o: any) => (o.noPendaftaran || '').trim().toUpperCase() === noPendKey);
+
+            // Jika ada akun resmi di Users/Siswa dan nama di Kelulusan berbeda jauh (misal akibat bug scan lama), koreksi atau abaikan jika belum diobservasi
+            const realOwnerName = ownerSiswa?.namaLengkap || ownerUser?.namaSiswa || '';
+            const klName = String(kl.namaLengkap || '').trim();
+            if (realOwnerName && klName && realOwnerName.toLowerCase() !== klName.toLowerCase()) {
+              if (!ownerObs) {
+                // Pendaftar baru yang belum pernah diobservasi tetapi tercemar data siswa lain -> jangan masukkan ke daftar kelulusan!
+                return;
+              }
+            }
+
             let nisn = (kl.nisn || '').trim();
-            let asalSekolah = (kl.asalSekolah || '').trim();
+            let asalSekolah = (ownerSiswa?.asalSekolah || ownerUser?.sekolahAsal || kl.asalSekolah || '').trim();
             let jadwal = (kl.jadwalDaftarUlang || '').trim();
 
             if (!nisn || nisn === '-') {
-              const st = (db.siswaList || []).find((s: any) => 
-                (s.noPendaftaran || '').toLowerCase() === (kl.noPendaftaran || '').toLowerCase() ||
-                (s.namaLengkap || '').toLowerCase() === (kl.namaLengkap || '').toLowerCase()
-              );
-              if (st?.nisn && st.nisn !== '-') {
-                nisn = st.nisn.trim();
+              if (ownerSiswa?.nisn && ownerSiswa.nisn !== '-') {
+                nisn = ownerSiswa.nisn.trim();
               } else {
                 const di = (db.dataIndukList || []).find((i: any) => 
-                  (i.noPendaftaran || '').toLowerCase() === (kl.noPendaftaran || '').toLowerCase() ||
-                  (i.namaLengkap || '').toLowerCase() === (kl.namaLengkap || '').toLowerCase()
+                  (i.noPendaftaran || '').toLowerCase() === noPendKey.toLowerCase()
                 );
                 if (di?.nisn && di.nisn !== '-') {
                   nisn = di.nisn.trim();
@@ -887,23 +1493,25 @@ export const gasService = {
             }
 
             if (kl.status === 'LULUS' && (!jadwal || jadwal === '-')) {
-              const obs = (db.observasiList || []).find((o: any) => 
-                (o.noPendaftaran || '').toLowerCase() === (kl.noPendaftaran || '').toLowerCase()
-              );
-              if (obs?.tanggalMaksimalDaftarUlang && obs.tanggalMaksimalDaftarUlang !== '-' && obs.tanggalMaksimalDaftarUlang.trim()) {
-                jadwal = obs.tanggalMaksimalDaftarUlang.trim();
+              if (ownerObs?.tanggalMaksimalDaftarUlang && ownerObs.tanggalMaksimalDaftarUlang !== '-' && ownerObs.tanggalMaksimalDaftarUlang.trim()) {
+                jadwal = ownerObs.tanggalMaksimalDaftarUlang.trim();
               } else {
                 jadwal = '20 - 25 Januari 2027';
               }
             }
 
-            return {
+            healedKelulusan.push({
               ...kl,
+              namaLengkap: realOwnerName || klName,
               nisn: nisn || '-',
               asalSekolah: asalSekolah || 'SD/MI Pendaftar',
               jadwalDaftarUlang: kl.status === 'LULUS' ? (jadwal || '20 - 25 Januari 2027') : '-'
-            };
+            });
           });
+
+          if (db.pembiayaanList && Array.isArray(db.pembiayaanList) && db.pembiayaanList.length > 0) {
+            localStorage.setItem(LOCAL_PEMBIAYAAN_KEY, JSON.stringify(db.pembiayaanList));
+          }
 
           localStorage.setItem(LOCAL_LULUS_KEY, JSON.stringify(healedKelulusan));
 
@@ -913,7 +1521,7 @@ export const gasService = {
           }
           return {
             success: true,
-            message: `Sinkronisasi berhasil dari Spreadsheet "${db.spreadsheetName || this.getSpreadsheetId()}"! (${db.siswaList?.length || 0} Data Siswa, ${db.dataIndukList?.length || 0} Data Induk & ${db.users?.length || 0} Akun dimuat dari Database).`
+            message: `Sinkronisasi berhasil dari Spreadsheet "${db.spreadsheetName || this.getSpreadsheetId()}"! (${db.siswaList?.length || 0} Data Siswa, ${db.dataIndukList?.length || 0} Data Induk, ${db.pembiayaanList?.length || 0} Kategori Biaya & ${db.users?.length || 0} Akun dimuat dari Database).`
           };
         }
 
@@ -963,7 +1571,8 @@ export const gasService = {
     }
 
     const currentRawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
-    const currentList: DataSiswa[] = currentRawSiswa ? JSON.parse(currentRawSiswa) : siswaList;
+    const parsedList: DataSiswa[] = currentRawSiswa ? JSON.parse(currentRawSiswa) : siswaList;
+    const currentList: DataSiswa[] = deduplicateSiswaByNo(parsedList);
 
     const rawHasil = localStorage.getItem(LOCAL_HASIL_ORTU_KEY);
     const hasilMap: { [noPend: string]: HasilObservasiOrtuData } = rawHasil ? JSON.parse(rawHasil) : {};
@@ -1231,12 +1840,18 @@ export const gasService = {
       ? data.tanggalMaksimalDaftarUlang.trim()
       : (stLulus?.jadwalDaftarUlang && stLulus.jadwalDaftarUlang !== '-' ? stLulus.jadwalDaftarUlang : '20 - 25 Januari 2027');
 
+    const defaultSheetKat = this.getPembiayaanList()[0]?.kategori || '';
+    const resolvedKategori = data.kategoriPembiayaan || (idx >= 0 ? list[idx].kategoriPembiayaan : '') || defaultSheetKat;
+    const resolvedRincian = data.rincianBiaya || this.getPembiayaanByCategory(resolvedKategori);
+
     const pdfUrl = data.pdfUrl || `https://docs.google.com/spreadsheets/d/${this.getSpreadsheetId()}/edit`;
     const finalized: ObservasiSiswaData = {
       ...data,
       nisn: resolvedNisn,
       asalSekolah: resolvedAsalSekolah,
       tanggalMaksimalDaftarUlang: resolvedJadwal,
+      kategoriPembiayaan: resolvedKategori,
+      rincianBiaya: resolvedRincian,
       pdfUrl: pdfUrl,
       createdAt: data.createdAt || new Date().toISOString()
     };
@@ -1257,7 +1872,8 @@ export const gasService = {
         ...finalized,
         nisn: resolvedNisn,
         asalSekolah: resolvedAsalSekolah,
-        tanggalMaksimalDaftarUlang: resolvedJadwal
+        tanggalMaksimalDaftarUlang: resolvedJadwal,
+        kategoriPembiayaan: resolvedKategori
       });
       this.setLastSyncTime();
     }
@@ -1274,13 +1890,135 @@ export const gasService = {
     if (!noPendaftaran) return null;
     const raw = localStorage.getItem(LOCAL_OBS_SISWA_KEY);
     const list: ObservasiSiswaData[] = raw ? JSON.parse(raw) : [];
-    return list.find(o => o.noPendaftaran === noPendaftaran) || null;
+    const item = list.find(o => o.noPendaftaran === noPendaftaran);
+    if (!item) return null;
+    if (!item.kategoriPembiayaan) {
+      item.kategoriPembiayaan = this.getPembiayaanList()[0]?.kategori || '';
+    }
+    if (!item.rincianBiaya) {
+      item.rincianBiaya = this.getPembiayaanByCategory(item.kategoriPembiayaan);
+    }
+    return item;
   },
 
   // Mengambil semua lembar observasi siswa
   getAllObservasiSiswa(): ObservasiSiswaData[] {
     const raw = localStorage.getItem(LOCAL_OBS_SISWA_KEY);
     return raw ? JSON.parse(raw) : [];
+  },
+
+  // =========================================================================
+  // --- DATABASE SHEET "PEMBIAYAAN" (16 KOLOM RESMI DAFTAR ULANG) ---
+  // =========================================================================
+
+  getPembiayaanList(): PembiayaanCategory[] {
+    const raw = localStorage.getItem(LOCAL_PEMBIAYAAN_KEY);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      return [];
+    } catch {
+      return [];
+    }
+  },
+
+  getPembiayaanByCategory(kategoriName?: string): PembiayaanCategory {
+    const list = this.getPembiayaanList();
+    if (list.length === 0) {
+      return {
+        ...EMPTY_PEMBIAYAAN_CATEGORY,
+        kategori: kategoriName && kategoriName.trim() ? kategoriName.trim() : 'Pilih Kategori Pembiayaan'
+      };
+    }
+    if (!kategoriName || !kategoriName.trim()) {
+      return list[0];
+    }
+    const clean = kategoriName.trim().toLowerCase();
+    const found = list.find(item => (item.kategori || '').toLowerCase() === clean);
+    if (found) return found;
+    const partial = list.find(item => 
+      (item.kategori || '').toLowerCase().includes(clean) || 
+      clean.includes((item.kategori || '').toLowerCase())
+    );
+    return partial || list[0];
+  },
+
+  async savePembiayaanList(list: PembiayaanCategory[], customGasUrl?: string): Promise<{ success: boolean; message: string }> {
+    localStorage.setItem(LOCAL_PEMBIAYAAN_KEY, JSON.stringify(list));
+    const gasUrl = (customGasUrl || this.getGasUrl()).trim();
+    if (gasUrl && navigator.onLine) {
+      try {
+        await postToGas(gasUrl, {
+          action: 'savePembiayaanList',
+          spreadsheetId: this.getSpreadsheetId(),
+          headers: { Pembiayaan: PEMBIAYAAN_HEADERS },
+          pembiayaanList: list
+        });
+        this.setLastSyncTime();
+      } catch (err) {
+        console.warn('savePembiayaanList to GAS warning:', err);
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('spmb_db_updated'));
+    }
+    return { success: true, message: 'Daftar rincian pembiayaan daftar ulang berhasil disimpan!' };
+  },
+
+  async fetchPembiayaanFromSpreadsheet(customGasUrl?: string): Promise<{
+    success: boolean;
+    categories: PembiayaanCategory[];
+    message: string;
+  }> {
+    const gasUrl = (customGasUrl || this.getGasUrl()).trim();
+    if (!gasUrl) {
+      return {
+        success: false,
+        categories: this.getPembiayaanList(),
+        message: 'URL Web App GAS belum dikonfigurasi.'
+      };
+    }
+
+    try {
+      const separator = gasUrl.includes('?') ? '&' : '?';
+      // 1. Coba endpoint langsung getPembiayaanList
+      const res = await fetch(`${gasUrl}${separator}action=getPembiayaanList`, {
+        method: 'GET',
+        mode: 'cors'
+      });
+      const json = await res.json();
+      if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
+        localStorage.setItem(LOCAL_PEMBIAYAAN_KEY, JSON.stringify(json.data));
+        this.setLastSyncTime();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('spmb_db_updated'));
+        }
+        return {
+          success: true,
+          categories: json.data,
+          message: `Alhamdulillah! Berhasil memuat ${json.data.length} kategori pembiayaan langsung dari Sheet 'Pembiayaan' Spreadsheet.`
+        };
+      }
+
+      // 2. Fallback sinkronisasi penuh getAllData
+      const allRes = await this.syncFromSpreadsheet(gasUrl, true);
+      const updated = this.getPembiayaanList();
+      return {
+        success: allRes.success,
+        categories: updated,
+        message: allRes.success
+          ? `Sinkronisasi berhasil! Ditemukan ${updated.length} kategori pembiayaan dari Google Spreadsheet.`
+          : (allRes.message || 'Gagal memuat kategori pembiayaan dari Spreadsheet.')
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        success: false,
+        categories: this.getPembiayaanList(),
+        message: `Gagal menarik data dari GAS (${msg}).`
+      };
+    }
   },
 
   // Simpan Asesmen Mandiri Siswa
@@ -1391,23 +2129,123 @@ export const gasService = {
     return { success: true, data: siswa };
   },
 
-  // Detail Siswa (langsung dari Database Google Spreadsheet)
+  // Detail Siswa (langsung dari Database Google Spreadsheet + fallback dari Sheet Users)
   getSiswaByNo(noPendaftaran: string): DataSiswa | null {
     if (!noPendaftaran) return null;
+    const cleanNo = noPendaftaran.trim().toLowerCase();
     const rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
     const list: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
-    return list.find(s => (s.noPendaftaran || '').toLowerCase() === noPendaftaran.toLowerCase()) || null;
+    const foundSiswa = list.find(s => (s.noPendaftaran || '').trim().toLowerCase() === cleanNo) || null;
+
+    const allUsers = this.getAllUsersFromDb();
+    const matchingUser = allUsers.find(
+      u => u.role === 'siswa' && (u.kodePendaftaran || '').trim().toLowerCase() === cleanNo
+    );
+
+    if (foundSiswa) {
+      const validNama = (foundSiswa.namaLengkap && foundSiswa.namaLengkap !== 'Calon Peserta Didik')
+        ? foundSiswa.namaLengkap
+        : (matchingUser?.namaSiswa || foundSiswa.namaLengkap);
+      const validAsal = (foundSiswa.asalSekolah && foundSiswa.asalSekolah !== 'SD/MI Asal')
+        ? foundSiswa.asalSekolah
+        : (matchingUser?.sekolahAsal || foundSiswa.asalSekolah);
+      return {
+        ...foundSiswa,
+        namaLengkap: validNama,
+        namaPanggilan: foundSiswa.namaPanggilan || (validNama ? validNama.split(' ')[0] : ''),
+        asalSekolah: validAsal,
+        namaAyah: foundSiswa.namaAyah || matchingUser?.namaOrangTua || '',
+        nomorHandphone: foundSiswa.nomorHandphone || matchingUser?.nomorHp || '',
+        nomorTelepon: foundSiswa.nomorTelepon || matchingUser?.nomorHp || '',
+        noHpAyah: foundSiswa.noHpAyah || matchingUser?.nomorHp || ''
+      };
+    }
+
+    if (matchingUser) {
+      return {
+        id: `SISWA-${matchingUser.kodePendaftaran}`,
+        noPendaftaran: matchingUser.kodePendaftaran,
+        createdAt: matchingUser.createdAt || new Date().toISOString(),
+        namaLengkap: matchingUser.namaSiswa,
+        namaPanggilan: matchingUser.namaSiswa ? matchingUser.namaSiswa.split(' ')[0] : '',
+        nisn: '',
+        jenisKelamin: 'Laki-laki',
+        tempatLahir: '',
+        tanggalLahir: '',
+        agama: 'Islam',
+        kewarganegaraan: 'Indonesia',
+        anakNomorKe: 1,
+        jumlahSaudaraKandung: 0,
+        jumlahSaudaraTiri: 0,
+        jumlahSaudaraAngkat: 0,
+        bahasaSehariHari: 'Bahasa Indonesia',
+        alamat: '',
+        kelurahan: '',
+        kecamatan: '',
+        kotaKabupaten: '',
+        nomorTelepon: matchingUser.nomorHp,
+        nomorHandphone: matchingUser.nomorHp,
+        bertempatTinggalPada: 'Orang Tua',
+        jarakKeSekolahKm: '',
+        saranaBerangkatSekolah: 'Motor',
+        beratBadanKg: 0,
+        tinggiBadanCm: 0,
+        golonganDarah: 'O',
+        penyakitBerat: '-',
+        kelainanJasmani: '-',
+        masukSebagai: 'Siswa Baru',
+        asalSekolah: matchingUser.sekolahAsal,
+        nomorIjazah: '-',
+        kegemaranKesenian: '-',
+        kegemaranOlahraga: '-',
+        kegemaranOrganisasi: '-',
+        menerimaBeasiswa: '-',
+        memenangkanKejuaraan: '-',
+        namaAyah: matchingUser.namaOrangTua,
+        tempatTanggalLahirAyah: '',
+        agamaAyah: 'Islam',
+        kewarganegaraanAyah: 'Indonesia',
+        pendidikanAyah: 'S1',
+        pekerjaanAyah: '',
+        penghasilanAyah: 'Rp. 5jt - Rp. 10jt',
+        alamatAyah: '',
+        noHpAyah: matchingUser.nomorHp,
+        emailAyah: matchingUser.emailOrangTua,
+        statusPerkawinanAyah: 'Suami',
+        namaIbu: matchingUser.namaOrangTua,
+        tempatTanggalLahirIbu: '',
+        agamaIbu: 'Islam',
+        kewarganegaraanIbu: 'Indonesia',
+        pendidikanIbu: 'S1',
+        pekerjaanIbu: '',
+        penghasilanIbu: 'dibawah Rp. 5jt',
+        alamatIbu: '',
+        noHpIbu: matchingUser.nomorHp,
+        emailIbu: matchingUser.emailOrangTua,
+        statusPerkawinanIbu: 'Istri'
+      } as DataSiswa;
+    }
+
+    return null;
   },
 
-  // Simpan / update data calon murid yang dipindai via QR Code ke storage perangkat
+  // Simpan / update data calon murid yang dipindai via QR Code ke storage perangkat (hanya jika memiliki nama asli, bukan placeholder)
   registerScannedStudent(scanned: Partial<DataSiswa>): void {
     if (!scanned.noPendaftaran) return;
+    if (!scanned.namaLengkap || scanned.namaLengkap === 'Calon Peserta Didik') return;
     try {
       const raw = localStorage.getItem(LOCAL_SISWA_KEY);
       const list: DataSiswa[] = raw ? JSON.parse(raw) : [];
       const idx = list.findIndex(s => (s.noPendaftaran || '').toLowerCase() === (scanned.noPendaftaran || '').toLowerCase());
       if (idx >= 0) {
-        list[idx] = { ...list[idx], ...scanned } as DataSiswa;
+        const existing = list[idx];
+        list[idx] = {
+          ...existing,
+          namaLengkap: (existing.namaLengkap && existing.namaLengkap !== 'Calon Peserta Didik') ? existing.namaLengkap : scanned.namaLengkap,
+          asalSekolah: (existing.asalSekolah && existing.asalSekolah !== 'SD/MI Asal') ? existing.asalSekolah : (scanned.asalSekolah || existing.asalSekolah),
+          nisn: (existing.nisn && existing.nisn !== '-') ? existing.nisn : (scanned.nisn || existing.nisn),
+          nik: (existing.nik && existing.nik !== '-') ? existing.nik : (scanned.nik || existing.nik)
+        } as DataSiswa;
       } else {
         list.push(scanned as DataSiswa);
       }
@@ -1419,15 +2257,11 @@ export const gasService = {
 
   async getSiswaDetail(noPendaftaran: string) {
     if (!noPendaftaran) return null;
-    let rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
-    let list: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
-    let siswa = list.find(s => s.noPendaftaran.toLowerCase() === noPendaftaran.toLowerCase());
+    let siswa = this.getSiswaByNo(noPendaftaran);
 
-    if (!siswa && this.isLiveGasConfigured() && navigator.onLine) {
-      await this.syncFromSpreadsheet();
-      rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
-      list = rawSiswa ? JSON.parse(rawSiswa) : [];
-      siswa = list.find(s => s.noPendaftaran.toLowerCase() === noPendaftaran.toLowerCase());
+    if ((!siswa || !siswa.namaLengkap || siswa.namaLengkap === 'Calon Peserta Didik') && this.isLiveGasConfigured() && navigator.onLine) {
+      await this.syncFromSpreadsheet(undefined, true);
+      siswa = this.getSiswaByNo(noPendaftaran);
     }
 
     if (!siswa) return null;
@@ -1449,94 +2283,142 @@ export const gasService = {
     };
   },
 
-  // Cek Status Kelulusan (Cache-First + Fast Targeted Lookup ke Database Spreadsheet)
+  // Cek Status Kelulusan (Akurat 100% Berdasarkan Pemilik Nomor Pendaftaran & Hasil Evaluasi Resmi)
   async checkStatusKelulusan(keyword: string): Promise<StatusKelulusanInfo | null> {
     const term = keyword.trim().toLowerCase();
-    if (!term) return null;
+    if (!term || term === '-') return null;
 
-    // 1. Cek langsung di cache lokal (0ms response time!)
-    const raw = localStorage.getItem(LOCAL_LULUS_KEY);
-    const list: StatusKelulusanInfo[] = raw ? JSON.parse(raw) : [];
-    
-    let found = list.find(item => 
-      (item.noPendaftaran || '').toLowerCase() === term || 
-      (item.nisn || '').toLowerCase() === term ||
-      (item.namaLengkap || '').toLowerCase().includes(term)
-    ) || null;
+    const isRegCodeQuery = term.startsWith('pd') || term.includes('-');
 
-    // Jika belum ditemukan di lokal dan sedang online, tanyakan ke endpoint cepat checkKelulusan di GAS
-    if (!found && this.isLiveGasConfigured() && navigator.onLine) {
-      const gasUrl = this.getGasUrl();
+    const findMatchingStudent = () => {
+      const rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
+      const siswaList: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
+      const allUsers = this.getAllUsersFromDb();
+
+      const st = siswaList.find(s =>
+        (s.noPendaftaran || '').trim().toLowerCase() === term ||
+        (!isRegCodeQuery && term.length >= 5 && (s.nisn || '').trim().toLowerCase() === term) ||
+        (!isRegCodeQuery && term.length >= 3 && (s.namaLengkap || '').trim().toLowerCase().includes(term))
+      );
+
+      const usr = allUsers.find(u =>
+        u.role === 'siswa' && (
+          (u.kodePendaftaran || '').trim().toLowerCase() === (st?.noPendaftaran || term).toLowerCase() ||
+          (!isRegCodeQuery && term.length >= 3 && (u.namaSiswa || '').trim().toLowerCase().includes(term))
+        )
+      );
+
+      return { st, usr };
+    };
+
+    // Jika sedang online dan data pemilik belum ditemukan di lokal, sinkronkan penuh dari Google Spreadsheet terlebih dahulu
+    let { st: localSt, usr: localUsr } = findMatchingStudent();
+    if ((!localSt && !localUsr) && this.isLiveGasConfigured() && navigator.onLine) {
       try {
-        const separator = gasUrl.includes('?') ? '&' : '?';
-        const res = await fetch(`${gasUrl}${separator}action=checkKelulusan&term=${encodeURIComponent(keyword.trim())}`, {
-          mode: 'cors'
-        });
-        const json = await res.json();
-        if (json && json.success && json.data) {
-          found = json.data;
-        } else {
-          // Fallback sinkronisasi penuh
-          await this.syncFromSpreadsheet(gasUrl, true);
-          const updatedRaw = localStorage.getItem(LOCAL_LULUS_KEY);
-          const updatedList: StatusKelulusanInfo[] = updatedRaw ? JSON.parse(updatedRaw) : [];
-          found = updatedList.find(item => 
-            (item.noPendaftaran || '').toLowerCase() === term || 
-            (item.nisn || '').toLowerCase() === term ||
-            (item.namaLengkap || '').toLowerCase().includes(term)
-          ) || null;
-        }
+        await this.syncFromSpreadsheet(undefined, true);
+        const refreshed = findMatchingStudent();
+        localSt = refreshed.st;
+        localUsr = refreshed.usr;
       } catch (err) {
-        console.warn('Fast kelulusan check failed:', err);
+        console.warn('Sync during checkStatusKelulusan warning:', err);
       }
     }
 
-    // Sinkronisasi otomatis & pemulihan jika calon murid ada di data pendaftar/observasi
-    if (!found) {
-      const rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
-      const siswaList: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
-      const st = siswaList.find(s => 
-        (s.noPendaftaran || '').toLowerCase() === term || 
-        (s.nisn || '').toLowerCase() === term ||
-        (s.namaLengkap || '').toLowerCase().includes(term)
-      );
+    const targetNoPend = (localSt?.noPendaftaran || localUsr?.kodePendaftaran || '').trim();
+    const realOwnerName = (
+      (localSt?.namaLengkap && localSt.namaLengkap !== 'Calon Peserta Didik' ? localSt.namaLengkap : '') ||
+      localUsr?.namaSiswa ||
+      ''
+    ).trim();
+    const realOwnerAsal = (
+      (localSt?.asalSekolah && localSt.asalSekolah !== 'SD/MI Asal' ? localSt.asalSekolah : '') ||
+      localUsr?.sekolahAsal ||
+      ''
+    ).trim();
 
-      if (st) {
-        const obs = this.getObservasiSiswa(st.noPendaftaran);
-        const isLulus = obs ? obs.rekomendasi === 'Diterima' : true;
+    // 1. Cek di daftar Kelulusan (Sheet Kelulusan)
+    const raw = localStorage.getItem(LOCAL_LULUS_KEY);
+    const list: StatusKelulusanInfo[] = raw ? JSON.parse(raw) : [];
+
+    let found = list.find(item =>
+      (item.noPendaftaran || '').trim().toLowerCase() === (targetNoPend || term).toLowerCase() ||
+      (!isRegCodeQuery && term.length >= 5 && (item.nisn || '').trim().toLowerCase() === term) ||
+      (!isRegCodeQuery && term.length >= 3 && (item.namaLengkap || '').trim().toLowerCase().includes(term))
+    ) || null;
+
+    // Validasi ketat: jika ditemukan di cache Kelulusan tetapi namanya berbeda dengan pemilik akun resmi (akibat bug lama),
+    // atau jika belum ada penilaian di Observasi_Siswa namun tertulis skor 85 otomatis, batalkan hasil palsu tersebut!
+    if (found) {
+      const obsCheck = this.getObservasiSiswa(found.noPendaftaran);
+      const indukCheck = this.getDataIndukList().find(
+        d => (d.noPendaftaran || '').trim().toLowerCase() === (found?.noPendaftaran || '').trim().toLowerCase()
+      );
+      const nameMismatch = Boolean(
+        realOwnerName &&
+        found.namaLengkap &&
+        realOwnerName.toLowerCase() !== found.namaLengkap.trim().toLowerCase()
+      );
+      const isFakeAutoLulus = !obsCheck && !indukCheck && found.skorAkhir === 85 && Boolean(localUsr || localSt);
+
+      if (nameMismatch || isFakeAutoLulus) {
+        found = null;
+      }
+    }
+
+    // 2. Jika belum ada di Sheet Kelulusan, periksa apakah sudah dinilai oleh penguji di Observasi_Siswa
+    if (!found && (localSt || localUsr)) {
+      const noPend = targetNoPend || keyword.trim().toUpperCase();
+      const obs = this.getObservasiSiswa(noPend);
+
+      if (obs && (obs.rataRata > 0 || obs.totalSkor > 0)) {
+        const isLulus = obs.rekomendasi === 'Diterima';
         found = {
-          noPendaftaran: st.noPendaftaran,
-          nisn: st.nisn || '-',
-          namaLengkap: st.namaLengkap,
-          asalSekolah: st.asalSekolah || '-',
-          jalur: 'Jalur Reguler / Gelombang 1',
-          status: isLulus ? 'LULUS' : (obs?.rekomendasi === 'Cadangan' ? 'CADANGAN' : 'TIDAK_LULUS'),
-          skorAkhir: obs?.rataRata || 85,
-          pesanPengumuman: isLulus 
+          noPendaftaran: noPend,
+          nisn: localSt?.nisn || obs.nisn || '-',
+          namaLengkap: realOwnerName || obs.namaSiswa || noPend,
+          asalSekolah: realOwnerAsal || obs.asalSekolah || '-',
+          jalur: localSt?.jalurPendaftaran || 'Jalur Reguler / Gelombang 1',
+          status: isLulus ? 'LULUS' : (obs.rekomendasi === 'Cadangan' ? 'CADANGAN' : 'TIDAK_LULUS'),
+          skorAkhir: obs.rataRata,
+          pesanPengumuman: isLulus
             ? `Selamat! Berdasarkan hasil evaluasi observasi siswa dan wawancara orang tua, ananda dinyatakan DITERIMA di SMPIT PONDOK DUTA TP 2027/2028.`
-            : `Hasil evaluasi seleksi ananda sedang diproses panitia.`,
-          jadwalDaftarUlang: isLulus ? (obs?.tanggalMaksimalDaftarUlang || '20 - 25 Januari 2027') : '-'
+            : `Hasil evaluasi seleksi ananda telah tercatat oleh panitia.`,
+          jadwalDaftarUlang: isLulus ? (obs.tanggalMaksimalDaftarUlang || '20 - 25 Januari 2027') : '-'
+        };
+      } else {
+        // Siswa sudah terdaftar di Users / Siswa tetapi BELUM mengikuti atau belum dinilai observasi -> PROSES_SELEKSI (Bukan LULUS!)
+        found = {
+          noPendaftaran: noPend,
+          nisn: localSt?.nisn || '-',
+          namaLengkap: realOwnerName || noPend,
+          asalSekolah: realOwnerAsal || '-',
+          jalur: localSt?.jalurPendaftaran || 'Jalur Reguler SPMB',
+          status: 'PROSES_SELEKSI',
+          skorAkhir: 0,
+          pesanPengumuman: 'Ananda telah terdaftar resmi sebagai peserta SPMB SMPIT Pondok Duta. Saat ini status seleksi masih dalam tahap Observasi Murid & Wawancara Orang Tua. Pengumuman hasil seleksi akhir akan ditampilkan setelah evaluasi tim penguji selesai.',
+          jadwalDaftarUlang: '-'
         };
       }
     }
 
     if (found) {
+      // Pastikan nama lengkap & asal sekolah selalu konsisten dengan pemilik Nomor Pendaftaran
+      if (realOwnerName) {
+        found.namaLengkap = realOwnerName;
+      }
+      if (realOwnerAsal && (!found.asalSekolah || found.asalSekolah === '-' || found.asalSekolah === 'SD/MI Asal')) {
+        found.asalSekolah = realOwnerAsal;
+      }
+
       // Pastikan NISN tidak kosong atau '-' jika ada di Data Siswa atau Data Induk
       if (!found.nisn || found.nisn === '-' || found.nisn.trim() === '') {
-        const rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
-        const siswaList: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
-        const st = siswaList.find(s => 
-          (s.noPendaftaran || '').toLowerCase() === (found?.noPendaftaran || '').toLowerCase() ||
-          (s.namaLengkap || '').toLowerCase() === (found?.namaLengkap || '').toLowerCase()
-        );
         const rawInduk = localStorage.getItem(LOCAL_DATA_INDUK_KEY);
         const indukList: any[] = rawInduk ? JSON.parse(rawInduk) : [];
-        const di = indukList.find((i: any) => 
-          (i.noPendaftaran || '').toLowerCase() === (found?.noPendaftaran || '').toLowerCase() ||
-          (i.namaLengkap || '').toLowerCase() === (found?.namaLengkap || '').toLowerCase()
+        const di = indukList.find((i: any) =>
+          (i.noPendaftaran || '').toLowerCase() === (found?.noPendaftaran || '').toLowerCase()
         );
-        if (st?.nisn && st.nisn !== '-') {
-          found.nisn = st.nisn;
+        if (localSt?.nisn && localSt.nisn !== '-') {
+          found.nisn = localSt.nisn;
         } else if (di?.nisn && di.nisn !== '-') {
           found.nisn = di.nisn;
         }
@@ -1554,14 +2436,16 @@ export const gasService = {
         found.pesanPengumuman = found.pesanPengumuman.replace(/2026\/2027/g, '2027/2028');
       }
 
-      // Simpan kembali data yang sudah dipulihkan ke local storage
-      const existingIdx = list.findIndex(l => l.noPendaftaran === found?.noPendaftaran);
-      if (existingIdx >= 0) {
-        list[existingIdx] = found;
-      } else {
-        list.push(found);
+      // Hanya simpan ke LOCAL_LULUS_KEY jika bukan status sementara PROSES_SELEKSI
+      if (found.status !== 'PROSES_SELEKSI') {
+        const existingIdx = list.findIndex(l => l.noPendaftaran === found?.noPendaftaran);
+        if (existingIdx >= 0) {
+          list[existingIdx] = found;
+        } else {
+          list.push(found);
+        }
+        localStorage.setItem(LOCAL_LULUS_KEY, JSON.stringify(list));
       }
-      localStorage.setItem(LOCAL_LULUS_KEY, JSON.stringify(list));
     }
 
     return found;
@@ -1609,6 +2493,10 @@ export const gasService = {
       ? obs.asalSekolah.trim()
       : ((st?.asalSekolah && st.asalSekolah !== '-') ? st.asalSekolah : (list[idx]?.asalSekolah || di?.asalSekolah || 'SD/MI Pendaftar'));
 
+    const defaultSheetKat = this.getPembiayaanList()[0]?.kategori || '';
+    const effectiveKategori = obs.kategoriPembiayaan || list[idx]?.kategoriPembiayaan || defaultSheetKat;
+    const effectiveRincian = obs.rincianBiaya || list[idx]?.rincianBiaya || this.getPembiayaanByCategory(effectiveKategori);
+
     const info: StatusKelulusanInfo = {
       noPendaftaran: obs.noPendaftaran,
       nisn: effectiveNisn,
@@ -1622,7 +2510,9 @@ export const gasService = {
         : (newStatus === 'CADANGAN' 
           ? `Ananda berada pada posisi CADANGAN dengan nilai rata-rata ${obs.rataRata}.`
           : `Mohon maaf, ananda belum memenuhi kuota penerimaan SMPIT Pondok Duta tahun ini.`),
-      jadwalDaftarUlang: newStatus === 'LULUS' ? effectiveJadwal : '-'
+      jadwalDaftarUlang: newStatus === 'LULUS' ? effectiveJadwal : '-',
+      kategoriPembiayaan: effectiveKategori,
+      rincianBiaya: effectiveRincian
     };
 
     if (idx >= 0) {
@@ -1678,7 +2568,26 @@ export const gasService = {
   // --- DATABASE USER & AUTENTIKASI (MURNI DARI SHEET Akun_User DATABASE) ---
   getAllUsersFromDb(): UserAccount[] {
     const raw = localStorage.getItem(LOCAL_USERS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map((u: any) => ({
+        ...u,
+        id: String(u.id || ''),
+        kodePendaftaran: String(u.kodePendaftaran || '').trim(),
+        namaSiswa: String(u.namaSiswa || '').trim(),
+        namaOrangTua: String(u.namaOrangTua || '').trim(),
+        sekolahAsal: String(u.sekolahAsal || '').trim(),
+        nomorHp: formatPhoneNumberForWa(u.nomorHp) || String(u.nomorHp || '').trim(),
+        emailOrangTua: String(u.emailOrangTua || '').trim(),
+        role: (['admin', 'guru'].includes(String(u.role || '').trim().toLowerCase())
+          ? String(u.role).trim().toLowerCase()
+          : 'siswa') as 'siswa' | 'guru' | 'admin'
+      }));
+    } catch {
+      return [];
+    }
   },
 
   getUsers(): UserAccount[] {
@@ -1731,13 +2640,15 @@ export const gasService = {
       }
     }
 
+    const normalizedWaPhone = formatPhoneNumberForWa(payload.nomorHp) || String(payload.nomorHp || '').trim();
+
     const newUser: UserAccount = {
       id: `USR-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
       kodePendaftaran: uniqueCode,
       namaSiswa: payload.namaSiswa.trim(),
       namaOrangTua: payload.namaOrangTua.trim(),
       sekolahAsal: payload.sekolahAsal.trim(),
-      nomorHp: payload.nomorHp.trim(),
+      nomorHp: normalizedWaPhone,
       emailOrangTua: payload.emailOrangTua.trim(),
       createdAt: new Date().toISOString(),
       role: 'siswa'
@@ -1770,8 +2681,8 @@ export const gasService = {
       kelurahan: '',
       kecamatan: '',
       kotaKabupaten: '',
-      nomorTelepon: payload.nomorHp.trim(),
-      nomorHandphone: payload.nomorHp.trim(),
+      nomorTelepon: normalizedWaPhone,
+      nomorHandphone: normalizedWaPhone,
       bertempatTinggalPada: 'Orang Tua',
       jarakKeSekolahKm: '',
       saranaBerangkatSekolah: 'Motor',
@@ -1796,7 +2707,7 @@ export const gasService = {
       pekerjaanAyah: '',
       penghasilanAyah: 'Rp. 5jt - Rp. 10jt',
       alamatAyah: '',
-      noHpAyah: payload.nomorHp.trim(),
+      noHpAyah: normalizedWaPhone,
       emailAyah: payload.emailOrangTua.trim(),
       statusPerkawinanAyah: 'Suami',
       namaIbu: payload.namaOrangTua.trim(),
@@ -1807,7 +2718,7 @@ export const gasService = {
       pekerjaanIbu: '',
       penghasilanIbu: 'dibawah Rp. 5jt',
       alamatIbu: '',
-      noHpIbu: payload.nomorHp.trim(),
+      noHpIbu: normalizedWaPhone,
       emailIbu: payload.emailOrangTua.trim(),
       statusPerkawinanIbu: 'Istri'
     };
@@ -1955,7 +2866,8 @@ export const gasService = {
 
   getDataIndukList(): DataIndukSiswa[] {
     const raw = localStorage.getItem(LOCAL_DATA_INDUK_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed: DataIndukSiswa[] = raw ? JSON.parse(raw) : [];
+    return deduplicateDataIndukByNo(parsed);
   },
 
   async saveDataIndukList(list: DataIndukSiswa[]): Promise<{ success: boolean; message: string }> {
@@ -2208,6 +3120,276 @@ export const gasService = {
       success: false,
       message: res?.message || 'Gagal menyinkronkan ke Sheet Data Induk Sekolah.'
     };
+  },
+
+  // =========================================================================
+  // --- FITUR INFORMASI KELULUSAN VIA WHATSAPP (ACUAN NOMOR REGISTRASI AKUN) ---
+  // =========================================================================
+
+  getWaLogs(): Record<string, { sentAt?: string; sentBy?: string; customPhone?: string }> {
+    try {
+      const raw = localStorage.getItem(LOCAL_WA_LOGS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  },
+
+  saveWaLogs(logs: Record<string, { sentAt?: string; sentBy?: string; customPhone?: string }>) {
+    localStorage.setItem(LOCAL_WA_LOGS_KEY, JSON.stringify(logs));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('spmb_db_updated'));
+    }
+  },
+
+  markWaSent(noPendaftaran: string, sentBy: string = 'Panitia SPMB') {
+    const logs = this.getWaLogs();
+    logs[noPendaftaran] = {
+      ...(logs[noPendaftaran] || {}),
+      sentAt: new Date().toISOString(),
+      sentBy
+    };
+    this.saveWaLogs(logs);
+  },
+
+  unmarkWaSent(noPendaftaran: string) {
+    const logs = this.getWaLogs();
+    if (logs[noPendaftaran]) {
+      delete logs[noPendaftaran].sentAt;
+      this.saveWaLogs(logs);
+    }
+  },
+
+  updateCustomWaPhone(noPendaftaran: string, newPhone: string) {
+    const normalized = formatPhoneNumberForWa(newPhone) || String(newPhone || '').trim();
+    const logs = this.getWaLogs();
+    logs[noPendaftaran] = {
+      ...(logs[noPendaftaran] || {}),
+      customPhone: normalized
+    };
+    this.saveWaLogs(logs);
+
+    // Jika akun user ada, sinkronkan juga ke Akun User lokal & Spreadsheet agar konsisten dengan kode negara 62
+    const allUsers = this.getAllUsersFromDb();
+    const uIdx = allUsers.findIndex(u => String(u.kodePendaftaran || '').trim().toUpperCase() === noPendaftaran.trim().toUpperCase());
+    if (uIdx >= 0) {
+      allUsers[uIdx].nomorHp = normalized;
+      localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(allUsers));
+
+      const gasUrl = this.getGasUrl();
+      if (gasUrl && typeof navigator !== 'undefined' && navigator.onLine) {
+        postToGas(gasUrl, {
+          action: 'registerUser',
+          user: allUsers[uIdx]
+        });
+      }
+    }
+  },
+
+  getWaTemplate(): string {
+    const saved = localStorage.getItem(LOCAL_WA_TEMPLATE_KEY);
+    if (!saved || saved.includes('DITERIMA / LULUS') || saved.includes('Status Hasil Seleksi') || saved.includes('kelulusan ananda')) {
+      localStorage.setItem(LOCAL_WA_TEMPLATE_KEY, DEFAULT_WA_PENGUMUMAN_TEMPLATE);
+      return DEFAULT_WA_PENGUMUMAN_TEMPLATE;
+    }
+    return saved;
+  },
+
+  saveWaTemplate(template: string) {
+    if (template && template.trim()) {
+      localStorage.setItem(LOCAL_WA_TEMPLATE_KEY, template.trim());
+    } else {
+      localStorage.removeItem(LOCAL_WA_TEMPLATE_KEY);
+    }
+  },
+
+  resetWaTemplate() {
+    localStorage.removeItem(LOCAL_WA_TEMPLATE_KEY);
+  },
+
+  /**
+   * Menghasilkan teks pesan WhatsApp Pengumuman resmi SMPIT Pondok Duta.
+   * Melampirkan data siswa, nomor pendaftaran, dan cara pengecekan hasil seleksi di website.
+   * PENTING: Di pesan WA TIDAK ADA informasi lulus / tidak lulus (orang tua mengecek mandiri di website).
+   */
+  buildWaMessage(item: MuridLulusWaItem, customBaseUrl?: string, customTemplate?: string): string {
+    const tpl = customTemplate || this.getWaTemplate();
+    const origin = customBaseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://smpitpondokduta.sch.id');
+    const directLink = `${origin}/?tab=cek-kelulusan&no=${encodeURIComponent(item.noPendaftaran)}`;
+    const websiteUrl = `${origin}/?tab=cek-kelulusan`;
+    const tahunPelajaran = getAcademicYear();
+
+    return tpl
+      .replace(/{tahunPelajaran}/g, tahunPelajaran)
+      .replace(/{namaLengkap}/g, item.namaLengkap || 'Calon Murid')
+      .replace(/{namaPanggilan}/g, item.namaPanggilan || (item.namaLengkap ? item.namaLengkap.split(' ')[0] : ''))
+      .replace(/{noPendaftaran}/g, item.noPendaftaran)
+      .replace(/{nisn}/g, item.nisn || '-')
+      .replace(/{asalSekolah}/g, item.asalSekolah || '-')
+      .replace(/{jadwalDaftarUlang}/g, item.jadwalDaftarUlang || '20 - 25 Januari 2027')
+      .replace(/{directLink}/g, directLink)
+      .replace(/{websiteUrl}/g, websiteUrl)
+      .replace(/{namaAkunOrtu}/g, item.namaAkunOrtu || 'Orang Tua / Wali');
+  },
+
+  /**
+   * Mengambil daftar seluruh calon murid untuk pengiriman WhatsApp Pengumuman.
+   * Acuan nomor WhatsApp adalah nomor yang digunakan saat pendaftaran akun user pertama kali (Sheet Users).
+   */
+  getMuridPengumumanWaList(): MuridLulusWaItem[] {
+    const allUsers = this.getAllUsersFromDb();
+    const rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
+    const siswaList: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
+    const rawLulus = localStorage.getItem(LOCAL_LULUS_KEY);
+    const kelulusanList: StatusKelulusanInfo[] = rawLulus ? JSON.parse(rawLulus) : [];
+    const rawObs = localStorage.getItem(LOCAL_OBS_SISWA_KEY);
+    const obsList: ObservasiSiswaData[] = rawObs ? JSON.parse(rawObs) : [];
+    const rawInduk = localStorage.getItem(LOCAL_DATA_INDUK_KEY);
+    const indukList: DataIndukSiswa[] = rawInduk ? JSON.parse(rawInduk) : [];
+    const waLogs = this.getWaLogs();
+
+    const candidateMap = new Map<string, {
+      namaLengkap?: string;
+      namaPanggilan?: string;
+      nisn?: string;
+      asalSekolah?: string;
+      jadwalDaftarUlang?: string;
+    }>();
+
+    // 1. Dari Siswa List (Semua calon murid yang mendaftar)
+    siswaList.forEach(s => {
+      const key = (s.noPendaftaran || '').trim().toUpperCase();
+      if (key) {
+        candidateMap.set(key, {
+          namaLengkap: s.namaLengkap,
+          namaPanggilan: s.namaPanggilan,
+          nisn: s.nisn,
+          asalSekolah: s.asalSekolah
+        });
+      }
+    });
+
+    // 2. Dari Users (Siswa)
+    allUsers.filter(u => u.role === 'siswa').forEach(u => {
+      const key = (u.kodePendaftaran || '').trim().toUpperCase();
+      if (key && !candidateMap.has(key)) {
+        candidateMap.set(key, {
+          namaLengkap: u.namaSiswa,
+          asalSekolah: u.sekolahAsal
+        });
+      }
+    });
+
+    // 3. Dari Kelulusan List
+    kelulusanList.forEach(k => {
+      const key = (k.noPendaftaran || '').trim().toUpperCase();
+      if (key) {
+        const cur = candidateMap.get(key) || {};
+        candidateMap.set(key, {
+          ...cur,
+          namaLengkap: cur.namaLengkap || k.namaLengkap,
+          nisn: cur.nisn || k.nisn,
+          asalSekolah: cur.asalSekolah || k.asalSekolah,
+          jadwalDaftarUlang: k.jadwalDaftarUlang
+        });
+      }
+    });
+
+    // 4. Dari Observasi Siswa
+    obsList.forEach(o => {
+      const key = (o.noPendaftaran || '').trim().toUpperCase();
+      if (key) {
+        const cur = candidateMap.get(key) || {};
+        candidateMap.set(key, {
+          ...cur,
+          namaLengkap: cur.namaLengkap || o.namaSiswa,
+          nisn: cur.nisn || o.nisn,
+          asalSekolah: cur.asalSekolah || o.asalSekolah,
+          jadwalDaftarUlang: cur.jadwalDaftarUlang || o.tanggalMaksimalDaftarUlang
+        });
+      }
+    });
+
+    // 5. Dari Data Induk Siswa
+    indukList.forEach(i => {
+      const key = (i.noPendaftaran || '').trim().toUpperCase();
+      if (key) {
+        const cur = candidateMap.get(key) || {};
+        candidateMap.set(key, {
+          ...cur,
+          namaLengkap: cur.namaLengkap || i.namaLengkap,
+          nisn: cur.nisn || i.nisn,
+          asalSekolah: cur.asalSekolah || i.asalSekolah
+        });
+      }
+    });
+
+    const cleanKey = (str: unknown) => String(str || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const cleanName = (str: unknown) => String(str || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+    const result: MuridLulusWaItem[] = [];
+
+    candidateMap.forEach((meta, noPend) => {
+      const st = siswaList.find(s => String(s.noPendaftaran || '').trim().toUpperCase() === noPend);
+      const di = indukList.find(d => String(d.noPendaftaran || '').trim().toUpperCase() === noPend);
+      const obs = obsList.find(o => String(o.noPendaftaran || '').trim().toUpperCase() === noPend);
+      const log = waLogs[noPend];
+
+      const resolvedNama = String(meta.namaLengkap || st?.namaLengkap || di?.namaLengkap || obs?.namaSiswa || noPend).trim();
+      const resolvedPanggilan = String(meta.namaPanggilan || st?.namaPanggilan || (resolvedNama ? resolvedNama.split(' ')[0] : '')).trim();
+      const resolvedNisn = String(meta.nisn && meta.nisn !== '-' ? meta.nisn : (st?.nisn || di?.nisn || obs?.nisn || '-')).trim();
+      const resolvedAsal = String(meta.asalSekolah && meta.asalSekolah !== '-' ? meta.asalSekolah : (st?.asalSekolah || di?.asalSekolah || obs?.asalSekolah || '-')).trim();
+      const resolvedJadwal = String(meta.jadwalDaftarUlang && meta.jadwalDaftarUlang !== '-' ? meta.jadwalDaftarUlang : (obs?.tanggalMaksimalDaftarUlang || '20 - 25 Januari 2027')).trim();
+
+      // Butir 4: Pencocokan pintar ke akun pendaftaran user pertama kali (Sheet Users)
+      // Mendukung pencocokan berdasarkan Kode Pendaftaran maupun Nama Siswa
+      const targetCodeClean = cleanKey(noPend);
+      const targetNameClean = cleanName(resolvedNama);
+
+      const userAcc = allUsers.find(u => {
+        if (u.role && u.role !== 'siswa') return false;
+        const uCode = String(u.kodePendaftaran || '').trim().toUpperCase();
+        if (uCode && (uCode === noPend || cleanKey(uCode) === targetCodeClean)) return true;
+        const uName = cleanName(u.namaSiswa);
+        if (uName && targetNameClean && uName === targetNameClean) return true;
+        return false;
+      });
+
+      // Normalisasi otomatis dengan kode negara 62 (sekaligus memulihkan angka 0 yang hilang di Spreadsheet, misal 8561234567 -> 628561234567)
+      const nomorHpUserAwal = formatPhoneNumberForWa(userAcc?.nomorHp);
+      const customOverride = formatPhoneNumberForWa(log?.customPhone);
+      const fallbackPhone = formatPhoneNumberForWa(
+        st?.nomorHandphone || st?.noHpAyah || st?.noHpIbu || st?.nomorTelepon || di?.nomorHandphone || di?.noHpAyah || ''
+      );
+
+      const finalWaPhone = customOverride || nomorHpUserAwal || fallbackPhone;
+      const hasAccount = Boolean(nomorHpUserAwal);
+
+      result.push({
+        noPendaftaran: noPend,
+        namaLengkap: resolvedNama,
+        namaPanggilan: resolvedPanggilan,
+        nisn: resolvedNisn,
+        asalSekolah: resolvedAsal,
+        jadwalDaftarUlang: resolvedJadwal,
+        nomorHpAkun: finalWaPhone,
+        namaAkunOrtu: String(userAcc?.namaOrangTua || st?.namaAyah || st?.namaIbu || 'Orang Tua / Wali').trim(),
+        emailAkun: String(userAcc?.emailOrangTua || st?.emailAyah || '').trim(),
+        hasUserAccount: hasAccount,
+        isWaSent: Boolean(log?.sentAt),
+        waSentAt: log?.sentAt,
+        waSentBy: log?.sentBy
+      });
+    });
+
+    return result.sort((a, b) => a.namaLengkap.localeCompare(b.namaLengkap, 'id'));
+  },
+
+  /**
+   * Alias untuk kompatibilitas
+   */
+  getMuridLulusWaList(): MuridLulusWaItem[] {
+    return this.getMuridPengumumanWaList();
   },
 
   async resetToMockData() {

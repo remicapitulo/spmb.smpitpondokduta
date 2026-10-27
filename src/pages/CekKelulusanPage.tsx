@@ -4,6 +4,7 @@ import { StatusKelulusanInfo, getAcademicYear } from '../types';
 import confetti from 'canvas-confetti';
 import QRCode from 'qrcode';
 import { downloadElementAsPdf } from '../utils/downloadPdfDocument';
+import { SklKelulusanPrintModal } from './dashboard/SklKelulusanPrintModal';
 import { 
   Search, 
   CheckCircle2, 
@@ -96,69 +97,96 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const no = params.get('no') || params.get('noPendaftaran');
-      const nisn = params.get('nisn');
-      const nik = params.get('nik');
-      const nama = params.get('nama');
-      const panggilan = params.get('panggilan');
-      const asal = params.get('asal');
-      const jalur = params.get('jalur');
-      const jk = params.get('jk');
-      const ttl = params.get('ttl');
-      const ortu = params.get('ortu');
-      const hp = params.get('hp');
-      const jadwal = params.get('jadwal');
-      const ruang = params.get('ruang');
+      const no = (params.get('no') || params.get('noPendaftaran') || '').trim();
+      const nisn = (params.get('nisn') || '').trim();
+      const nik = (params.get('nik') || '').trim();
+      const rawNama = (params.get('nama') || '').trim();
+      const nama = rawNama && rawNama !== 'Calon Peserta Didik' ? rawNama : '';
+      const panggilan = (params.get('panggilan') || '').trim();
+      const rawAsal = (params.get('asal') || '').trim();
+      const asal = rawAsal && rawAsal !== 'SD/MI Asal' ? rawAsal : '';
+      const jalur = (params.get('jalur') || '').trim();
+      const jk = (params.get('jk') || '').trim();
+      const ttl = (params.get('ttl') || '').trim();
+      const ortu = (params.get('ortu') || '').trim();
+      const hp = (params.get('hp') || '').trim();
+      const jadwal = (params.get('jadwal') || '').trim();
+      const ruang = (params.get('ruang') || '').trim();
       const isVerif = params.get('verifikasi') === 'true';
 
       const q = no || nisn;
 
-      if (isVerif || nama || (no && q)) {
-        const localSiswa = no ? gasService.getSiswaByNo(no) : null;
-        const studentInfo: VerifiedParticipantCard = {
-          noPendaftaran: no || localSiswa?.noPendaftaran || 'PD-2026-001',
-          namaLengkap: nama || localSiswa?.namaLengkap || 'Calon Peserta Didik',
-          namaPanggilan: panggilan || localSiswa?.namaPanggilan || '',
-          nisn: nisn || localSiswa?.nisn || '-',
-          nik: nik || localSiswa?.nik || '-',
-          asalSekolah: asal || localSiswa?.asalSekolah || 'SD/MI Asal',
-          jalur: jalur || localSiswa?.jalurPendaftaran || 'Jalur Reguler SPMB',
-          jenisKelamin: jk || localSiswa?.jenisKelamin || 'Laki-laki',
-          ttl: ttl || (localSiswa ? `${localSiswa.tempatLahir || ''}, ${localSiswa.tanggalLahir || ''}` : '-'),
-          namaOrtu: ortu || localSiswa?.namaAyah || localSiswa?.namaIbu || '-',
-          noHp: hp || localSiswa?.noHpAyah || localSiswa?.nomorTelepon || '-',
+      const buildVerifiedCard = (studentRecord: ReturnType<typeof gasService.getSiswaByNo>): VerifiedParticipantCard => {
+        const cleanNama =
+          nama ||
+          (studentRecord?.namaLengkap && studentRecord.namaLengkap !== 'Calon Peserta Didik'
+            ? studentRecord.namaLengkap
+            : '') ||
+          'Calon Peserta Didik';
+        const cleanAsal =
+          asal ||
+          (studentRecord?.asalSekolah && studentRecord.asalSekolah !== 'SD/MI Asal'
+            ? studentRecord.asalSekolah
+            : '') ||
+          '-';
+        const ttlText =
+          ttl && ttl !== '-' && ttl !== ', '
+            ? ttl
+            : studentRecord && (studentRecord.tempatLahir || studentRecord.tanggalLahir)
+            ? `${studentRecord.tempatLahir || '-'}${studentRecord.tanggalLahir ? `, ${studentRecord.tanggalLahir}` : ''}`
+            : '-';
+
+        return {
+          noPendaftaran: no || studentRecord?.noPendaftaran || '-',
+          namaLengkap: cleanNama,
+          namaPanggilan: panggilan || studentRecord?.namaPanggilan || '',
+          nisn: nisn || studentRecord?.nisn || '-',
+          nik: nik || studentRecord?.nik || '-',
+          asalSekolah: cleanAsal,
+          jalur: jalur || studentRecord?.jalurPendaftaran || 'Jalur Reguler SPMB',
+          jenisKelamin: jk || studentRecord?.jenisKelamin || 'Laki-laki',
+          ttl: ttlText,
+          namaOrtu: ortu || studentRecord?.namaAyah || studentRecord?.namaIbu || studentRecord?.namaWali || '-',
+          noHp: hp || studentRecord?.noHpAyah || studentRecord?.nomorTelepon || studentRecord?.noHpIbu || '-',
           isVerified: true,
           jadwal: jadwal || 'Sabtu, 17 Januari 2026 · Pukul 08.00 - 11.30 WIB',
           lokasi: ruang || 'Ruang Aula - Gedung SMPIT Lt. 1'
         };
-        setVerifiedCard(studentInfo);
+      };
 
-        // Simpan data calon murid ke memori perangkat ini agar aplikasi mengenali siswa
-        if (no && (nama || localSiswa)) {
+      if (isVerif || nama || (no && q)) {
+        const localSiswa = no ? gasService.getSiswaByNo(no) : null;
+        const initialCard = buildVerifiedCard(localSiswa);
+        setVerifiedCard(initialCard);
+
+        if (no && (nama || (localSiswa && localSiswa.namaLengkap !== 'Calon Peserta Didik'))) {
           gasService.registerScannedStudent({
-            noPendaftaran: studentInfo.noPendaftaran,
-            namaLengkap: studentInfo.namaLengkap,
-            nisn: studentInfo.nisn,
-            nik: nik || localSiswa?.nik || '-',
-            asalSekolah: studentInfo.asalSekolah,
-            jalurPendaftaran: studentInfo.jalur,
-            jenisKelamin: (jk === 'Perempuan' || localSiswa?.jenisKelamin === 'Perempuan') ? 'Perempuan' : 'Laki-laki'
+            noPendaftaran: initialCard.noPendaftaran,
+            namaLengkap: initialCard.namaLengkap,
+            nisn: initialCard.nisn,
+            nik: initialCard.nik,
+            asalSekolah: initialCard.asalSekolah,
+            jalurPendaftaran: initialCard.jalur,
+            jenisKelamin: (initialCard.jenisKelamin === 'Perempuan') ? 'Perempuan' : 'Laki-laki'
           });
+        }
+
+        // Sinkronisasi langsung dengan Spreadsheet agar hasil scan kartu di perangkat manapun selalu akurat sesuai pendaftar asli
+        if (no && gasService.isLiveGasConfigured()) {
+          gasService.syncFromSpreadsheet(undefined, true).then(() => {
+            const syncedSiswa = gasService.getSiswaByNo(no);
+            if (syncedSiswa) {
+              setVerifiedCard(buildVerifiedCard(syncedSiswa));
+            }
+          }).catch(() => {});
         }
       }
 
       // Jika ada kata kunci nomor pendaftaran
       if (q) {
         setKeyword(q);
-        if (isVerif) {
-          // Jika verifikasi scan dari HP, cek kelulusan di latar belakang tanpa memblokir tampilan kartu terverifikasi
-          gasService.checkStatusKelulusan(q).then((data) => {
-            if (data) {
-              setResult(data);
-              setSearched(true);
-            }
-          });
-        } else {
+        // Jika bukan scan verifikasi Kartu Peserta (misal scan SKL atau link cek kelulusan langsung), jalankan pencarian kelulusan
+        if (!isVerif) {
           handleSearch(q);
         }
       }
@@ -476,7 +504,7 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
                   </div>
                 </div>
 
-                {result.skorAkhir && (
+                {Boolean(result.skorAkhir && result.skorAkhir > 0 && result.status !== 'PROSES_SELEKSI') && (
                   <div className="p-3 rounded-2xl bg-white border border-slate-200/80 text-center shrink-0">
                     <div className="text-[10px] font-bold text-slate-400 uppercase">Nilai Rata-rata</div>
                     <div className="text-2xl font-extrabold text-emerald-700">{result.skorAkhir}</div>
@@ -571,198 +599,22 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
         </div>
       )}
 
-      {/* SKL Printable Modal */}
+      {/* SKL Printable Modal (2 Halaman Lengkap dengan Lampiran Rincian Biaya Modern) */}
       {showSklModal && result && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
-          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-100 flex flex-col max-h-[92vh] overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
-            
-            {/* Modal Controls Header (Sticky top - No Print, Clean title & Close button only) */}
-            <div className="no-print bg-white/95 backdrop-blur-md px-6 py-3.5 border-b border-slate-100 flex items-center justify-between shrink-0 rounded-t-3xl z-10">
-              <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-emerald-700" />
-                <span className="text-xs font-bold text-slate-700">
-                  Pratinjau Surat Keterangan Lulus (SKL) Resmi
-                </span>
-              </div>
-              <button
-                onClick={() => setShowSklModal(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-                title="Tutup"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Official SKL Document Format (Scrollable Body) */}
-            <div 
-              ref={sklDocRef}
-              id="printable-skl-document"
-              className="overflow-y-auto p-6 sm:p-10 space-y-5 text-slate-900 text-xs sm:text-sm print-container bg-white"
-            >
-              {/* Kop Surat Resmi dengan Logo Sekolah */}
-              <div className="border-b-4 border-double border-emerald-900 pb-3 flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-4 text-center sm:text-left">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 p-1 bg-white border border-emerald-200 rounded-2xl flex items-center justify-center shadow-2xs">
-                  <img
-                    src={logoBase64 || '/logo-smpit-pondok-duta.png'}
-                    alt="Logo Resmi SMPIT Pondok Duta"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <div className="text-[11px] sm:text-xs font-bold tracking-widest text-emerald-800 uppercase">
-                    YAYASAN PERGURUAN ISLAM PONDOK DUTA
-                  </div>
-                  <div className="text-base sm:text-xl font-black text-slate-900 uppercase tracking-wide">
-                    SMPIT PONDOK DUTA CIMANGGIS DEPOK
-                  </div>
-                  <p className="text-[10px] text-slate-600 font-medium">
-                    <span className="font-bold text-emerald-800">Terakreditasi "A" (BAN-PDM)</span> | NPSN: 20276180 | NSS: 202026601007
-                  </p>
-                  <p className="text-[9.5px] text-slate-500 leading-snug">
-                    Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451
-                  </p>
-                  <p className="text-[9px] text-emerald-900 font-semibold">
-                    Telp: (021) 29378301 · Website: smpitpondokduta.sch.id · Email: info@smpitpondokduta.sch.id
-                  </p>
-                </div>
-              </div>
-
-              {/* Judul Surat */}
-              <div className="text-center space-y-1 py-1">
-                <div className="font-extrabold text-sm sm:text-base underline uppercase text-slate-900 tracking-wide">
-                  SURAT KETERANGAN LULUS SELEKSI SPMB
-                </div>
-                <div className="text-[11px] text-slate-500 font-mono">
-                  Nomor: 042/SPMB-SMPIT/PD/I/{new Date().getFullYear()}
-                </div>
-              </div>
-
-              {/* Isi Surat */}
-              <p className="leading-relaxed">
-                Ketua Panitia Sistem Penerimaan Murid Baru (SPMB) SMPIT Pondok Duta Cimanggis Depok dengan ini menerangkan bahwa:
-              </p>
-
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-xs font-medium">
-                <div className="grid grid-cols-3">
-                  <span className="text-slate-500">Nomor Pendaftaran</span>
-                  <span className="col-span-2 font-bold font-mono text-slate-900">: {result.noPendaftaran}</span>
-                </div>
-                <div className="grid grid-cols-3">
-                  <span className="text-slate-500">Nama Calon Murid</span>
-                  <span className="col-span-2 font-bold text-slate-900">: {result.namaLengkap}</span>
-                </div>
-                <div className="grid grid-cols-3">
-                  <span className="text-slate-500">NISN</span>
-                  <span className="col-span-2 font-mono text-slate-900">: {effectiveNisn}</span>
-                </div>
-                <div className="grid grid-cols-3">
-                  <span className="text-slate-500">Asal SD/MI</span>
-                  <span className="col-span-2 text-slate-900">: {result.asalSekolah}</span>
-                </div>
-                <div className="grid grid-cols-3">
-                  <span className="text-slate-500">Jalur Penerimaan</span>
-                  <span className="col-span-2 text-slate-900">: {result.jalur}</span>
-                </div>
-                <div className="grid grid-cols-3">
-                  <span className="text-slate-500 font-semibold text-emerald-950">Tanggal Daftar Ulang</span>
-                  <span className="col-span-2 font-bold text-emerald-800">: {effectiveJadwalDaftarUlang}</span>
-                </div>
-              </div>
-
-              <p className="leading-relaxed">
-                Telah mengikuti seluruh rangkaian tahapan observasi baca Al-Qur'an (Tahsin), hafalan (Tahfidz), potensi akademik, psikotes, serta wawancara orang tua murid, dan dinyatakan:
-              </p>
-
-              {/* Status Box */}
-              <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-600 text-center space-y-1">
-                <span className="text-xs font-bold text-emerald-800 uppercase tracking-widest block">Keputusan Panitia:</span>
-                <span className="text-xl sm:text-2xl font-black text-emerald-900 tracking-wider block">
-                  DITERIMA SEBAGAI MURID BARU
-                </span>
-                <span className="block text-xs text-emerald-700 font-semibold">
-                  SMPIT PONDOK DUTA TAHUN PELAJARAN {tahunPelajaran}
-                </span>
-                <div className="pt-2 border-t border-emerald-200 mt-2 text-xs font-bold text-emerald-950">
-                  Batas Tanggal Daftar Ulang: <span className="underline decoration-emerald-500 decoration-2">{effectiveJadwalDaftarUlang}</span>
-                </div>
-              </div>
-
-              <p className="leading-relaxed text-[11px] text-slate-600">
-                Demikian surat keterangan ini diterbitkan untuk dipergunakan dalam proses daftar ulang. Orang tua/wali calon murid diharapkan melakukan daftar ulang selambat-lambatnya tanggal <strong className="text-slate-900 font-extrabold">{effectiveJadwalDaftarUlang}</strong>.
-              </p>
-
-              {/* Pengesahan Dokumen Resmi via QR Code (Tanda tangan manual dihapus, digantikan QR Code verifikasi resmi) */}
-              <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  {qrCodeUrl ? (
-                    <div className="p-1 bg-white rounded-xl border border-slate-300 shadow-2xs shrink-0">
-                      <img src={qrCodeUrl} alt="QR Code Verifikasi Resmi" className="w-20 h-20 sm:w-22 sm:h-22 object-contain" />
-                    </div>
-                  ) : (
-                    <div className="w-20 h-20 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-center shrink-0">
-                      <QrCodeIcon className="w-9 h-9 text-slate-700" />
-                    </div>
-                  )}
-                  <div className="text-left space-y-0.5">
-                    <span className="text-[11px] font-bold text-slate-900 block">
-                      Verifikasi Pengesahan Dokumen
-                    </span>
-                    <p className="text-[10px] text-slate-600 leading-snug max-w-[260px]">
-                      Pindai QR Code untuk memvalidasi keaslian dokumen kelulusan resmi SPMB SMPIT Pondok Duta.
-                    </p>
-                    <div className="text-[9.5px] font-mono text-emerald-800 font-bold">
-                      Ref: SPMB-PD/{result.noPendaftaran}/{new Date().getFullYear()}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-center sm:text-right shrink-0">
-                  <div className="text-xs font-bold text-slate-800">
-                    Depok, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </div>
-                  <div className="text-[11px] text-slate-600 font-medium mt-0.5">
-                    Panitia SPMB SMPIT Pondok Duta
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer Controls (Sticky bottom - No Print, Cukup 1 tombol Unduh PDF di bawah saja) */}
-            <div className="no-print bg-slate-50/95 backdrop-blur-md px-6 py-3.5 border-t border-slate-100 flex items-center justify-between shrink-0 rounded-b-3xl text-xs">
-              <span className="text-[11px] text-slate-500 hidden sm:inline">
-                Dokumen resmi Surat Keterangan Lulus (SKL) siap diunduh dalam format PDF.
-              </span>
-              <div className="flex items-center gap-2.5 ml-auto">
-                <button
-                  type="button"
-                  onClick={() => setShowSklModal(false)}
-                  className="px-4 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition cursor-pointer"
-                >
-                  Tutup
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDownloadPdf}
-                  disabled={isDownloadingPdf}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold transition flex items-center gap-2 cursor-pointer shadow-md active:scale-95"
-                >
-                  {isDownloadingPdf ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Menyiapkan PDF...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4" />
-                      <span>Unduh PDF</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>
+        <SklKelulusanPrintModal
+          data={{
+            noPendaftaran: result.noPendaftaran,
+            namaLengkap: result.namaLengkap,
+            nisn: effectiveNisn,
+            asalSekolah: result.asalSekolah,
+            jalur: result.jalur,
+            status: result.status,
+            jadwalDaftarUlang: effectiveJadwalDaftarUlang,
+            kategoriPembiayaan: result.kategoriPembiayaan,
+            pesanPengumuman: result.pesanPengumuman
+          }}
+          onClose={() => setShowSklModal(false)}
+        />
       )}
 
     </div>

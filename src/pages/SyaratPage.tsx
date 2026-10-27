@@ -25,7 +25,7 @@ export const SyaratPage: React.FC<Props> = ({ onGoToRegister }) => {
     {
       id: 'uang-pendaftaran',
       title: '1. Membayar Uang Pendaftaran',
-      desc: 'Melakukan pembayaran biaya pendaftaran sesuai ketentuan panitia PPDB / SPMB SIT Pondok Duta.'
+      desc: 'Melakukan pembayaran biaya pendaftaran sesuai ketentuan panitia SPMB SIT Pondok Duta.'
     },
     {
       id: 'formulir',

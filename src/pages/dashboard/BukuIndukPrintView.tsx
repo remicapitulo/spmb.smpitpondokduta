@@ -106,10 +106,10 @@ export const BukuIndukPrintView: React.FC<Props> = ({ data, onClose }) => {
           <div className="min-w-0 flex-1 pr-1">
             <h3 className="text-xs sm:text-base font-bold text-slate-900 truncate flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 inline-block animate-pulse shrink-0"></span>
-              <span>Lembar Cetak Buku Induk Siswa (Standar Resmi)</span>
+              <span>Lembar Cetak Buku Induk Murid (Standar Resmi)</span>
             </h3>
             <p className="text-[11px] sm:text-xs text-slate-500 truncate mt-0.5">
-              Dokumen resmi arsip data pokok peserta didik SMPIT Pondok Duta
+              Dokumen resmi arsip data pokok murid SMPIT Pondok Duta
             </p>
           </div>
           <button
@@ -197,10 +197,10 @@ export const BukuIndukPrintView: React.FC<Props> = ({ data, onClose }) => {
                 </div>
               </div>
 
-              {/* SECTION A: KETERANGAN TENTANG DIRI SISWA */}
+              {/* SECTION A: KETERANGAN TENTANG DIRI MURID */}
               <div className="space-y-1.5">
                 <div className="font-bold text-xs uppercase bg-slate-800 text-white px-3 py-1.5 rounded tracking-wide shadow-2xs">
-                  A. KETERANGAN TENTANG DIRI PESERTA DIDIK
+                  A. KETERANGAN TENTANG DIRI MURID
                 </div>
                 <table className="w-full text-xs border-collapse table-fixed">
                   <tbody>
@@ -449,7 +449,7 @@ export const BukuIndukPrintView: React.FC<Props> = ({ data, onClose }) => {
                 <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 min-h-[50px] leading-relaxed">
                   {data.catatanKhusus && data.catatanKhusus !== '-' 
                     ? data.catatanKhusus 
-                    : 'Peserta didik terdaftar secara sah di Buku Induk Murid SMPIT Pondok Duta. Memenuhi seluruh persyaratan administrasi dan dinyatakan resmi diterima sebagai peserta didik baru.'}
+                    : 'Murid terdaftar secara sah di Buku Induk Murid SMPIT Pondok Duta. Memenuhi seluruh persyaratan administrasi dan dinyatakan resmi diterima sebagai murid baru.'}
                 </div>
               </div>
 

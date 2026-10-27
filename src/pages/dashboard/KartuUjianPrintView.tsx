@@ -13,7 +13,22 @@ interface Props {
   onClose: () => void;
 }
 
-export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
+export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onClose }) => {
+  const dbSiswa = rawSiswaProp?.noPendaftaran ? gasService.getSiswaByNo(rawSiswaProp.noPendaftaran) : null;
+  const siswa: DataSiswa = {
+    ...dbSiswa,
+    ...rawSiswaProp,
+    namaLengkap: (rawSiswaProp.namaLengkap && rawSiswaProp.namaLengkap !== 'Calon Peserta Didik')
+      ? rawSiswaProp.namaLengkap
+      : (dbSiswa?.namaLengkap || ''),
+    namaPanggilan: rawSiswaProp.namaPanggilan || dbSiswa?.namaPanggilan || (rawSiswaProp.namaLengkap || dbSiswa?.namaLengkap || '').split(' ')[0] || '',
+    asalSekolah: (rawSiswaProp.asalSekolah && rawSiswaProp.asalSekolah !== 'SD/MI Asal')
+      ? rawSiswaProp.asalSekolah
+      : (dbSiswa?.asalSekolah || ''),
+    namaAyah: rawSiswaProp.namaAyah || dbSiswa?.namaAyah || '',
+    noHpAyah: rawSiswaProp.noHpAyah || rawSiswaProp.nomorHandphone || dbSiswa?.noHpAyah || dbSiswa?.nomorHandphone || ''
+  } as DataSiswa;
+
   const [logoBase64, setLogoBase64] = useState<string>(LOGO_PONDOK_DUTA_BASE64);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
@@ -66,7 +81,7 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
 
     const ttlStr = (siswa.tempatLahir ? siswa.tempatLahir + ', ' : '') + (siswa.tanggalLahir || '-');
     const ortuStr = siswa.namaAyah || siswa.namaIbu || '-';
-    const hpStr = siswa.noHpAyah || siswa.noHpIbu || siswa.nomorTelepon || '-';
+    const hpStr = siswa.noHpAyah || siswa.noHpIbu || siswa.nomorHandphone || siswa.nomorTelepon || '-';
 
     // Sertakan seluruh parameter verifikasi lengkap langsung di dalam URL QR Code
     // sehingga saat di-scan HP mana pun, halaman verifikasi langsung tampil 100% utuh tanpa ketergantungan localStorage!
@@ -103,7 +118,7 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa, onClose }) => {
       .catch((err) => {
         console.error('Gagal generate QR Code:', err);
       });
-  }, [siswa]);
+  }, [siswa.noPendaftaran, siswa.namaLengkap, siswa.asalSekolah, siswa.nisn, siswa.nik, siswa.namaAyah, siswa.noHpAyah]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

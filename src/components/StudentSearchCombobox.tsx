@@ -133,9 +133,9 @@ export const StudentSearchCombobox: React.FC<Props> = ({
             {/* Results List */}
             <div className="max-h-60 overflow-y-auto space-y-1 custom-scrollbar pr-1">
               {filteredStudents.length > 0 ? (
-                filteredStudents.map((s) => (
+                filteredStudents.map((s, idx) => (
                   <button
-                    key={s.id}
+                    key={`search-student-${s.id}-${idx}`}
                     type="button"
                     onClick={() => {
                       onSelectStudent(s.id);

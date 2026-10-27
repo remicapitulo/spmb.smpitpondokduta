@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { gasService } from '../services/gasService';
+import { gasService, formatPhoneNumberForWa } from '../services/gasService';
 import { UserAccount, getAcademicYear } from '../types';
 import { 
   KeyRound, 
@@ -28,6 +28,38 @@ interface AuthPageProps {
   onGoToHome?: () => void;
 }
 
+const COUNTRY_CODES = [
+  { code: '62', iso: 'ID', placeholder: '081234567890' },
+  { code: '60', iso: 'MY', placeholder: '0123456789' },
+  { code: '65', iso: 'SG', placeholder: '81234567' },
+  { code: '673', iso: 'BN', placeholder: '7123456' },
+  { code: '966', iso: 'SA', placeholder: '0501234567' },
+  { code: '971', iso: 'AE', placeholder: '0501234567' },
+  { code: '974', iso: 'QA', placeholder: '33123456' },
+  { code: '965', iso: 'KW', placeholder: '50012345' },
+  { code: '968', iso: 'OM', placeholder: '92123456' },
+  { code: '973', iso: 'BH', placeholder: '36001234' },
+  { code: '20', iso: 'EG', placeholder: '01001234567' },
+  { code: '962', iso: 'JO', placeholder: '0790123456' },
+  { code: '90', iso: 'TR', placeholder: '05012345678' },
+  { code: '967', iso: 'YE', placeholder: '0711234567' },
+  { code: '81', iso: 'JP', placeholder: '09012345678' },
+  { code: '82', iso: 'KR', placeholder: '01012345678' },
+  { code: '886', iso: 'TW', placeholder: '0912345678' },
+  { code: '852', iso: 'HK', placeholder: '51234567' },
+  { code: '86', iso: 'CN', placeholder: '13800138000' },
+  { code: '66', iso: 'TH', placeholder: '0812345678' },
+  { code: '63', iso: 'PH', placeholder: '09171234567' },
+  { code: '84', iso: 'VN', placeholder: '0912345678' },
+  { code: '61', iso: 'AU', placeholder: '0412345678' },
+  { code: '64', iso: 'NZ', placeholder: '0211234567' },
+  { code: '44', iso: 'GB', placeholder: '07400123456' },
+  { code: '49', iso: 'DE', placeholder: '015123456789' },
+  { code: '31', iso: 'NL', placeholder: '0612345678' },
+  { code: '33', iso: 'FR', placeholder: '0612345678' },
+  { code: '1', iso: 'US', placeholder: '2025550125' }
+];
+
 export const AuthPage: React.FC<AuthPageProps> = ({
   initialMode = 'login',
   onLoginSuccess,
@@ -41,7 +73,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setMode(initialMode);
   }, [initialMode]);
 
-  // Form State for Registration
+  // Form State for Registration (default kode negara: 62 - ID)
+  const [selectedCountryCode, setSelectedCountryCode] = useState<string>('62');
   const [regForm, setRegForm] = useState({
     namaSiswa: '',
     namaOrangTua: '',
@@ -72,6 +105,36 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     };
   }, []);
 
+  // Fungsi pembersih angka 0 di awal (dipanggil saat pindah kolom / onBlur atau saat klik tombol Daftar)
+  const stripLeadingZeroPhone = (rawVal: string, countryCode: string): string => {
+    let digits = rawVal.replace(/[^0-9]/g, '');
+    if (digits.startsWith(countryCode + '0')) {
+      digits = digits.slice(countryCode.length + 1);
+    } else if (digits.startsWith(countryCode) && digits.length >= countryCode.length + 8) {
+      digits = digits.slice(countryCode.length);
+    }
+    return digits.replace(/^0+/, '');
+  };
+
+  // Biarkan orang tua mengetik angka 0 terlebih dahulu tanpa diblokir
+  const handlePhoneInputChange = (rawVal: string) => {
+    const digits = rawVal.replace(/[^0-9]/g, '');
+    setRegForm({ ...regForm, nomorHp: digits });
+  };
+
+  // Saat pindah kolom (onBlur), otomatis hilangkan angka 0 di depan
+  const handlePhoneInputBlur = () => {
+    if (!regForm.nomorHp) return;
+    const cleaned = stripLeadingZeroPhone(regForm.nomorHp, selectedCountryCode);
+    if (cleaned !== regForm.nomorHp) {
+      setRegForm(prev => ({ ...prev, nomorHp: cleaned }));
+    }
+  };
+
+  const activeCountryInfo = COUNTRY_CODES.find(c => c.code === selectedCountryCode) || COUNTRY_CODES[0];
+  const cleanedPreviewDigits = stripLeadingZeroPhone(regForm.nomorHp, selectedCountryCode);
+  const fullInternationalPhone = cleanedPreviewDigits ? `${selectedCountryCode}${cleanedPreviewDigits}` : '';
+
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     setRegError(null);
@@ -88,8 +151,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       setRegError('Sekolah asal (SD/MI) wajib diisi.');
       return;
     }
-    if (!regForm.nomorHp.trim()) {
-      setRegError('Nomor WhatsApp orang tua wajib diisi untuk konfirmasi.');
+    const cleanLocalDigits = stripLeadingZeroPhone(regForm.nomorHp, selectedCountryCode);
+    if (cleanLocalDigits !== regForm.nomorHp) {
+      setRegForm(prev => ({ ...prev, nomorHp: cleanLocalDigits }));
+    }
+    const combinedPhone = `${selectedCountryCode}${cleanLocalDigits}`;
+    if (!cleanLocalDigits || cleanLocalDigits.length < 6 || combinedPhone.length < 8) {
+      setRegError(`Nomor WhatsApp orang tua belum lengkap (contoh: ${activeCountryInfo.placeholder}).`);
       return;
     }
     if (!regForm.emailOrangTua.trim()) {
@@ -99,7 +167,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     setIsRegistering(true);
     try {
-      const res = gasService.registerUser(regForm);
+      const res = gasService.registerUser({
+        ...regForm,
+        nomorHp: combinedPhone
+      });
       if (res.success && res.user) {
         setRegisteredUser(res.user);
       } else {
@@ -513,22 +584,62 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                   {/* 3. Kontak: No. WA dan Email */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div>
-                      <label className="block text-xs font-bold text-slate-800 mb-1">
-                        No. WhatsApp Orang Tua <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                          <Phone className="w-4 h-4" />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-slate-800">
+                          No. WhatsApp Orang Tua <span className="text-rose-500">*</span>
+                        </label>
+                      </div>
+                      <div className="flex items-stretch rounded-xl border border-slate-300 bg-slate-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-emerald-600/20 focus-within:border-emerald-600 transition shadow-2xs overflow-hidden">
+                        <div className="flex items-center pl-2.5 pr-1 bg-slate-100 hover:bg-slate-200/70 border-r border-slate-300 shrink-0">
+                          <img
+                            src={`https://flagcdn.com/w40/${activeCountryInfo.iso.toLowerCase()}.png`}
+                            alt={activeCountryInfo.iso}
+                            className="w-4 h-3 object-cover rounded-[2px] border border-slate-300/80 mr-1 shrink-0"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                          <select
+                            aria-label="Pilih Kode Negara WhatsApp"
+                            value={selectedCountryCode}
+                            onChange={(e) => {
+                              const newCode = e.target.value;
+                              setSelectedCountryCode(newCode);
+                              if (regForm.nomorHp) {
+                                setRegForm(prev => ({
+                                  ...prev,
+                                  nomorHp: stripLeadingZeroPhone(prev.nomorHp, newCode)
+                                }));
+                              }
+                            }}
+                            className="py-2.5 bg-transparent text-slate-900 font-extrabold text-xs focus:outline-none cursor-pointer"
+                            title={`${activeCountryInfo.iso} +${selectedCountryCode}`}
+                          >
+                            {COUNTRY_CODES.map((c) => (
+                              <option key={c.code} value={c.code}>
+                                {c.iso} +{c.code}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <input
                           type="tel"
+                          inputMode="numeric"
                           value={regForm.nomorHp}
-                          onChange={(e) => setRegForm({ ...regForm, nomorHp: e.target.value })}
-                          placeholder="Contoh: 081234567890"
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-xs sm:text-sm font-semibold focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition shadow-2xs"
+                          onChange={(e) => handlePhoneInputChange(e.target.value)}
+                          onBlur={handlePhoneInputBlur}
+                          placeholder={`Contoh: ${activeCountryInfo.placeholder}`}
+                          className="w-full px-3 py-2.5 bg-transparent text-slate-900 font-mono text-xs sm:text-sm font-bold focus:outline-none min-w-0"
                           required
                         />
                       </div>
+                      <p className="text-[10px] text-emerald-800 font-medium mt-1 leading-tight">
+                        {fullInternationalPhone && cleanedPreviewDigits.length >= 6 ? (
+                          <span>✓ Database: <strong className="font-mono">{fullInternationalPhone}</strong> ({activeCountryInfo.iso} +{selectedCountryCode})</span>
+                        ) : (
+                          <span className="text-slate-500">Angka <strong>0</strong> di awal otomatis disesuaikan ke kode <strong>+{selectedCountryCode}</strong> saat pindah kolom / daftar</span>
+                        )}
+                      </p>
                     </div>
 
                     <div>

@@ -1,0 +1,920 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { gasService, formatPhoneNumberForWa } from '../../services/gasService';
+import { MuridLulusWaItem, UserAccount } from '../../types';
+import { 
+  MessageCircle, 
+  Send, 
+  CheckCircle2, 
+  Clock, 
+  Search, 
+  RefreshCw, 
+  Copy, 
+  Check, 
+  ExternalLink, 
+  Edit3, 
+  Smartphone, 
+  ShieldCheck, 
+  FileText, 
+  X, 
+  UserCheck, 
+  AlertCircle, 
+  Sliders, 
+  RotateCcw
+} from 'lucide-react';
+
+interface Props {
+  currentUser?: UserAccount | null;
+  onOpenCekKelulusan?: (noPendaftaran: string) => void;
+}
+
+export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKelulusan }) => {
+  const [muridList, setMuridList] = useState<MuridLulusWaItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searchKeyword, setSearchKeyword] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'sent' | 'pending'>('all');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Modal State
+  const [previewStudent, setPreviewStudent] = useState<MuridLulusWaItem | null>(null);
+  const [previewMessageText, setPreviewMessageText] = useState<string>('');
+  const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
+  const [editingTemplate, setEditingTemplate] = useState<string>('');
+  const [editingPhoneStudent, setEditingPhoneStudent] = useState<MuridLulusWaItem | null>(null);
+  const [inputCustomPhone, setInputCustomPhone] = useState<string>('');
+
+  const loadData = async (forceSpreadsheetSync: boolean = false) => {
+    setLoading(true);
+    setMuridList(gasService.getMuridLulusWaList());
+    if (gasService.isLiveGasConfigured() && typeof navigator !== 'undefined' && navigator.onLine) {
+      try {
+        await gasService.syncFromSpreadsheet(undefined, forceSpreadsheetSync);
+        setMuridList(gasService.getMuridLulusWaList());
+        if (forceSpreadsheetSync) {
+          showToast('Data calon murid & nomor WhatsApp (kode negara 62) berhasil disinkronkan dari Spreadsheet!');
+        }
+      } catch {
+        // fallback ke data lokal
+      }
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadData(false);
+
+    const handleDbUpdate = () => {
+      setMuridList(gasService.getMuridLulusWaList());
+    };
+
+    window.addEventListener('spmb_db_updated', handleDbUpdate);
+    window.addEventListener('storage', handleDbUpdate);
+    return () => {
+      window.removeEventListener('spmb_db_updated', handleDbUpdate);
+      window.removeEventListener('storage', handleDbUpdate);
+    };
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  };
+
+  // Statistik Pengiriman
+  const stats = useMemo(() => {
+    const total = muridList.length;
+    const sent = muridList.filter(m => m.isWaSent).length;
+    const pending = total - sent;
+    const percentage = total > 0 ? Math.round((sent / total) * 100) : 0;
+    return { total, sent, pending, percentage };
+  }, [muridList]);
+
+  // Filtered List
+  const filteredList = useMemo(() => {
+    return muridList.filter(m => {
+      // 1. Status Filter
+      if (statusFilter === 'sent' && !m.isWaSent) return false;
+      if (statusFilter === 'pending' && m.isWaSent) return false;
+
+      // 2. Keyword Filter
+      if (searchKeyword.trim()) {
+        const q = searchKeyword.trim().toLowerCase();
+        const inNama = m.namaLengkap.toLowerCase().includes(q);
+        const inNo = m.noPendaftaran.toLowerCase().includes(q);
+        const inAsal = m.asalSekolah.toLowerCase().includes(q);
+        const inNisn = m.nisn.toLowerCase().includes(q);
+        const inPhone = m.nomorHpAkun.toLowerCase().includes(q);
+        const inOrtu = m.namaAkunOrtu.toLowerCase().includes(q);
+        if (!inNama && !inNo && !inAsal && !inNisn && !inPhone && !inOrtu) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [muridList, statusFilter, searchKeyword]);
+
+  // Handler Kirim Pesan WhatsApp
+  const handleSendWa = (item: MuridLulusWaItem, customText?: string) => {
+    const cleanPhone = formatPhoneNumberForWa(item.nomorHpAkun);
+    if (!cleanPhone) {
+      alert(`Nomor WhatsApp untuk ${item.namaLengkap} belum tersedia atau belum valid. Silakan klik ikon pensil untuk memasukkan nomor WhatsApp akun pendaftaran.`);
+      return;
+    }
+
+    const message = customText || gasService.buildWaMessage(item);
+    const waUrl = `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(message)}`;
+
+    // Buka WhatsApp di tab / jendela baru
+    window.open(waUrl, '_blank', 'noopener,noreferrer');
+
+    // Tandai status terkirim
+    gasService.markWaSent(item.noPendaftaran, currentUser?.namaSiswa || 'Panitia SPMB');
+    loadData();
+    showToast(`WhatsApp untuk ${item.namaLengkap} dibuka. Status pengiriman ditandai Terkirim.`);
+  };
+
+  // Handler Copy Text
+  const handleCopyMessage = (item: MuridLulusWaItem, textToCopy?: string) => {
+    const text = textToCopy || gasService.buildWaMessage(item);
+    navigator.clipboard.writeText(text);
+    setCopiedId(item.noPendaftaran);
+    setTimeout(() => setCopiedId(null), 2500);
+    showToast(`Template pesan pengumuman untuk ${item.namaLengkap} berhasil disalin ke clipboard!`);
+  };
+
+  // Handler Toggle Status Terkirim
+  const handleToggleSent = (item: MuridLulusWaItem) => {
+    if (item.isWaSent) {
+      if (confirm(`Batalkan status terkirim untuk ${item.namaLengkap}?`)) {
+        gasService.unmarkWaSent(item.noPendaftaran);
+        loadData();
+        showToast(`Status pengiriman untuk ${item.namaLengkap} diubah menjadi Belum Dikirim.`);
+      }
+    } else {
+      gasService.markWaSent(item.noPendaftaran, currentUser?.namaSiswa || 'Panitia SPMB');
+      loadData();
+      showToast(`Status pengiriman untuk ${item.namaLengkap} ditandai Terkirim.`);
+    }
+  };
+
+  // Buka Modal Preview Pesan
+  const handleOpenPreview = (item: MuridLulusWaItem) => {
+    setPreviewStudent(item);
+    setPreviewMessageText(gasService.buildWaMessage(item));
+  };
+
+  // Buka Modal Edit Nomor HP
+  const handleOpenEditPhone = (item: MuridLulusWaItem) => {
+    setEditingPhoneStudent(item);
+    setInputCustomPhone(item.nomorHpAkun || '');
+  };
+
+  const handleSavePhone = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPhoneStudent) return;
+    gasService.updateCustomWaPhone(editingPhoneStudent.noPendaftaran, inputCustomPhone);
+    setEditingPhoneStudent(null);
+    loadData();
+    showToast(`Nomor WhatsApp untuk ${editingPhoneStudent.namaLengkap} berhasil diperbarui.`);
+  };
+
+  // Buka Modal Template Editor
+  const handleOpenTemplateModal = () => {
+    setEditingTemplate(gasService.getWaTemplate());
+    setShowTemplateModal(true);
+  };
+
+  const handleSaveTemplate = () => {
+    gasService.saveWaTemplate(editingTemplate);
+    setShowTemplateModal(false);
+    showToast('Template pesan pengumuman WhatsApp berhasil disimpan!');
+  };
+
+  const handleResetTemplate = () => {
+    if (confirm('Kembalikan template WhatsApp ke susunan standar resmi SMPIT Pondok Duta?')) {
+      gasService.resetWaTemplate();
+      setEditingTemplate(gasService.getWaTemplate());
+      showToast('Template dikembalikan ke format standar.');
+    }
+  };
+
+  // Uji Cek Langsung ke Halaman Kelulusan Website
+  const handleCheckWebsite = (item: MuridLulusWaItem) => {
+    if (onOpenCekKelulusan) {
+      onOpenCekKelulusan(item.noPendaftaran);
+    } else {
+      window.open(`/?tab=cek-kelulusan&no=${encodeURIComponent(item.noPendaftaran)}`, '_blank');
+    }
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-200">
+      
+      {/* Toast Alert */}
+      {toastMessage && (
+        <div className="fixed top-20 right-4 sm:right-8 z-50 bg-emerald-900 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 border border-emerald-700 animate-in slide-in-from-top-3 text-xs font-semibold">
+          <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* TOP HEADER CARD */}
+      <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 text-white shadow-xl border border-emerald-800/60 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>WhatsApp Pengumuman SPMB</span>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[11px] font-semibold border border-amber-400/30">
+              <ShieldCheck className="w-3 h-3" />
+              <span>Acuan: Nomor Akun Registrasi Pendaftar</span>
+            </span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+            Pengiriman Pengumuman Seleksi via WhatsApp
+          </h2>
+          <p className="text-xs text-emerald-100/90 mt-1.5 max-w-2xl leading-relaxed">
+            Kirimkan informasi pengumuman hasil seleksi SPMB langsung ke nomor WhatsApp orang tua murid yang digunakan saat <strong>pendaftaran user pertama kali</strong>. Pesan memuat pemberitahuan resmi dan panduan pengecekan hasil seleksi secara mandiri di menu <em>Cek Kelulusan</em> website, tanpa menampilkan status kelulusan di dalam pesan WhatsApp demi menjaga privasi calon peserta didik.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleOpenTemplateModal}
+            className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition flex items-center gap-2 border border-white/15 cursor-pointer shadow-xs"
+          >
+            <Sliders className="w-4 h-4 text-emerald-300" />
+            <span>Format Pesan WA</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => loadData(true)}
+            disabled={loading}
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>{loading ? 'Menyinkronkan...' : 'Segarkan Data'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* SUMMARY STAT CARDS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Calon Murid */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Calon Murid</p>
+            <h3 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{stats.total}</h3>
+            <p className="text-[11px] text-emerald-700 font-semibold mt-0.5">Pendaftar SPMB Terdaftar</p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+            <UserCheck className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Sudah Dikirim */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Sudah Dikirim WA</p>
+            <h3 className="text-2xl sm:text-3xl font-black text-emerald-700 mt-1">{stats.sent}</h3>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">Orang tua telah dihubungi</p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Belum Dikirim */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Belum Dikirim</p>
+            <h3 className="text-2xl sm:text-3xl font-black text-amber-600 mt-1">{stats.pending}</h3>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">Menunggu pengiriman</p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+            <Clock className="w-6 h-6" />
+          </div>
+        </div>
+
+        {/* Persentase Selesai */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Progres Pengiriman</p>
+            <span className="text-xs font-black text-emerald-700">{stats.percentage}%</span>
+          </div>
+          <div className="mt-2.5">
+            <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-emerald-600 to-teal-500 rounded-full transition-all duration-500"
+                style={{ width: `${stats.percentage}%` }}
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-400 mt-2 truncate">
+            {stats.sent} dari {stats.total} orang tua telah terkonfirmasi
+          </p>
+        </div>
+      </div>
+
+      {/* FILTER & PENCARIAN BAR */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs space-y-4">
+        <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
+          
+          {/* Input Pencarian */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="Cari nama calon murid, nomor pendaftaran, asal sekolah, atau nomor WA..."
+              className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50/50"
+            />
+            {searchKeyword && (
+              <button
+                type="button"
+                onClick={() => setSearchKeyword('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter Status Button Tabs */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl shrink-0 self-start md:self-auto">
+            <button
+              type="button"
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                statusFilter === 'all'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Semua ({stats.total})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('pending')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                statusFilter === 'pending'
+                  ? 'bg-amber-500 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Belum Dikirim ({stats.pending})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('sent')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                statusFilter === 'sent'
+                  ? 'bg-emerald-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Sudah Dikirim ({stats.sent})
+            </button>
+          </div>
+        </div>
+
+        {/* Information Callout */}
+        <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 text-[11px] text-emerald-900">
+          <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <strong>Penjelasan Acuan Nomor WhatsApp &amp; Pemulihan Kode Negara (62):</strong> Sistem secara otomatis menyandingkan nomor WhatsApp dari akun registrasi awal pendaftar (Sheet <em>Users</em>). Jika di Google Spreadsheet angka <code>0</code> di depan nomor hilang (misal tertulis <code>8561234567</code>), sistem <strong>secara otomatis memulihkannya menjadi awalan kode negara <code>628561234567</code></strong> sehingga langsung siap dikirim tanpa perlu mengedit Spreadsheet. Pesan WhatsApp tidak memuat status lulus/tidak lulus demi menjaga privasi hasil calon murid.
+          </div>
+        </div>
+      </div>
+
+      {/* TABEL DATA CALON MURID PENERIMA PENGUMUMAN SPMB */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="font-extrabold text-sm text-slate-900">
+              Daftar Calon Murid Penerima Pengumuman SPMB
+            </h3>
+            <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+              {filteredList.length} Murid
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-500">
+            Tahun Pelajaran 2027/2028
+          </span>
+        </div>
+
+        {filteredList.length === 0 ? (
+          <div className="p-12 text-center text-slate-500 space-y-3">
+            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+              <Search className="w-6 h-6" />
+            </div>
+            <p className="text-sm font-bold text-slate-700">Tidak ada data calon murid yang cocok.</p>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              Silakan lakukan pencarian dengan kata kunci lain atau klik tombol Segarkan Data di atas.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th className="py-3 px-4 w-12 text-center">No</th>
+                  <th className="py-3 px-4 min-w-[200px]">Calon Murid</th>
+                  <th className="py-3 px-4 min-w-[130px]">No. Pendaftaran</th>
+                  <th className="py-3 px-4 min-w-[180px]">No. WhatsApp Acuan</th>
+                  <th className="py-3 px-4 min-w-[130px]">Informasi Seleksi</th>
+                  <th className="py-3 px-4 min-w-[120px] text-center">Status WA</th>
+                  <th className="py-3 px-4 min-w-[230px] text-right">Aksi Pengiriman</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredList.map((item, index) => {
+                  const cleanPhone = formatPhoneNumberForWa(item.nomorHpAkun);
+                  const hasValidPhone = Boolean(cleanPhone && cleanPhone.length >= 9);
+
+                  return (
+                    <tr key={item.noPendaftaran} className="hover:bg-slate-50/70 transition">
+                      
+                      {/* No. Urut */}
+                      <td className="py-3.5 px-4 text-center font-bold text-slate-400">
+                        {index + 1}
+                      </td>
+
+                      {/* Calon Murid */}
+                      <td className="py-3.5 px-4">
+                        <div className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                          <span>{item.namaLengkap}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-1.5">
+                          <span>{item.asalSekolah}</span>
+                          <span className="text-slate-300">•</span>
+                          <span className="font-mono text-slate-600">NISN: {item.nisn || '-'}</span>
+                        </div>
+                      </td>
+
+                      {/* No. Pendaftaran */}
+                      <td className="py-3.5 px-4">
+                        <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-900 font-mono text-[11px] font-extrabold">
+                          <span>{item.noPendaftaran}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(item.noPendaftaran);
+                              showToast(`No. Pendaftaran ${item.noPendaftaran} disalin.`);
+                            }}
+                            title="Salin No. Pendaftaran"
+                            className="text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* No. WhatsApp Acuan Pendaftaran */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-1.5">
+                          {hasValidPhone ? (
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-1 font-mono font-bold text-emerald-800 text-xs">
+                                <Smartphone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>{item.nomorHpAkun}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
+                                  item.hasUserAccount
+                                    ? 'bg-emerald-100 text-emerald-900'
+                                    : 'bg-amber-100 text-amber-900'
+                                }`}>
+                                  {item.hasUserAccount ? 'Akun Pendaftaran' : 'Data Cadangan'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditPhone(item)}
+                                  title="Ubah / Sesuaikan Nomor WhatsApp"
+                                  className="text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] text-rose-600 font-bold flex items-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                <span>Belum ada No WA</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditPhone(item)}
+                                className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[10px] hover:bg-amber-200 transition cursor-pointer"
+                              >
+                                + Input
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Informasi Seleksi / Jadwal */}
+                      <td className="py-3.5 px-4">
+                        <div className="text-slate-800 font-semibold text-[11px]">
+                          {item.jadwalDaftarUlang || 'Pengumuman Resmi SPMB'}
+                        </div>
+                      </td>
+
+                      {/* Status Pengiriman */}
+                      <td className="py-3.5 px-4 text-center">
+                        {item.isWaSent ? (
+                          <div className="inline-flex flex-col items-center">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Terkirim</span>
+                            </span>
+                            {item.waSentAt && (
+                              <span className="text-[9px] text-slate-400 mt-0.5">
+                                {new Date(item.waSentAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200">
+                            <Clock className="w-3 h-3 text-slate-400" />
+                            <span>Belum</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Aksi Pengiriman */}
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          
+                          {/* Tombol Utama: Kirim WhatsApp */}
+                          <button
+                            type="button"
+                            onClick={() => handleSendWa(item)}
+                            title="Kirim pesan informasi pengumuman seleksi via WhatsApp"
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Kirim WA</span>
+                          </button>
+
+                          {/* Tombol Preview Bubble & Copy */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPreview(item)}
+                            title="Pratinjau pesan WhatsApp & salin teks"
+                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+
+                          {/* Tombol Quick Copy */}
+                          <button
+                            type="button"
+                            onClick={() => handleCopyMessage(item)}
+                            title="Salin template pesan ke clipboard"
+                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                          >
+                            {copiedId === item.noPendaftaran ? (
+                              <Check className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </button>
+
+                          {/* Tombol Uji Tautan Cek Website */}
+                          <button
+                            type="button"
+                            onClick={() => handleCheckWebsite(item)}
+                            title="Uji langsung tautan cek kelulusan calon murid ini"
+                            className="p-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 transition cursor-pointer"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </button>
+
+                          {/* Toggle Terkirim Manual */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSent(item)}
+                            title={item.isWaSent ? "Ubah status ke Belum Dikirim" : "Tandai sudah dikirim"}
+                            className={`p-1.5 rounded-xl border transition cursor-pointer ${
+                              item.isWaSent
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                                : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+
+                        </div>
+                      </td>
+
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL 1: PREVIEW PESAN WHATSAPP REALISTIS                                */}
+      {/* ========================================================================= */}
+      {previewStudent && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={() => setPreviewStudent(null)}
+        >
+          <div 
+            className="w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Modal */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-emerald-300 border border-white/15 shrink-0">
+                  <MessageCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm sm:text-base leading-tight">
+                    Pratinjau Pesan WhatsApp Pengumuman SPMB
+                  </h4>
+                  <p className="text-xs text-emerald-100/90 mt-0.5">
+                    Tujuan: {previewStudent.namaLengkap} ({previewStudent.nomorHpAkun || 'Nomor Belum Ada'})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewStudent(null)}
+                className="p-1.5 rounded-xl text-white/80 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Bubble WhatsApp Preview Container */}
+            <div className="p-5 overflow-y-auto flex-1 bg-[#efeae2] space-y-4">
+              
+              {/* Info Acuan */}
+              <div className="bg-white/80 backdrop-blur-xs p-3 rounded-2xl border border-slate-200/80 text-xs text-slate-700 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-slate-900 block">Nomor WhatsApp Acuan Akun Pendaftaran:</span>
+                  <span className="font-mono text-emerald-800 font-extrabold">{previewStudent.nomorHpAkun || '-'}</span>
+                  <span className="text-[11px] text-slate-500 block">Orang Tua / Pendaftar: {previewStudent.namaAkunOrtu}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleOpenEditPhone(previewStudent);
+                    setPreviewStudent(null);
+                  }}
+                  className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Ubah Nomor</span>
+                </button>
+              </div>
+
+              {/* Chat Bubble WhatsApp */}
+              <div className="max-w-md ml-auto bg-[#d9fdd3] text-[#111b21] p-4 rounded-2xl rounded-tr-xs shadow-sm border border-[#c4eec0] text-xs space-y-2 whitespace-pre-wrap font-sans leading-relaxed">
+                {previewMessageText}
+                <div className="text-[10px] text-slate-500 text-right flex items-center justify-end gap-1 pt-1 border-t border-emerald-100">
+                  <span>{new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => handleCopyMessage(previewStudent, previewMessageText)}
+                className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-300 text-slate-800 text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-2xs"
+              >
+                <Copy className="w-4 h-4 text-slate-600" />
+                <span>Salin Teks Pesan</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPreviewStudent(null)}
+                  className="px-4 py-2.5 rounded-xl text-slate-600 hover:text-slate-800 text-xs font-bold transition cursor-pointer"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSendWa(previewStudent, previewMessageText);
+                    setPreviewStudent(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-black transition flex items-center gap-2 shadow-md cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Buka WhatsApp Sekarang</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: SESUAIKAN TEMPLATE PESAN WHATSAPP                               */}
+      {/* ========================================================================= */}
+      {showTemplateModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={() => setShowTemplateModal(false)}
+        >
+          <div 
+            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 sm:p-5 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shrink-0">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm sm:text-base leading-tight">
+                    Sesuaikan Template Pesan WhatsApp
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Gunakan tag dinamis seperti <code>{'{namaLengkap}'}</code>, <code>{'{noPendaftaran}'}</code>, <code>{'{directLink}'}</code>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTemplateModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Teks Template Pesan WhatsApp:
+                </label>
+                <textarea
+                  value={editingTemplate}
+                  onChange={(e) => setEditingTemplate(e.target.value)}
+                  rows={14}
+                  className="w-full p-3.5 rounded-2xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-slate-50/50 leading-relaxed"
+                />
+              </div>
+
+              {/* Tag Variabel Dinamis */}
+              <div className="p-3.5 rounded-2xl bg-slate-100 border border-slate-200 text-xs space-y-1.5">
+                <div className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                  Variabel Dinamis yang Tersedia:
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    '{namaLengkap}', 
+                    '{namaPanggilan}', 
+                    '{noPendaftaran}', 
+                    '{nisn}', 
+                    '{asalSekolah}', 
+                    '{jadwalDaftarUlang}', 
+                    '{directLink}', 
+                    '{websiteUrl}', 
+                    '{tahunPelajaran}',
+                    '{namaAkunOrtu}'
+                  ].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setEditingTemplate(prev => prev + ' ' + tag)}
+                      className="px-2 py-0.5 rounded-md bg-white border border-slate-300 font-mono text-[11px] text-emerald-800 font-bold hover:bg-emerald-50 transition cursor-pointer"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={handleResetTemplate}
+                className="px-3.5 py-2 rounded-xl text-slate-600 hover:text-slate-800 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Standar</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateModal(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:text-slate-800 text-xs font-bold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveTemplate}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition cursor-pointer shadow-md"
+                >
+                  Simpan Template
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: UBAH / PERBAIKI NOMOR WHATSAPP PENDAFTAR                        */}
+      {/* ========================================================================= */}
+      {editingPhoneStudent && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+          onClick={() => setEditingPhoneStudent(null)}
+        >
+          <div 
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-slate-900">Ubah Nomor WhatsApp Acuan</h4>
+                  <p className="text-[11px] text-slate-500">{editingPhoneStudent.namaLengkap}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingPhoneStudent(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePhone} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nomor Handphone / WhatsApp:
+                </label>
+                <div className="relative">
+                  <Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    value={inputCustomPhone}
+                    onChange={(e) => setInputCustomPhone(e.target.value)}
+                    placeholder="Contoh: 08123456789 atau 628123456789"
+                    className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-300 font-mono text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Format awalan dapat berupa 08... atau 62... (sistem otomatis menstandarkan ke format internasional).
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingPhoneStudent(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:text-slate-800 text-xs font-bold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition cursor-pointer shadow-md"
+                >
+                  Simpan Nomor
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};

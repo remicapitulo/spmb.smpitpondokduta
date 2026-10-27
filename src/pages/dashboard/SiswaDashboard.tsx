@@ -78,9 +78,42 @@ export const SiswaDashboard: React.FC<Props> = ({
   const [customYangLainQ31, setCustomYangLainQ31] = useState<string>('');
 
   useEffect(() => {
-    if (biodataForm.noPendaftaran) {
-      const hostOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
-      const verificationUrl = `${hostOrigin}/?tab=cek-kelulusan&no=${encodeURIComponent(biodataForm.noPendaftaran || '')}&nisn=${encodeURIComponent(biodataForm.nisn || '')}`;
+    const activeNo = biodataForm.noPendaftaran || (currentUser?.role === 'siswa' ? currentUser.kodePendaftaran : '');
+    if (activeNo) {
+      let hostOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+      if (hostOrigin.includes('localhost') || hostOrigin.includes('127.0.0.1')) {
+        hostOrigin = 'https://ais-pre-v4ovydp5l654kzwgy4biwq-755407641990.asia-southeast1.run.app';
+      } else if (hostOrigin.includes('ais-dev-')) {
+        hostOrigin = hostOrigin.replace('ais-dev-', 'ais-pre-');
+      }
+
+      const isSelfSiswa = currentUser?.role === 'siswa' && (currentUser.kodePendaftaran || '').toUpperCase() === activeNo.toUpperCase();
+      const effectiveNama = biodataForm.namaLengkap || (isSelfSiswa ? currentUser?.namaSiswa : '') || '';
+      const effectivePanggilan = biodataForm.namaPanggilan || (effectiveNama ? effectiveNama.split(' ')[0] : '');
+      const effectiveAsal = biodataForm.asalSekolah || (isSelfSiswa ? currentUser?.sekolahAsal : '') || '';
+      const effectiveOrtu = biodataForm.namaAyah || biodataForm.namaIbu || (isSelfSiswa ? currentUser?.namaOrangTua : '') || '-';
+      const effectiveHp = biodataForm.noHpAyah || biodataForm.noHpIbu || biodataForm.nomorHandphone || biodataForm.nomorTelepon || (isSelfSiswa ? currentUser?.nomorHp : '') || '-';
+      const ttlStr = (biodataForm.tempatLahir ? biodataForm.tempatLahir + ', ' : '') + (biodataForm.tanggalLahir || '-');
+
+      const queryParams = new URLSearchParams({
+        tab: 'cek-kelulusan',
+        verifikasi: 'true',
+        no: activeNo,
+        nama: effectiveNama,
+        panggilan: effectivePanggilan,
+        nisn: biodataForm.nisn || '',
+        nik: biodataForm.nik || '',
+        asal: effectiveAsal,
+        jalur: biodataForm.jalurPendaftaran || 'Jalur Reguler SPMB',
+        jk: biodataForm.jenisKelamin || 'Laki-laki',
+        ttl: ttlStr,
+        ortu: effectiveOrtu,
+        hp: effectiveHp,
+        jadwal: 'Sabtu, 17 Januari 2026 · Pukul 08.00 - 11.30 WIB',
+        ruang: 'Ruang Aula - Gedung SMPIT Lt. 1'
+      });
+
+      const verificationUrl = `${hostOrigin}/?${queryParams.toString()}`;
 
       QRCode.toDataURL(verificationUrl, {
         width: 400,
@@ -91,7 +124,7 @@ export const SiswaDashboard: React.FC<Props> = ({
         .then((url) => setCardQrDataUrl(url))
         .catch(() => {});
     }
-  }, [biodataForm.noPendaftaran, biodataForm.namaLengkap, biodataForm.nisn]);
+  }, [biodataForm, currentUser]);
 
   useEffect(() => {
     if (currentUser?.role === 'siswa' && currentUser?.kodePendaftaran) {
@@ -143,10 +176,24 @@ export const SiswaDashboard: React.FC<Props> = ({
     const draft = gasService.getHasilWawancaraOrtu(noPend);
     setDraftWawancaraOrtu(draft);
     if (detail) {
-      setBiodataForm(detail.siswa);
+      const isSelfSiswa = currentUser?.role === 'siswa' && (currentUser.kodePendaftaran || '').toUpperCase() === noPend.toUpperCase();
+      const mergedSiswa: DataSiswa = {
+        ...detail.siswa,
+        noPendaftaran: detail.siswa.noPendaftaran || noPend,
+        namaLengkap: (detail.siswa.namaLengkap && detail.siswa.namaLengkap !== 'Calon Peserta Didik')
+          ? detail.siswa.namaLengkap
+          : (isSelfSiswa ? currentUser.namaSiswa : detail.siswa.namaLengkap),
+        asalSekolah: (detail.siswa.asalSekolah && detail.siswa.asalSekolah !== 'SD/MI Asal')
+          ? detail.siswa.asalSekolah
+          : (isSelfSiswa ? currentUser.sekolahAsal : detail.siswa.asalSekolah),
+        namaAyah: detail.siswa.namaAyah || (isSelfSiswa ? currentUser.namaOrangTua : ''),
+        nomorHandphone: detail.siswa.nomorHandphone || (isSelfSiswa ? currentUser.nomorHp : ''),
+        noHpAyah: detail.siswa.noHpAyah || (isSelfSiswa ? currentUser.nomorHp : '')
+      };
+      setBiodataForm(mergedSiswa);
       setWawancaraSiswaForm((detail.wawancaraSiswa || {
         noPendaftaran: noPend,
-        namaLengkap: detail.siswa.namaLengkap,
+        namaLengkap: mergedSiswa.namaLengkap,
         kebiasaanSholat: undefined,
         kemampuanMembacaQuran: undefined,
         jumlahJuzHafalan: undefined,
@@ -358,8 +405,8 @@ export const SiswaDashboard: React.FC<Props> = ({
                 onChange={(e) => handleSelectSiswa(e.target.value)}
                 className="flex-1 min-w-0 bg-emerald-950/90 text-white text-xs font-semibold rounded-xl px-3 py-2 border border-emerald-500/40 focus:outline-none shadow-xs truncate cursor-pointer"
               >
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>
+                {students.map((s, idx) => (
+                  <option key={`opt-siswa-nav-${s.id}-${idx}`} value={s.id}>
                     {s.id} - {s.nama} ({s.panggilan || 'Ananda'})
                   </option>
                 ))}

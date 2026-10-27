@@ -33,8 +33,8 @@ interface Props {
   onRoleChange?: (role: UserRole) => void;
   siswaSubTab?: 'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu';
   onSiswaSubTabChange?: (tab: 'biodata' | 'wawancara-siswa' | 'wawancara-ortu' | 'kartu') => void;
-  guruSubTeam?: 'ortu' | 'siswa' | 'data-induk';
-  onGuruSubTeamChange?: (team: 'ortu' | 'siswa' | 'data-induk') => void;
+  guruSubTeam?: 'ortu' | 'siswa' | 'data-induk' | 'whatsapp';
+  onGuruSubTeamChange?: (team: 'ortu' | 'siswa' | 'data-induk' | 'whatsapp') => void;
   onOpenGasConfig?: () => void;
   onOpenPanduan?: () => void;
   onLogout: () => void;
@@ -78,7 +78,7 @@ export const MobileBottomNav: React.FC<Props> = ({
   };
 
   // Handler pindah menu untuk Guru / Pewawancara / Admin
-  const handleGuruNav = (team: 'ortu' | 'siswa' | 'data-induk') => {
+  const handleGuruNav = (team: 'ortu' | 'siswa' | 'data-induk' | 'whatsapp') => {
     onGuruSubTeamChange?.(team);
     if (currentTab !== 'dashboard-guru') {
       onSelectTab('dashboard-guru');
@@ -560,6 +560,33 @@ export const MobileBottomNav: React.FC<Props> = ({
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-purple-700 shrink-0" />
+                  </button>
+                )}
+
+                {/* WhatsApp Kelulusan (Admin & Guru) */}
+                {(role === 'admin' || role === 'guru') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onRoleChange?.(role === 'admin' ? 'admin' : 'guru');
+                      handleGuruNav('whatsapp');
+                    }}
+                    className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition cursor-pointer ${
+                      currentTab === 'dashboard-guru' && guruSubTeam === 'whatsapp'
+                        ? 'bg-teal-50 border-teal-300 text-teal-950 font-bold'
+                        : 'bg-white border-slate-200/80 text-slate-700 hover:bg-teal-50/60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
+                        <MessageCircle className="w-4 h-4" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-xs text-slate-800">WhatsApp Pengumuman</div>
+                        <div className="text-[10px] text-slate-500 font-normal">Kirim Pengumuman ke Nomor Akun Pendaftar</div>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-teal-700 shrink-0" />
                   </button>
                 )}
 

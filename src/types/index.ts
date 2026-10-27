@@ -1,4 +1,4 @@
-export type UserRole = 'public' | 'siswa' | 'guru' | 'admin' | 'wawancara-otm' | 'observasi-siswa';
+export type UserRole = 'public' | 'siswa' | 'guru' | 'admin' | 'pengawas' | 'wawancara-otm' | 'observasi-siswa';
 
 /**
  * Menghitung Tahun Pelajaran SPMB secara resmi.
@@ -228,6 +228,10 @@ export interface ObservasiSiswaData {
   nisn?: string;
   asalSekolah?: string;
 
+  // Integrasi Rincian Daftar Ulang (Rujukan Kategori) dari Sheet Pembiayaan
+  kategoriPembiayaan?: string;
+  rincianBiaya?: PembiayaanCategory;
+
   // Optional compat fields
   namaPewawancara?: string;
   nilaiWawancaraOrtu?: number;
@@ -236,6 +240,26 @@ export interface ObservasiSiswaData {
 
   pdfUrl?: string;
   createdAt: string;
+}
+
+// Model Tabel Database Sheet "Pembiayaan" (16 Kolom Resmi)
+export interface PembiayaanCategory {
+  kategori: string;          // 1. Kategori
+  ring: string;              // 2. Ring
+  gelombang: string;         // 3. Gelombang
+  gedung: number;            // 4. Gedung
+  bpp: number;               // 5. BPP
+  seragam: number;           // 6. Seragam
+  subtotalI: number;         // 7. Subtotal I (Gedung + BPP + Seragam)
+  buku: number;              // 8. Buku
+  outingPerkemahan: number;  // 9. Outing Perkemahan
+  kbm: number;               // 10. KBM
+  komite: number;            // 11. Komite
+  osis: number;              // 12. OSIS
+  subtotalII: number;        // 13. Subtotal II (Buku + Outing + KBM + Komite + OSIS)
+  spp: number;               // 14. SPP
+  totalBiaya: number;        // 15. Total Biaya (Subtotal I + Subtotal II + SPP)
+  catatan: string;           // 16. Catatan
 }
 
 // Asesmen Mandiri Siswa (Calon Siswa)
@@ -267,6 +291,8 @@ export interface StatusKelulusanInfo {
   pesanPengumuman: string;
   jadwalDaftarUlang?: string;
   skorAkhir?: number;
+  kategoriPembiayaan?: string;
+  rincianBiaya?: PembiayaanCategory;
 }
 
 export interface DataIndukSiswa {
@@ -355,7 +381,30 @@ export interface UserAccount {
   nomorHp: string;
   emailOrangTua: string;
   createdAt: string;
-  role: 'siswa' | 'guru' | 'admin';
+  role: 'siswa' | 'guru' | 'admin' | 'pengawas';
   jabatan?: string;
 }
+
+export interface MuridPengumumanWaItem {
+  noPendaftaran: string;
+  namaLengkap: string;
+  namaPanggilan: string;
+  nisn: string;
+  asalSekolah: string;
+  status?: string;
+  skorAkhir?: number;
+  jadwalDaftarUlang?: string;
+  kategoriPembiayaan?: string;
+  // Nomor HP acuan pendaftaran user pertama kali (Sheet Users / Akun_User)
+  nomorHpAkun: string;
+  namaAkunOrtu: string;
+  emailAkun: string;
+  hasUserAccount: boolean;
+  // Log pengiriman WA
+  isWaSent: boolean;
+  waSentAt?: string;
+  waSentBy?: string;
+}
+
+export type MuridLulusWaItem = MuridPengumumanWaItem;
 

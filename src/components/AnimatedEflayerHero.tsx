@@ -11,17 +11,17 @@ import { gasService } from '../services/gasService';
  */
 export const AnimatedEflayerHero: React.FC = () => {
   const [imageSrc, setImageSrc] = useState<string>(() => {
-    const s = gasService.getAppSettings();
-    return s.heroDriveUrl || s.heroPhotoUrl;
+    return gasService.getEffectiveHeroImage();
   });
   const [cropMode, setCropMode] = useState<'cutout' | 'full'>(() => gasService.getAppSettings().heroCropMode || 'cutout');
+  const [imgLoadFailed, setImgLoadFailed] = useState<boolean>(false);
   const tahunPelajaran = getAcademicYear();
 
   useEffect(() => {
     const syncSettings = () => {
-      const current = gasService.getAppSettings();
-      setImageSrc(current.heroDriveUrl || current.heroPhotoUrl || '');
-      setCropMode(current.heroCropMode || 'cutout');
+      setImageSrc(gasService.getEffectiveHeroImage());
+      setCropMode(gasService.getAppSettings().heroCropMode || 'cutout');
+      setImgLoadFailed(false);
     };
 
     window.addEventListener('spmb_settings_updated', syncSettings);
@@ -120,22 +120,34 @@ export const AnimatedEflayerHero: React.FC = () => {
             <div className="w-full h-full overflow-hidden relative bg-white">
               {cropMode === 'cutout' ? (
                 <motion.img
-                  src={gasService.resolveImageUrl(imageSrc)}
+                  src={
+                    imgLoadFailed
+                      ? gasService.resolveDriveThumbnailUrl(imageSrc, 2000)
+                      : gasService.resolveImageUrl(imageSrc)
+                  }
                   alt="Foto Siswa SMPIT Pondok Duta"
                   referrerPolicy="no-referrer"
                   initial={{ scale: 1 }}
                   animate={{ scale: [1, 1.02, 1] }}
                   transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
                   className="w-full h-full object-cover object-top sm:object-center select-none pointer-events-none"
-                  style={{ imageRendering: '-webkit-optimize-contrast' }}
+                  onError={() => {
+                    if (!imgLoadFailed) setImgLoadFailed(true);
+                  }}
                 />
               ) : (
                 <img
-                  src={gasService.resolveImageUrl(imageSrc)}
+                  src={
+                    imgLoadFailed
+                      ? gasService.resolveDriveThumbnailUrl(imageSrc, 2000)
+                      : gasService.resolveImageUrl(imageSrc)
+                  }
                   alt="E-Flyer SPMB SMPIT Pondok Duta"
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-contain bg-white select-none pointer-events-none"
-                  style={{ imageRendering: '-webkit-optimize-contrast' }}
+                  onError={() => {
+                    if (!imgLoadFailed) setImgLoadFailed(true);
+                  }}
                 />
               )}
 

@@ -18,6 +18,96 @@ const SHEET_DB_NAME = "Hasil_Wawancara";
 const SHEET_SISWA_OBS = "Observasi_Siswa";
 const SHEET_WAWANCARA_SISWA = "Wawancara_Siswa";
 const SHEET_KELULUSAN = "Kelulusan";
+const SHEET_PEMBIAYAAN = "Pembiayaan";
+
+// Header Kolom Database Sheet "Pembiayaan" (16 Kolom Resmi Rincian Daftar Ulang)
+const PEMBIAYAAN_HEADERS = [
+  "Kategori",
+  "Ring",
+  "Gelombang",
+  "Gedung",
+  "BPP",
+  "Seragam",
+  "Subtotal I",
+  "Buku",
+  "Outing Perkemahan",
+  "KBM",
+  "Komite",
+  "OSIS",
+  "Subtotal II",
+  "SPP",
+  "Total Biaya",
+  "Catatan"
+];
+
+// Header Kolom Lengkap Biodata Siswa (Sesuai Struktur Form Biodata Lengkap & Data Induk - 65 Kolom)
+const SISWA_HEADERS = [
+  "No Pendaftaran",
+  "Nama Lengkap",
+  "Nama Panggilan",
+  "NISN",
+  "Jenis Kelamin",
+  "Tempat Lahir",
+  "Tanggal Lahir",
+  "Agama",
+  "Asal Sekolah",
+  "Alamat",
+  "Kelurahan",
+  "Kecamatan",
+  "Kota/Kabupaten",
+  "No HP Ortu",
+  "Nama Ayah",
+  "Pekerjaan Ayah",
+  "Penghasilan Ayah",
+  "No HP Ayah",
+  "Nama Ibu",
+  "Pekerjaan Ibu",
+  "Penghasilan Ibu",
+  "No HP Ibu",
+  "NIK Siswa",
+  "Kewarganegaraan",
+  "Anak Ke",
+  "Jml Sdr Kandung",
+  "Jml Sdr Tiri",
+  "Jml Sdr Angkat",
+  "Bahasa Sehari-hari",
+  "Berat Badan (kg)",
+  "Tinggi Badan (cm)",
+  "Golongan Darah",
+  "Penyakit Berat",
+  "Kelainan Jasmani",
+  "Bertempat Tinggal Pada",
+  "Jarak ke Sekolah (km)",
+  "Sarana Berangkat",
+  "Masuk Sebagai",
+  "Nomor Ijazah SD",
+  "Kesenian",
+  "Olahraga",
+  "Organisasi",
+  "Menerima Beasiswa",
+  "Prestasi",
+  "TTL Ayah",
+  "Agama Ayah",
+  "Pendidikan Ayah",
+  "Alamat Ayah",
+  "Email Ayah",
+  "TTL Ibu",
+  "Agama Ibu",
+  "Pendidikan Ibu",
+  "Alamat Ibu",
+  "Email Ibu",
+  "Nama Wali",
+  "TTL Wali",
+  "Agama Wali",
+  "Pendidikan Wali",
+  "Pekerjaan Wali",
+  "Penghasilan Wali",
+  "Alamat Wali",
+  "No HP Wali",
+  "Hubungan Wali",
+  "JSON Biodata Lengkap",
+  "Updated At"
+];
 
 // Header Kolom Lengkap Buku Induk Siswa (Standar Resmi Buku Induk Dikdasmen & Dapodik - TANPA JSON)
 const DATA_INDUK_HEADERS = [
@@ -236,24 +326,70 @@ function clearAppCache() {
 /**
  * Membuat dan memastikan seluruh 9 Sheet Database beserta header kolom lengkap.
  */
-function setupSheets() {
+function setupSheets(customHeadersMap) {
   const ss = getSpreadsheet();
   const createdSheets = [];
+  const updatedHeaders = [];
 
-  function ensureSheet(name, headers) {
+  function ensureSheet(name, headers, headerRowIndex) {
     let sheet = ss.getSheetByName(name);
     if (!sheet) {
       sheet = ss.insertSheet(name);
       createdSheets.push(name);
     }
-    if (sheet.getLastRow() === 0 && headers && headers.length > 0) {
-      sheet.appendRow(headers);
-      const headerRange = sheet.getRange(1, 1, 1, headers.length);
+    const hRow = headerRowIndex || 1;
+    if (!headers || headers.length === 0) return sheet;
+
+    const lastCol = sheet.getLastColumn();
+    const lastRow = sheet.getLastRow();
+
+    if (lastRow < hRow) {
+      // Sheet baru atau belum ada baris header
+      sheet.getRange(hRow, 1, 1, headers.length).setValues([headers]);
+      const headerRange = sheet.getRange(hRow, 1, 1, headers.length);
       headerRange.setBackground("#065f46");
       headerRange.setFontColor("#ffffff");
       headerRange.setFontWeight("bold");
-      sheet.setFrozenRows(1);
+      sheet.setFrozenRows(hRow);
+      updatedHeaders.push(name);
+      return sheet;
     }
+
+    // Sheet sudah ada: periksa apakah header baris hRow berbeda dengan target headers
+    const colsToRead = Math.max(lastCol, headers.length);
+    let existingHeaders = [];
+    if (colsToRead > 0) {
+      existingHeaders = sheet.getRange(hRow, 1, 1, colsToRead).getValues()[0] || [];
+    }
+
+    let needsUpdate = false;
+    if (existingHeaders.length < headers.length) {
+      needsUpdate = true;
+    } else {
+      for (let i = 0; i < headers.length; i++) {
+        const cur = String(existingHeaders[i] || "").trim();
+        const tgt = String(headers[i] || "").trim();
+        if (cur !== tgt) {
+          needsUpdate = true;
+          break;
+        }
+      }
+    }
+
+    if (needsUpdate) {
+      // Jika kolom lama lebih banyak dari target baru, bersihkan sel header yang tidak terpakai
+      if (lastCol > headers.length) {
+        sheet.getRange(hRow, headers.length + 1, 1, lastCol - headers.length).clearContent().setBackground("#ffffff");
+      }
+      sheet.getRange(hRow, 1, 1, headers.length).setValues([headers]);
+      const headerRange = sheet.getRange(hRow, 1, 1, headers.length);
+      headerRange.setBackground("#065f46");
+      headerRange.setFontColor("#ffffff");
+      headerRange.setFontWeight("bold");
+      sheet.setFrozenRows(hRow);
+      updatedHeaders.push(name);
+    }
+
     return sheet;
   }
 
@@ -295,25 +431,13 @@ function setupSheets() {
     "Sekolah Asal", "Nomor HP", "Email", "Role", "Jabatan", "Created At"
   ]);
 
-  // 3. Sheet Siswa (Dilengkapi seluruh kolom rincian biodata tanpa hanya bergantung pada JSON)
-  ensureSheet(SHEET_SISWA, [
-    "No Pendaftaran", "Nama Lengkap", "Nama Panggilan", "NISN", "Jenis Kelamin",
-    "Tempat Lahir", "Tanggal Lahir", "Agama", "Asal Sekolah", "Alamat",
-    "Kelurahan", "Kecamatan", "Kota/Kabupaten", "No HP Ortu",
-    "Nama Ayah", "Pekerjaan Ayah", "Penghasilan Ayah", "No HP Ayah",
-    "Nama Ibu", "Pekerjaan Ibu", "Penghasilan Ibu", "No HP Ibu",
-    "NIK Siswa", "Kewarganegaraan", "Anak Ke", "Jml Sdr Kandung", "Jml Sdr Tiri", "Jml Sdr Angkat",
-    "Bahasa Sehari-hari", "Berat Badan (kg)", "Tinggi Badan (cm)", "Golongan Darah",
-    "Penyakit Berat", "Kelainan Jasmani", "Bertempat Tinggal Pada", "Jarak ke Sekolah (km)",
-    "Sarana Berangkat", "Masuk Sebagai", "Nomor Ijazah SD", "Kesenian", "Olahraga", "Organisasi",
-    "Menerima Beasiswa", "Prestasi", "TTL Ayah", "Agama Ayah", "Pendidikan Ayah", "Alamat Ayah", "Email Ayah",
-    "TTL Ibu", "Agama Ibu", "Pendidikan Ibu", "Alamat Ibu", "Email Ibu",
-    "Nama Wali", "TTL Wali", "Agama Wali", "Pendidikan Wali", "Pekerjaan Wali", "Penghasilan Wali", "Alamat Wali", "No HP Wali", "Hubungan Wali",
-    "JSON Biodata Lengkap", "Updated At"
-  ]);
+  // 3. Sheet Siswa (Gunakan SISWA_HEADERS 65 kolom lengkap atau custom headers dari web app)
+  const activeSiswaHeaders = (customHeadersMap && customHeadersMap.Siswa) || SISWA_HEADERS;
+  ensureSheet(SHEET_SISWA, activeSiswaHeaders);
 
   // 4. Sheet Data Induk Sekolah (RESMI - SELURUH KOLOM LENGKAP TANPA JSON)
-  ensureSheet(SHEET_DATA_INDUK, DATA_INDUK_HEADERS);
+  const activeDataIndukHeaders = (customHeadersMap && customHeadersMap.DataInduk) || DATA_INDUK_HEADERS;
+  ensureSheet(SHEET_DATA_INDUK, activeDataIndukHeaders);
 
   // 5. Sheet OTM
   let otmSheet = ss.getSheetByName(SHEET_OTM_NAME);
@@ -321,16 +445,25 @@ function setupSheets() {
     otmSheet = ss.insertSheet(SHEET_OTM_NAME);
     createdSheets.push(SHEET_OTM_NAME);
   }
+  const otmHeaders = [
+    "No Pendaftaran", "Nama Lengkap Siswa", "Nama Panggilan", "Jenis Kelamin",
+    "Asal Sekolah", "NISN", "Nama Ayah", "Nama Ibu", "No HP WhatsApp", "Timestamp"
+  ];
+  for (let q = 1; q <= 35; q++) {
+    otmHeaders.push("Q" + q + " (Ref Index " + (q + 9) + ")");
+  }
   if (otmSheet.getLastRow() === 0) {
-    const otmHeaders = [
-      "No Pendaftaran", "Nama Lengkap Siswa", "Nama Panggilan", "Jenis Kelamin",
-      "Asal Sekolah", "NISN", "Nama Ayah", "Nama Ibu", "No HP WhatsApp", "Timestamp"
-    ];
-    for (let q = 1; q <= 35; q++) {
-      otmHeaders.push("Q" + q + " (Ref Index " + (q + 9) + ")");
-    }
     otmSheet.appendRow(["DATABASE KUESIONER WAWANCARA ORANG TUA (OTM) - SPMB SMPIT PONDOK DUTA"]);
     otmSheet.appendRow(otmHeaders);
+    const hRange = otmSheet.getRange(2, 1, 1, otmHeaders.length);
+    hRange.setBackground("#065f46");
+    hRange.setFontColor("#ffffff");
+    hRange.setFontWeight("bold");
+    otmSheet.setFrozenRows(2);
+    updatedHeaders.push(SHEET_OTM_NAME);
+  } else {
+    // Selalu pastikan baris 2 OTM sinkron dengan otmHeaders
+    otmSheet.getRange(2, 1, 1, otmHeaders.length).setValues([otmHeaders]);
     const hRange = otmSheet.getRange(2, 1, 1, otmHeaders.length);
     hRange.setBackground("#065f46");
     hRange.setFontColor("#ffffff");
@@ -367,14 +500,48 @@ function setupSheets() {
     "Jalur", "Status Kelulusan", "Skor Akhir", "Pesan Pengumuman", "Jadwal Daftar Ulang", "Updated At"
   ]);
 
+  // 10. Sheet Pembiayaan (Rincian Biaya Daftar Ulang Resmi - 16 Kolom)
+  const activePembiayaanHeaders = (customHeadersMap && customHeadersMap.Pembiayaan) || PEMBIAYAAN_HEADERS;
+  ensureSheet(SHEET_PEMBIAYAAN, activePembiayaanHeaders);
+
+  // Migrasi otomatis baris di Sheet Siswa jika ada baris yang belum terurai lengkap 65 kolom
+  try {
+    const sSheet = ss.getSheetByName(SHEET_SISWA);
+    if (sSheet && sSheet.getLastRow() >= 2) {
+      const allRows = sSheet.getDataRange().getValues();
+      for (let r = 1; r < allRows.length; r++) {
+        const rowVals = allRows[r];
+        if (rowVals.length < activeSiswaHeaders.length) {
+          let jsonObj = null;
+          for (let c = rowVals.length - 1; c >= 20; c--) {
+            const cellVal = rowVals[c];
+            if (typeof cellVal === "string" && cellVal.indexOf("{") !== -1 && cellVal.indexOf("noPendaftaran") !== -1) {
+              try {
+                jsonObj = JSON.parse(cellVal);
+                break;
+              } catch (e) {}
+            }
+          }
+          if (jsonObj) {
+            const expRow = buildFullSiswaRow(jsonObj);
+            sSheet.getRange(r + 1, 1, 1, expRow.length).setValues([expRow]);
+          }
+        }
+      }
+    }
+  } catch (migErr) {}
+
   return {
     success: true,
     spreadsheetId: ss.getId(),
     spreadsheetName: ss.getName(),
     spreadsheetUrl: ss.getUrl(),
     createdSheets: createdSheets,
+    updatedHeaders: updatedHeaders,
     allSheets: ss.getSheets().map(function(s) { return s.getName(); }),
-    message: "Inisialisasi 9 Sheet Database (termasuk 'Data Induk Sekolah' & 'Setting') pada Spreadsheet '" + ss.getName() + "' berhasil!"
+    message: updatedHeaders.length > 0
+      ? "Header kolom Sheet (" + updatedHeaders.join(", ") + ") berhasil diperbarui dan disinkronkan sesuai kode terbaru!"
+      : "Seluruh 9 Sheet Database SPMB SMPIT Pondok Duta siap digunakan."
   };
 }
 
@@ -452,7 +619,22 @@ function saveSettingsToSheet(payload) {
         "Link File Foto Badge Beranda di dalam Folder Google Drive",
         nowIso
       ], 2);
+    } else if (settings.heroDriveUrl) {
+      upsertRowByKey(sheet, 0, "HERO_DRIVE_LINK", [
+        "HERO_DRIVE_LINK",
+        safeCellString(settings.heroDriveUrl),
+        "Link File Foto Badge Beranda Asli Google Drive",
+        nowIso
+      ], 2);
+    } else if (heroVal && (heroVal.indexOf("drive.google.com") !== -1 || heroVal.indexOf("lh3.googleusercontent.com") !== -1)) {
+      upsertRowByKey(sheet, 0, "HERO_DRIVE_LINK", [
+        "HERO_DRIVE_LINK",
+        safeCellString(heroVal),
+        "Link File Foto Badge Beranda Asli Google Drive",
+        nowIso
+      ], 2);
     }
+
     upsertRowByKey(sheet, 0, "HERO_PHOTO_URL", [
       "HERO_PHOTO_URL",
       safeCellString(heroVal),
@@ -492,7 +674,7 @@ function doGet(e) {
         result.sheets = ss.getSheets().map(function(s) { return s.getName(); });
         result.settings = getSettingsFromSheet();
         result.message = "Terhubung ke Google Spreadsheet: " + ss.getName();
-      } else if (action === "setupSheets") {
+      } else if (action === "setupSheets" || action === "syncHeaders") {
         clearAppCache();
         result = setupSheets();
       } else if (action === "clearCache") {
@@ -531,6 +713,14 @@ function doGet(e) {
         result.data = getDataIndukFromSheet();
         setAppCache("DATA_INDUK", result.data);
         result.success = true;
+      } else if (action === "getPembiayaanList" || action === "getPembiayaan") {
+        const cached = getAppCache("PEMBIAYAAN_LIST");
+        if (cached) {
+          return jsonResponse({ success: true, data: cached, fromCache: true });
+        }
+        result.data = getPembiayaanFromSheet();
+        setAppCache("PEMBIAYAAN_LIST", result.data);
+        result.success = true;
       }
     } catch (err) {
       result.error = err.toString();
@@ -562,8 +752,8 @@ function doPost(e) {
     // Bersihkan cache jika ada operasi simpan/tulis agar request baca berikutnya selalu fresh
     clearAppCache();
 
-    if (action === "setupSheets") {
-      result = setupSheets();
+    if (action === "setupSheets" || action === "syncHeaders") {
+      result = setupSheets(postData.headers);
     } else if (action === "saveSettings") {
       result = saveSettingsToSheet(postData);
     } else if (action === "uploadAssetToDrive") {
@@ -603,6 +793,8 @@ function doPost(e) {
       result = saveBatchDataIndukToSheet(postData);
     } else if (action === "updateNis") {
       result = updateStudentNisInSheet(postData.noPendaftaran, postData.nis);
+    } else if (action === "savePembiayaanList") {
+      result = savePembiayaanListToSheet(postData);
     } else if (action === "syncAllToSheet") {
       result = syncAllLocalToSheet(postData);
     } else {
@@ -635,6 +827,25 @@ function upsertRowByKey(sheet, keyColIndex, keyValue, rowValues, startRow) {
   return { updated: false, row: sheet.getLastRow() };
 }
 
+function normalizePhone62(val) {
+  if (val === undefined || val === null) return "";
+  var raw = String(val).trim();
+  if (!raw || raw === "-" || raw === "0") return "";
+  var clean = raw.replace(/[^0-9]/g, "");
+  if (!clean || clean.length < 7) return raw;
+  if (clean.indexOf("00") === 0) {
+    clean = clean.substring(2);
+  }
+  if (clean.indexOf("620") === 0) {
+    clean = "62" + clean.substring(3);
+  } else if (clean.indexOf("0") === 0) {
+    clean = "62" + clean.substring(1);
+  } else if (clean.indexOf("8") === 0 && clean.length >= 8 && clean.length <= 11) {
+    clean = "62" + clean;
+  }
+  return clean;
+}
+
 function saveUserAndStudentToSheet(payload) {
   setupSheets();
   const ss = getSpreadsheet();
@@ -649,7 +860,7 @@ function saveUserAndStudentToSheet(payload) {
       user.namaSiswa || "",
       user.namaOrangTua || "",
       user.sekolahAsal || "",
-      user.nomorHp || "",
+      normalizePhone62(user.nomorHp || ""),
       user.emailOrangTua || "",
       user.role || "siswa",
       user.jabatan || "",
@@ -667,16 +878,9 @@ function saveUserAndStudentToSheet(payload) {
   };
 }
 
-/**
- * Menyimpan data siswa ke Sheet "Siswa" dengan memetakan seluruh rincian biodata ke kolom masing-masing
- * sehingga tabel di database terisi lengkap tanpa harus mengurai JSON.
- */
-function upsertSiswaToSheet(siswa) {
-  setupSheets();
-  const ss = getSpreadsheet();
-  const siswaSheet = ss.getSheetByName(SHEET_SISWA);
-
-  const fullRow = [
+function buildFullSiswaRow(siswa) {
+  if (!siswa) return [];
+  return [
     siswa.noPendaftaran || "",
     siswa.namaLengkap || "",
     siswa.namaPanggilan || "",
@@ -743,7 +947,98 @@ function upsertSiswaToSheet(siswa) {
     JSON.stringify(siswa),
     new Date().toISOString()
   ];
+}
 
+function mapRowToSiswaObject(row) {
+  if (!row || !row[0]) return null;
+  // Cari apakah ada cell JSON di baris ini
+  for (let c = row.length - 1; c >= 20; c--) {
+    const val = row[c];
+    if (typeof val === "string" && val.indexOf("{") !== -1 && val.indexOf("noPendaftaran") !== -1) {
+      try {
+        const parsed = JSON.parse(val);
+        if (parsed && parsed.noPendaftaran) return parsed;
+      } catch (e) {}
+    }
+  }
+
+  return {
+    noPendaftaran: String(row[0] || ""),
+    namaLengkap: String(row[1] || ""),
+    namaPanggilan: String(row[2] || ""),
+    nisn: String(row[3] || ""),
+    jenisKelamin: String(row[4] || "Laki-laki"),
+    tempatLahir: String(row[5] || ""),
+    tanggalLahir: String(row[6] || ""),
+    agama: String(row[7] || "Islam"),
+    asalSekolah: String(row[8] || ""),
+    alamat: String(row[9] || ""),
+    kelurahan: String(row[10] || ""),
+    kecamatan: String(row[11] || ""),
+    kotaKabupaten: String(row[12] || ""),
+    nomorHandphone: String(row[13] || ""),
+    namaAyah: String(row[14] || ""),
+    pekerjaanAyah: String(row[15] || ""),
+    penghasilanAyah: String(row[16] || ""),
+    noHpAyah: String(row[17] || ""),
+    namaIbu: String(row[18] || ""),
+    pekerjaanIbu: String(row[19] || ""),
+    penghasilanIbu: String(row[20] || ""),
+    noHpIbu: String(row[21] || ""),
+    nik: String(row[22] || ""),
+    kewarganegaraan: String(row[23] || "Indonesia"),
+    anakNomorKe: row[24] !== undefined && row[24] !== "" ? row[24] : 1,
+    jumlahSaudaraKandung: row[25] !== undefined && row[25] !== "" ? row[25] : 0,
+    jumlahSaudaraTiri: row[26] !== undefined && row[26] !== "" ? row[26] : 0,
+    jumlahSaudaraAngkat: row[27] !== undefined && row[27] !== "" ? row[27] : 0,
+    bahasaSehariHari: String(row[28] || "Bahasa Indonesia"),
+    beratBadanKg: row[29] !== undefined && row[29] !== "" ? row[29] : "",
+    tinggiBadanCm: row[30] !== undefined && row[30] !== "" ? row[30] : "",
+    golonganDarah: String(row[31] || "-"),
+    penyakitBerat: String(row[32] || "-"),
+    kelainanJasmani: String(row[33] || "-"),
+    bertempatTinggalPada: String(row[34] || "Orang Tua"),
+    jarakKeSekolahKm: row[35] !== undefined && row[35] !== "" ? row[35] : 1,
+    saranaBerangkatSekolah: String(row[36] || "Motor"),
+    masukSebagai: String(row[37] || "Siswa Baru"),
+    nomorIjazah: String(row[38] || "-"),
+    kegemaranKesenian: String(row[39] || "-"),
+    kegemaranOlahraga: String(row[40] || "-"),
+    kegemaranOrganisasi: String(row[41] || "-"),
+    menerimaBeasiswa: String(row[42] || "-"),
+    memenangkanKejuaraan: String(row[43] || "-"),
+    tempatTanggalLahirAyah: String(row[44] || ""),
+    agamaAyah: String(row[45] || "Islam"),
+    pendidikanAyah: String(row[46] || ""),
+    alamatAyah: String(row[47] || ""),
+    emailAyah: String(row[48] || ""),
+    tempatTanggalLahirIbu: String(row[49] || ""),
+    agamaIbu: String(row[50] || "Islam"),
+    pendidikanIbu: String(row[51] || ""),
+    alamatIbu: String(row[52] || ""),
+    emailIbu: String(row[53] || ""),
+    namaWali: String(row[54] || "-"),
+    tempatTanggalLahirWali: String(row[55] || "-"),
+    agamaWali: String(row[56] || "-"),
+    pendidikanWali: String(row[57] || "-"),
+    pekerjaanWali: String(row[58] || "-"),
+    penghasilanWali: String(row[59] || "-"),
+    alamatWali: String(row[60] || "-"),
+    noHpWali: String(row[61] || "-"),
+    statusHubunganWali: String(row[62] || "-")
+  };
+}
+
+/**
+ * Menyimpan data siswa ke Sheet "Siswa" dengan memetakan seluruh rincian biodata ke kolom masing-masing
+ * sehingga tabel di database terisi lengkap tanpa harus mengurai JSON.
+ */
+function upsertSiswaToSheet(siswa) {
+  setupSheets();
+  const ss = getSpreadsheet();
+  const siswaSheet = ss.getSheetByName(SHEET_SISWA);
+
+  const fullRow = buildFullSiswaRow(siswa);
   upsertRowByKey(siswaSheet, 0, siswa.noPendaftaran, fullRow, 2);
 
   const otmSheet = ss.getSheetByName(SHEET_OTM_NAME);
@@ -938,16 +1233,21 @@ function getDataIndukFromSheet() {
   if (!sheet || sheet.getLastRow() < 2) return result;
 
   const rows = sheet.getDataRange().getValues();
+  const seenInduk = {};
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
-    if (r[4]) { // Memiliki No Pendaftaran
+    const noPend = String(r[4] || "").trim();
+    if (noPend) {
+      const key = noPend.toUpperCase();
+      if (seenInduk[key]) continue;
+      seenInduk[key] = true;
       result.push({
-        id: "INDUK-" + (r[4] || i),
-        noUrut: Number(r[0]) || i,
+        id: "INDUK-" + noPend,
+        noUrut: Number(r[0]) || (result.length + 1),
         nis: String(r[1] || ""),
         nisn: String(r[2] || ""),
         nik: String(r[3] || ""),
-        noPendaftaran: String(r[4] || ""),
+        noPendaftaran: noPend,
         namaLengkap: String(r[5] || ""),
         namaPanggilan: String(r[6] || ""),
         jenisKelamin: String(r[7] || "Laki-laki"),
@@ -1101,7 +1401,7 @@ function saveDraftOrTtdOrtu(payload) {
 }
 
 function syncAllLocalToSheet(payload) {
-  setupSheets();
+  setupSheets(payload && payload.headers);
   const ss = getSpreadsheet();
 
   if (payload.settings) {
@@ -1216,12 +1516,115 @@ function syncAllLocalToSheet(payload) {
     });
   }
 
+  if (Array.isArray(payload.pembiayaanList) && payload.pembiayaanList.length > 0) {
+    savePembiayaanListToSheet({ pembiayaanList: payload.pembiayaanList });
+  }
+
   return {
     success: true,
     spreadsheetName: ss.getName(),
     spreadsheetUrl: ss.getUrl(),
     message: "Seluruh data berhasil disinkronkan ke Google Spreadsheet '" + ss.getName() + "'!"
   };
+}
+
+function savePembiayaanListToSheet(payload) {
+  setupSheets();
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_PEMBIAYAAN);
+  if (!sheet) return { success: false, message: "Sheet Pembiayaan tidak ditemukan." };
+  const list = payload.pembiayaanList || [];
+  if (!Array.isArray(list) || list.length === 0) return { success: true, count: 0 };
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+  }
+
+  const rows = list.map(function(item) {
+    return [
+      item.kategori || "",
+      item.ring || "",
+      item.gelombang || "",
+      Number(item.gedung) || 0,
+      Number(item.bpp) || 0,
+      Number(item.seragam) || 0,
+      Number(item.subtotalI) || 0,
+      Number(item.buku) || 0,
+      Number(item.outingPerkemahan) || 0,
+      Number(item.kbm) || 0,
+      Number(item.komite) || 0,
+      Number(item.osis) || 0,
+      Number(item.subtotalII) || 0,
+      Number(item.spp) || 0,
+      Number(item.totalBiaya) || 0,
+      item.catatan || ""
+    ];
+  });
+
+  sheet.getRange(2, 1, rows.length, PEMBIAYAAN_HEADERS.length).setValues(rows);
+  return { success: true, count: rows.length, message: "Berhasil menyimpan " + rows.length + " data pembiayaan." };
+}
+
+/**
+ * Membaca seluruh data kategori pembiayaan dari Sheet "Pembiayaan" (16 Kolom Resmi)
+ */
+function getPembiayaanFromSheet() {
+  const ss = getSpreadsheet();
+  const sheet = ss.getSheetByName(SHEET_PEMBIAYAAN);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  const rows = sheet.getDataRange().getValues();
+  const list = [];
+
+  function cleanNum(val) {
+    if (val === undefined || val === null || val === "" || val === "-") return 0;
+    if (typeof val === "number") return isNaN(val) ? 0 : val;
+    var cleaned = String(val).replace(/[^0-9-]/g, "");
+    var n = parseInt(cleaned, 10);
+    return isNaN(n) ? 0 : n;
+  }
+
+  for (var i = 1; i < rows.length; i++) {
+    var row = rows[i];
+    var kat = String(row[0] || "").trim();
+    if (!kat) continue;
+
+    var gedung = cleanNum(row[3]);
+    var bpp = cleanNum(row[4]);
+    var seragam = cleanNum(row[5]);
+    var subtotalI = cleanNum(row[6]) > 0 ? cleanNum(row[6]) : (gedung + bpp + seragam);
+
+    var buku = cleanNum(row[7]);
+    var outing = cleanNum(row[8]);
+    var kbm = cleanNum(row[9]);
+    var komite = cleanNum(row[10]);
+    var osis = cleanNum(row[11]);
+    var subtotalII = cleanNum(row[12]) > 0 ? cleanNum(row[12]) : (buku + outing + kbm + komite + osis);
+
+    var spp = cleanNum(row[13]);
+    var totalBiaya = cleanNum(row[14]) > 0 ? cleanNum(row[14]) : (subtotalI + subtotalII + spp);
+
+    list.push({
+      kategori: kat,
+      ring: String(row[1] || "Ring 1").trim(),
+      gelombang: String(row[2] || "Gelombang 2").trim(),
+      gedung: gedung,
+      bpp: bpp,
+      seragam: seragam,
+      subtotalI: subtotalI,
+      buku: buku,
+      outingPerkemahan: outing,
+      kbm: kbm,
+      komite: komite,
+      osis: osis,
+      subtotalII: subtotalII,
+      spp: spp,
+      totalBiaya: totalBiaya,
+      catatan: String(row[15] || "").trim()
+    });
+  }
+  return list;
 }
 
 function getAllDatabaseData() {
@@ -1237,7 +1640,8 @@ function getAllDatabaseData() {
     hasilOrtuMap: {},
     observasiList: [],
     wawancaraSiswaList: [],
-    kelulusanList: []
+    kelulusanList: [],
+    pembiayaanList: []
   };
 
   const userSheet = ss.getSheetByName(SHEET_USERS);
@@ -1251,7 +1655,7 @@ function getAllDatabaseData() {
           namaSiswa: String(rows[i][2] || ""),
           namaOrangTua: String(rows[i][3] || ""),
           sekolahAsal: String(rows[i][4] || ""),
-          nomorHp: String(rows[i][5] || ""),
+          nomorHp: normalizePhone62(rows[i][5] || ""),
           emailOrangTua: String(rows[i][6] || ""),
           role: String(rows[i][7] || "siswa"),
           jabatan: String(rows[i][8] || ""),
@@ -1264,49 +1668,23 @@ function getAllDatabaseData() {
   const siswaSheet = ss.getSheetByName(SHEET_SISWA);
   if (siswaSheet && siswaSheet.getLastRow() >= 2) {
     const rows = siswaSheet.getDataRange().getValues();
+    const seenSiswa = {};
     for (let i = 1; i < rows.length; i++) {
-      const lastIdx = rows[i].length - 2;
-      const jsonStr = rows[i][lastIdx] || rows[i][22];
-      let parsed = null;
-      if (typeof jsonStr === "string" && jsonStr.indexOf("{") !== -1) {
-        try {
-          parsed = JSON.parse(jsonStr);
-          result.siswaList.push(parsed);
-          continue;
-        } catch (e) {}
-      }
-      if (rows[i][0]) {
-        result.siswaList.push({
-          noPendaftaran: String(rows[i][0]),
-          namaLengkap: String(rows[i][1] || ""),
-          namaPanggilan: String(rows[i][2] || ""),
-          nisn: String(rows[i][3] || ""),
-          jenisKelamin: String(rows[i][4] || "Laki-laki"),
-          tempatLahir: String(rows[i][5] || ""),
-          tanggalLahir: String(rows[i][6] || ""),
-          agama: String(rows[i][7] || "Islam"),
-          asalSekolah: String(rows[i][8] || ""),
-          alamat: String(rows[i][9] || ""),
-          kelurahan: String(rows[i][10] || ""),
-          kecamatan: String(rows[i][11] || ""),
-          kotaKabupaten: String(rows[i][12] || ""),
-          nomorHandphone: String(rows[i][13] || ""),
-          namaAyah: String(rows[i][14] || ""),
-          pekerjaanAyah: String(rows[i][15] || ""),
-          penghasilanAyah: String(rows[i][16] || ""),
-          noHpAyah: String(rows[i][17] || ""),
-          namaIbu: String(rows[i][18] || ""),
-          pekerjaanIbu: String(rows[i][19] || ""),
-          penghasilanIbu: String(rows[i][20] || ""),
-          noHpIbu: String(rows[i][21] || ""),
-          nik: String(rows[i][22] || "")
-        });
+      const studentObj = mapRowToSiswaObject(rows[i]);
+      if (studentObj && studentObj.noPendaftaran) {
+        const key = String(studentObj.noPendaftaran).trim().toUpperCase();
+        if (seenSiswa[key]) continue;
+        seenSiswa[key] = true;
+        result.siswaList.push(studentObj);
       }
     }
   }
 
   // Tarik Data Induk Sekolah
   result.dataIndukList = getDataIndukFromSheet();
+
+  // Tarik Data Kategori Pembiayaan (16 Kolom Resmi)
+  result.pembiayaanList = getPembiayaanFromSheet();
 
   const otmSheet = ss.getSheetByName(SHEET_OTM_NAME);
   if (otmSheet && otmSheet.getLastRow() >= 3) {

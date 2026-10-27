@@ -97,7 +97,18 @@ export const DataIndukSekolahTab: React.FC<Props> = ({
     });
 
     const rawSiswa = localStorage.getItem('spmb_pd_siswa_data');
-    const allSiswa: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
+    const allSiswaRaw: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
+    
+    // Deduplikasi kandidat siswa berdasarkan noPendaftaran agar tidak ada data ganda
+    const seenPend = new Set<string>();
+    const allSiswa: DataSiswa[] = [];
+    allSiswaRaw.forEach(s => {
+      const np = (s.noPendaftaran || '').trim().toUpperCase();
+      if (!np || !seenPend.has(np)) {
+        if (np) seenPend.add(np);
+        allSiswa.push(s);
+      }
+    });
 
     if (filterCandidateMode === 'lulus') {
       const filtered = allSiswa.filter(s => lulusNoPendSet.has(s.noPendaftaran.toUpperCase()));
@@ -467,11 +478,11 @@ export const DataIndukSekolahTab: React.FC<Props> = ({
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {pendingLulusStudents.map(siswa => {
+            {pendingLulusStudents.map((siswa, idx) => {
               const isSelected = selectedToCopy.includes(siswa.noPendaftaran);
               return (
                 <div
-                  key={siswa.noPendaftaran}
+                  key={`pending-siswa-${siswa.noPendaftaran}-${idx}`}
                   onClick={() => handleToggleSelectOne(siswa.noPendaftaran)}
                   className={`p-3.5 rounded-2xl border transition cursor-pointer flex items-center justify-between gap-3 ${
                     isSelected 
@@ -590,7 +601,7 @@ export const DataIndukSekolahTab: React.FC<Props> = ({
                   const isSavedNotify = savedNisNotify[item.noPendaftaran];
 
                   return (
-                    <tr key={item.noPendaftaran} className="hover:bg-slate-50/80 transition">
+                    <tr key={`induk-row-${item.noPendaftaran}-${item.noUrut || idx}`} className="hover:bg-slate-50/80 transition">
                       <td className="py-3 px-3 text-center font-bold text-slate-500">
                         {item.noUrut || idx + 1}
                       </td>
