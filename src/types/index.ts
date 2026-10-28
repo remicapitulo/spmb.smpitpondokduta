@@ -293,6 +293,10 @@ export interface StatusKelulusanInfo {
   skorAkhir?: number;
   kategoriPembiayaan?: string;
   rincianBiaya?: PembiayaanCategory;
+  updatedAt?: string;
+  statusKirimPesan?: string;
+  statusCekSeleksi?: string;
+  statusUnduhSkhs?: string;
 }
 
 export interface DataIndukSiswa {
@@ -400,11 +404,16 @@ export interface MuridPengumumanWaItem {
   namaAkunOrtu: string;
   emailAkun: string;
   hasUserAccount: boolean;
-  // Log pengiriman WA
+  // Log pengiriman WA & deteksi aktivitas orang tua
   isWaSent: boolean;
   waSentAt?: string;
   waSentBy?: string;
+  isCekSeleksi?: boolean;
+  cekSeleksiAt?: string;
+  isUnduhSkhs?: boolean;
+  unduhSkhsAt?: string;
 }
 
 export type MuridLulusWaItem = MuridPengumumanWaItem;
+
 

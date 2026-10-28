@@ -16,6 +16,7 @@ import {
   ShieldCheck, 
   FileText, 
   X, 
+  XCircle,
   UserCheck, 
   AlertCircle, 
   Sliders, 
@@ -45,16 +46,23 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
 
   const loadData = async (forceSpreadsheetSync: boolean = false) => {
     setLoading(true);
+    if (forceSpreadsheetSync) {
+      try {
+        localStorage.removeItem('SPMB_WA_SENT_LOGS');
+      } catch {}
+    }
     setMuridList(gasService.getMuridLulusWaList());
     if (gasService.isLiveGasConfigured() && typeof navigator !== 'undefined' && navigator.onLine) {
       try {
-        await gasService.syncFromSpreadsheet(undefined, forceSpreadsheetSync);
+        const res = await gasService.syncFromSpreadsheet(undefined, forceSpreadsheetSync);
         setMuridList(gasService.getMuridLulusWaList());
         if (forceSpreadsheetSync) {
-          showToast('Data calon murid & nomor WhatsApp (kode negara 62) berhasil disinkronkan dari Spreadsheet!');
+          showToast(res?.message || 'Status seleksi & pengumuman berhasil ditarik dari Sheet Kelulusan!');
         }
-      } catch {
-        // fallback ke data lokal
+      } catch (err: any) {
+        if (forceSpreadsheetSync) {
+          showToast(`Gagal menyinkronkan data: ${err?.message || err}`);
+        }
       }
     }
     setLoading(false);
@@ -63,15 +71,29 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
   useEffect(() => {
     loadData(false);
 
+    let lastAutoSync = Date.now();
     const handleDbUpdate = () => {
       setMuridList(gasService.getMuridLulusWaList());
     };
 
+    const handleWindowFocus = () => {
+      // Jika pengguna baru kembali dari tab Google Spreadsheet, otomatis tarik data terbaru dari sheet
+      if (document.visibilityState === 'visible' && Date.now() - lastAutoSync > 5000) {
+        lastAutoSync = Date.now();
+        loadData(true);
+      }
+    };
+
     window.addEventListener('spmb_db_updated', handleDbUpdate);
     window.addEventListener('storage', handleDbUpdate);
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleWindowFocus);
+
     return () => {
       window.removeEventListener('spmb_db_updated', handleDbUpdate);
       window.removeEventListener('storage', handleDbUpdate);
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleWindowFocus);
     };
   }, []);
 
@@ -116,6 +138,16 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
     });
   }, [muridList, statusFilter, searchKeyword]);
 
+  const formatTrackingTime = (val?: string) => {
+    if (!val) return '';
+    const trimmed = String(val).trim();
+    if (!trimmed) return '';
+    if (trimmed.includes('T') && !isNaN(new Date(trimmed).getTime())) {
+      return ` (${new Date(trimmed).toLocaleString('id-ID')})`;
+    }
+    return ` (${trimmed})`;
+  };
+
   // Handler Kirim Pesan WhatsApp
   const handleSendWa = (item: MuridLulusWaItem, customText?: string) => {
     const cleanPhone = formatPhoneNumberForWa(item.nomorHpAkun);
@@ -130,10 +162,10 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
     // Buka WhatsApp di tab / jendela baru
     window.open(waUrl, '_blank', 'noopener,noreferrer');
 
-    // Tandai status terkirim
+    // Tandai status terkirim langsung ke baris siswa di Sheet Kelulusan
     gasService.markWaSent(item.noPendaftaran, currentUser?.namaSiswa || 'Panitia SPMB');
-    loadData();
-    showToast(`WhatsApp untuk ${item.namaLengkap} dibuka. Status pengiriman ditandai Terkirim.`);
+    setMuridList(gasService.getMuridLulusWaList());
+    showToast(`WhatsApp untuk ${item.namaLengkap} dibuka. Status Kirim Pesan disimpan ke Sheet Kelulusan.`);
   };
 
   // Handler Copy Text
@@ -148,15 +180,45 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
   // Handler Toggle Status Terkirim
   const handleToggleSent = (item: MuridLulusWaItem) => {
     if (item.isWaSent) {
-      if (confirm(`Batalkan status terkirim untuk ${item.namaLengkap}?`)) {
+      if (confirm(`Batalkan status Kirim Pesan untuk ${item.namaLengkap}?`)) {
         gasService.unmarkWaSent(item.noPendaftaran);
-        loadData();
-        showToast(`Status pengiriman untuk ${item.namaLengkap} diubah menjadi Belum Dikirim.`);
+        setMuridList(gasService.getMuridLulusWaList());
+        showToast(`Status Kirim Pesan untuk ${item.namaLengkap} diubah menjadi BELUM di Sheet Kelulusan.`);
       }
     } else {
       gasService.markWaSent(item.noPendaftaran, currentUser?.namaSiswa || 'Panitia SPMB');
-      loadData();
-      showToast(`Status pengiriman untuk ${item.namaLengkap} ditandai Terkirim.`);
+      setMuridList(gasService.getMuridLulusWaList());
+      showToast(`Status Kirim Pesan untuk ${item.namaLengkap} ditandai SUDAH di Sheet Kelulusan.`);
+    }
+  };
+
+  // Handler Toggle Status Cek Seleksi
+  const handleToggleCekSeleksi = (item: MuridLulusWaItem) => {
+    if (item.isCekSeleksi) {
+      if (confirm(`Reset status deteksi Cek Seleksi untuk ${item.namaLengkap}?`)) {
+        gasService.unmarkCekSeleksi(item.noPendaftaran);
+        setMuridList(gasService.getMuridLulusWaList());
+        showToast(`Status Cek Seleksi untuk ${item.namaLengkap} direset menjadi BELUM di Sheet Kelulusan.`);
+      }
+    } else {
+      gasService.markCekSeleksi(item.noPendaftaran);
+      setMuridList(gasService.getMuridLulusWaList());
+      showToast(`Status Cek Seleksi untuk ${item.namaLengkap} ditandai SUDAH di Sheet Kelulusan.`);
+    }
+  };
+
+  // Handler Toggle Status Unduh SKHS
+  const handleToggleUnduhSkhs = (item: MuridLulusWaItem) => {
+    if (item.isUnduhSkhs) {
+      if (confirm(`Reset status deteksi Unduh SKHS untuk ${item.namaLengkap}?`)) {
+        gasService.unmarkUnduhSkhs(item.noPendaftaran);
+        setMuridList(gasService.getMuridLulusWaList());
+        showToast(`Status Unduh SKHS untuk ${item.namaLengkap} direset menjadi BELUM di Sheet Kelulusan.`);
+      }
+    } else {
+      gasService.markUnduhSkhs(item.noPendaftaran);
+      setMuridList(gasService.getMuridLulusWaList());
+      showToast(`Status Unduh SKHS untuk ${item.namaLengkap} ditandai SUDAH di Sheet Kelulusan.`);
     }
   };
 
@@ -177,7 +239,7 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
     if (!editingPhoneStudent) return;
     gasService.updateCustomWaPhone(editingPhoneStudent.noPendaftaran, inputCustomPhone);
     setEditingPhoneStudent(null);
-    loadData();
+    setMuridList(gasService.getMuridLulusWaList());
     showToast(`Nomor WhatsApp untuk ${editingPhoneStudent.namaLengkap} berhasil diperbarui.`);
   };
 
@@ -227,18 +289,18 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
               <MessageCircle className="w-3.5 h-3.5" />
-              <span>WhatsApp Pengumuman SPMB</span>
+              <span>Pengumuman</span>
             </span>
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[11px] font-semibold border border-amber-400/30">
               <ShieldCheck className="w-3 h-3" />
-              <span>Acuan: Nomor Akun Registrasi Pendaftar</span>
+              <span>Sumber: Sheet Kelulusan (3 Kolom Status Per Baris)</span>
             </span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-            Pengiriman Pengumuman Seleksi via WhatsApp
+            Pengumuman Seleksi SPMB
           </h2>
           <p className="text-xs text-emerald-100/90 mt-1.5 max-w-2xl leading-relaxed">
-            Kirimkan informasi pengumuman hasil seleksi SPMB langsung ke nomor WhatsApp orang tua murid yang digunakan saat <strong>pendaftaran user pertama kali</strong>. Pesan memuat pemberitahuan resmi dan panduan pengecekan hasil seleksi secara mandiri di menu <em>Cek Kelulusan</em> website, tanpa menampilkan status kelulusan di dalam pesan WhatsApp demi menjaga privasi calon peserta didik.
+            Daftar di bawah ini <strong>mengikuti isi Sheet Kelulusan</strong> dan hanya menampilkan calon murid yang <strong>sudah dinyatakan Diterima / Lulus oleh Guru</strong>. Status <em>Kirim Pesan</em>, <em>Cek Seleksi</em>, dan <em>Unduh SKHS</em> tersimpan langsung pada 3 kolom status di baris masing-masing murid pada Sheet <em>Kelulusan</em>.
           </p>
         </div>
 
@@ -269,9 +331,9 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
         {/* Total Calon Murid */}
         <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Calon Murid</p>
+            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Murid Diterima / Lulus</p>
             <h3 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">{stats.total}</h3>
-            <p className="text-[11px] text-emerald-700 font-semibold mt-0.5">Pendaftar SPMB Terdaftar</p>
+            <p className="text-[11px] text-emerald-700 font-semibold mt-0.5">Terdata di Sheet Kelulusan</p>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
             <UserCheck className="w-6 h-6" />
@@ -348,11 +410,11 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
           </div>
 
           {/* Filter Status Button Tabs */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl shrink-0 self-start md:self-auto">
+          <div className="grid grid-cols-3 sm:flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl shrink-0 w-full md:w-auto">
             <button
               type="button"
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition cursor-pointer text-center ${
                 statusFilter === 'all'
                   ? 'bg-white text-slate-900 shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -363,24 +425,24 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
             <button
               type="button"
               onClick={() => setStatusFilter('pending')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition cursor-pointer text-center ${
                 statusFilter === 'pending'
                   ? 'bg-amber-500 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Belum Dikirim ({stats.pending})
+              Belum ({stats.pending})
             </button>
             <button
               type="button"
               onClick={() => setStatusFilter('sent')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition cursor-pointer text-center ${
                 statusFilter === 'sent'
                   ? 'bg-emerald-600 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Sudah Dikirim ({stats.sent})
+              Terkirim ({stats.sent})
             </button>
           </div>
         </div>
@@ -389,23 +451,23 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
         <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 text-[11px] text-emerald-900">
           <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            <strong>Penjelasan Acuan Nomor WhatsApp &amp; Pemulihan Kode Negara (62):</strong> Sistem secara otomatis menyandingkan nomor WhatsApp dari akun registrasi awal pendaftar (Sheet <em>Users</em>). Jika di Google Spreadsheet angka <code>0</code> di depan nomor hilang (misal tertulis <code>8561234567</code>), sistem <strong>secara otomatis memulihkannya menjadi awalan kode negara <code>628561234567</code></strong> sehingga langsung siap dikirim tanpa perlu mengedit Spreadsheet. Pesan WhatsApp tidak memuat status lulus/tidak lulus demi menjaga privasi hasil calon murid.
+            <strong>Terintegrasi Per Baris dengan Sheet <code>Kelulusan</code>:</strong> Menu Pengumuman ini hanya menampilkan murid yang sudah dinyatakan <strong>Diterima / Lulus</strong> oleh guru di Sheet <code>Kelulusan</code>. Ketiga indikator status (<code>Status Kirim Pesan</code>, <code>Status Cek Seleksi</code>, dan <code>Status Unduh SKHS</code>) disimpan langsung pada <strong>3 kolom terpisah mengikuti baris masing-masing murid di Sheet <code>Kelulusan</code></strong> sehingga aman dari batas karakter sel dan mudah di-backup manual kapan saja.
           </div>
         </div>
       </div>
 
-      {/* TABEL DATA CALON MURID PENERIMA PENGUMUMAN SPMB */}
+      {/* DAFTAR DATA CALON MURID PENERIMA PENGUMUMAN SPMB */}
       <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-extrabold text-sm text-slate-900">
-              Daftar Calon Murid Penerima Pengumuman SPMB
+              Daftar Calon Murid Penerima Pengumuman (Sheet Kelulusan)
             </h3>
-            <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-extrabold shrink-0">
               {filteredList.length} Murid
             </span>
           </div>
-          <span className="text-[11px] text-slate-500">
+          <span className="text-[11px] text-slate-500 font-medium">
             Tahun Pelajaran 2027/2028
           </span>
         </div>
@@ -415,214 +477,510 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
             <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
               <Search className="w-6 h-6" />
             </div>
-            <p className="text-sm font-bold text-slate-700">Tidak ada data calon murid yang cocok.</p>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto">
-              Silakan lakukan pencarian dengan kata kunci lain atau klik tombol Segarkan Data di atas.
+            <p className="text-sm font-bold text-slate-700">
+              {muridList.length === 0
+                ? 'Belum ada murid yang dinyatakan Diterima / Lulus di Sheet Kelulusan.'
+                : 'Tidak ada data calon murid yang cocok dengan pencarian.'}
+            </p>
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
+              {muridList.length === 0
+                ? 'Menu Pengumuman mengikuti isi Sheet Kelulusan. Murid akan otomatis tampil di sini setelah dinilai dan dinyatakan Diterima / Lulus oleh Guru pada menu Observasi Murid.'
+                : 'Silakan lakukan pencarian dengan kata kunci lain atau klik tombol Segarkan Data di atas.'}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
-                <tr>
-                  <th className="py-3 px-4 w-12 text-center">No</th>
-                  <th className="py-3 px-4 min-w-[200px]">Calon Murid</th>
-                  <th className="py-3 px-4 min-w-[130px]">No. Pendaftaran</th>
-                  <th className="py-3 px-4 min-w-[180px]">No. WhatsApp Acuan</th>
-                  <th className="py-3 px-4 min-w-[130px]">Informasi Seleksi</th>
-                  <th className="py-3 px-4 min-w-[120px] text-center">Status WA</th>
-                  <th className="py-3 px-4 min-w-[230px] text-right">Aksi Pengiriman</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredList.map((item, index) => {
-                  const cleanPhone = formatPhoneNumberForWa(item.nomorHpAkun);
-                  const hasValidPhone = Boolean(cleanPhone && cleanPhone.length >= 9);
+          <>
+            {/* =============================================================== */}
+            {/* TAMPILAN KARTU KHUSUS HP / MOBILE (md:hidden)                   */}
+            {/* =============================================================== */}
+            <div className="md:hidden p-3.5 sm:p-4 space-y-3.5 bg-slate-50/70">
+              {filteredList.map((item, index) => {
+                const cleanPhone = formatPhoneNumberForWa(item.nomorHpAkun);
+                const hasValidPhone = Boolean(cleanPhone && cleanPhone.length >= 9);
 
-                  return (
-                    <tr key={item.noPendaftaran} className="hover:bg-slate-50/70 transition">
-                      
-                      {/* No. Urut */}
-                      <td className="py-3.5 px-4 text-center font-bold text-slate-400">
-                        {index + 1}
-                      </td>
-
-                      {/* Calon Murid */}
-                      <td className="py-3.5 px-4">
-                        <div className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
-                          <span>{item.namaLengkap}</span>
+                return (
+                  <div
+                    key={`card-wa-${item.noPendaftaran}`}
+                    className="rounded-2xl bg-white border border-slate-200/90 shadow-xs p-4 space-y-3.5"
+                  >
+                    {/* Header Kartu: No. Urut, Nama Murid, & Status Lulus */}
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <span className="w-7 h-7 rounded-xl bg-emerald-950 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5">
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <h4 className="font-extrabold text-slate-900 text-sm leading-snug break-words">
+                            {item.namaLengkap}
+                          </h4>
+                          <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                            {item.asalSekolah || '-'}
+                          </p>
+                          <p className="text-[11px] font-mono text-slate-600 mt-0.5">
+                            NISN: {item.nisn || '-'}
+                          </p>
                         </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-1.5">
-                          <span>{item.asalSekolah}</span>
-                          <span className="text-slate-300">•</span>
-                          <span className="font-mono text-slate-600">NISN: {item.nisn || '-'}</span>
-                        </div>
-                      </td>
+                      </div>
 
-                      {/* No. Pendaftaran */}
-                      <td className="py-3.5 px-4">
-                        <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-900 font-mono text-[11px] font-extrabold">
-                          <span>{item.noPendaftaran}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(item.noPendaftaran);
-                              showToast(`No. Pendaftaran ${item.noPendaftaran} disalin.`);
-                            }}
-                            title="Salin No. Pendaftaran"
-                            className="text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-[10px] shrink-0">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>LULUS</span>
+                      </span>
+                    </div>
 
-                      {/* No. WhatsApp Acuan Pendaftaran */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-1.5">
+                    {/* Baris Info No. Pendaftaran & No. WhatsApp Acuan */}
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5 text-xs">
+                      {/* No. Pendaftaran + Jadwal Daftar Ulang */}
+                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-200/70">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                            No. Pendaftaran
+                          </span>
+                          <div className="inline-flex items-center gap-1.5 mt-0.5 font-mono font-extrabold text-slate-900 text-xs">
+                            <span>{item.noPendaftaran}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(item.noPendaftaran);
+                                showToast(`No. Pendaftaran ${item.noPendaftaran} disalin.`);
+                              }}
+                              className="p-1 rounded-md bg-white border border-slate-200 text-slate-500 hover:text-slate-800 cursor-pointer"
+                              title="Salin No. Pendaftaran"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                            Jadwal Daftar Ulang
+                          </span>
+                          <span className="font-bold text-slate-700 text-[11px] block mt-0.5">
+                            {item.jadwalDaftarUlang || '20 - 25 Januari 2027'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Nomor WhatsApp Acuan */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                            No. WhatsApp Orang Tua
+                          </span>
                           {hasValidPhone ? (
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-1 font-mono font-bold text-emerald-800 text-xs">
+                            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                              <span className="inline-flex items-center gap-1 font-mono font-extrabold text-emerald-800 text-xs">
                                 <Smartphone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                 <span>{item.nomorHpAkun}</span>
+                              </span>
+                              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded ${
+                                item.hasUserAccount
+                                  ? 'bg-emerald-100 text-emerald-900'
+                                  : 'bg-amber-100 text-amber-900'
+                              }`}>
+                                {item.hasUserAccount ? 'Akun Pendaftaran' : 'Data Cadangan'}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-rose-600 font-bold inline-flex items-center gap-1 mt-0.5">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span>Belum ada No. WhatsApp</span>
+                            </span>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditPhone(item)}
+                          className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs"
+                        >
+                          <Edit3 className="w-3 h-3 text-slate-500" />
+                          <span>{hasValidPhone ? 'Ubah' : '+ Input'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 3 Indikator Status (Kirim Pesan, Cek Seleksi, Unduh SKHS) */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                        Status Aktivitas (Ketuk untuk Ubah Manual)
+                      </span>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {/* 1. Kirim Pesan */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSent(item)}
+                          className={`flex items-center justify-between gap-1 px-2.5 py-2 rounded-xl text-[11px] font-extrabold border transition cursor-pointer ${
+                            item.isWaSent
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                              : 'bg-rose-50/80 border-rose-200 text-rose-800'
+                          }`}
+                        >
+                          <span className="truncate">Kirim WA</span>
+                          {item.isWaSent ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          ) : (
+                            <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          )}
+                        </button>
+
+                        {/* 2. Cek Seleksi */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleCekSeleksi(item)}
+                          className={`flex items-center justify-between gap-1 px-2.5 py-2 rounded-xl text-[11px] font-extrabold border transition cursor-pointer ${
+                            item.isCekSeleksi
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                              : 'bg-rose-50/80 border-rose-200 text-rose-800'
+                          }`}
+                        >
+                          <span className="truncate">Cek Web</span>
+                          {item.isCekSeleksi ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          ) : (
+                            <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          )}
+                        </button>
+
+                        {/* 3. Unduh SKHS */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleUnduhSkhs(item)}
+                          className={`flex items-center justify-between gap-1 px-2.5 py-2 rounded-xl text-[11px] font-extrabold border transition cursor-pointer ${
+                            item.isUnduhSkhs
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                              : 'bg-rose-50/80 border-rose-200 text-rose-800'
+                          }`}
+                        >
+                          <span className="truncate">Unduh PDF</span>
+                          {item.isUnduhSkhs ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          ) : (
+                            <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Tombol Aksi Pengiriman Mudah Dioperasikan di HP */}
+                    <div className="pt-1 space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSendWa(item)}
+                        className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-extrabold text-xs shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <Send className="w-4 h-4" />
+                        <span>Kirim WhatsApp</span>
+                      </button>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPreview(item)}
+                          className="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                          <span>Preview</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCopyMessage(item)}
+                          className="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          {copiedId === item.noPendaftaran ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span className="text-emerald-700">Tersalin</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                              <span>Salin Teks</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleCheckWebsite(item)}
+                          className="py-2 px-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                          <span>Cek Web</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* =============================================================== */}
+            {/* TAMPILAN TABEL DESKTOP (hidden md:block)                        */}
+            {/* =============================================================== */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4 w-12 text-center">No</th>
+                    <th className="py-3 px-4 min-w-[200px]">Calon Murid</th>
+                    <th className="py-3 px-4 min-w-[130px]">No. Pendaftaran</th>
+                    <th className="py-3 px-4 min-w-[180px]">No. WhatsApp Acuan</th>
+                    <th className="py-3 px-4 min-w-[130px]">Informasi Seleksi</th>
+                    <th className="py-3 px-4 min-w-[165px] text-center">Status</th>
+                    <th className="py-3 px-4 min-w-[230px] text-right">Aksi Pengiriman</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredList.map((item, index) => {
+                    const cleanPhone = formatPhoneNumberForWa(item.nomorHpAkun);
+                    const hasValidPhone = Boolean(cleanPhone && cleanPhone.length >= 9);
+
+                    return (
+                      <tr key={item.noPendaftaran} className="hover:bg-slate-50/70 transition">
+                        
+                        {/* No. Urut */}
+                        <td className="py-3.5 px-4 text-center font-bold text-slate-400">
+                          {index + 1}
+                        </td>
+
+                        {/* Calon Murid */}
+                        <td className="py-3.5 px-4">
+                          <div className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                            <span>{item.namaLengkap}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <span>{item.asalSekolah}</span>
+                            <span className="text-slate-300">•</span>
+                            <span className="font-mono text-slate-600">NISN: {item.nisn || '-'}</span>
+                          </div>
+                        </td>
+
+                        {/* No. Pendaftaran */}
+                        <td className="py-3.5 px-4">
+                          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-900 font-mono text-[11px] font-extrabold">
+                            <span>{item.noPendaftaran}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(item.noPendaftaran);
+                                showToast(`No. Pendaftaran ${item.noPendaftaran} disalin.`);
+                              }}
+                              title="Salin No. Pendaftaran"
+                              className="text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </td>
+
+                        {/* No. WhatsApp Acuan Pendaftaran */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1.5">
+                            {hasValidPhone ? (
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-1 font-mono font-bold text-emerald-800 text-xs">
+                                  <Smartphone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span>{item.nomorHpAkun}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
+                                    item.hasUserAccount
+                                      ? 'bg-emerald-100 text-emerald-900'
+                                      : 'bg-amber-100 text-amber-900'
+                                  }`}>
+                                    {item.hasUserAccount ? 'Akun Pendaftaran' : 'Data Cadangan'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditPhone(item)}
+                                    title="Ubah / Sesuaikan Nomor WhatsApp"
+                                    className="text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
+                                  >
+                                    <Edit3 className="w-3 h-3" />
+                                  </button>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-1">
-                                <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
-                                  item.hasUserAccount
-                                    ? 'bg-emerald-100 text-emerald-900'
-                                    : 'bg-amber-100 text-amber-900'
-                                }`}>
-                                  {item.hasUserAccount ? 'Akun Pendaftaran' : 'Data Cadangan'}
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] text-rose-600 font-bold flex items-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Belum ada No WA</span>
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => handleOpenEditPhone(item)}
-                                  title="Ubah / Sesuaikan Nomor WhatsApp"
-                                  className="text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
+                                  className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[10px] hover:bg-amber-200 transition cursor-pointer"
                                 >
-                                  <Edit3 className="w-3 h-3" />
+                                  + Input
                                 </button>
                               </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[11px] text-rose-600 font-bold flex items-center gap-1">
-                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                <span>Belum ada No WA</span>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditPhone(item)}
-                                className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[10px] hover:bg-amber-200 transition cursor-pointer"
-                              >
-                                + Input
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Informasi Seleksi / Jadwal */}
-                      <td className="py-3.5 px-4">
-                        <div className="text-slate-800 font-semibold text-[11px]">
-                          {item.jadwalDaftarUlang || 'Pengumuman Resmi SPMB'}
-                        </div>
-                      </td>
-
-                      {/* Status Pengiriman */}
-                      <td className="py-3.5 px-4 text-center">
-                        {item.isWaSent ? (
-                          <div className="inline-flex flex-col items-center">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold border border-emerald-200">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              <span>Terkirim</span>
-                            </span>
-                            {item.waSentAt && (
-                              <span className="text-[9px] text-slate-400 mt-0.5">
-                                {new Date(item.waSentAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                              </span>
                             )}
                           </div>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200">
-                            <Clock className="w-3 h-3 text-slate-400" />
-                            <span>Belum</span>
-                          </span>
-                        )}
-                      </td>
+                        </td>
 
-                      {/* Aksi Pengiriman */}
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          
-                          {/* Tombol Utama: Kirim WhatsApp */}
-                          <button
-                            type="button"
-                            onClick={() => handleSendWa(item)}
-                            title="Kirim pesan informasi pengumuman seleksi via WhatsApp"
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                          >
-                            <Send className="w-3.5 h-3.5" />
-                            <span>Kirim WA</span>
-                          </button>
+                        {/* Informasi Seleksi / Jadwal */}
+                        <td className="py-3.5 px-4">
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-extrabold text-[10px]">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>DITERIMA / LULUS</span>
+                            </span>
+                            <div className="text-slate-600 font-semibold text-[11px]">
+                              Daftar Ulang: {item.jadwalDaftarUlang || '20 - 25 Januari 2027'}
+                            </div>
+                          </div>
+                        </td>
 
-                          {/* Tombol Preview Bubble & Copy */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenPreview(item)}
-                            title="Pratinjau pesan WhatsApp & salin teks"
-                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-                          >
-                            <FileText className="w-4 h-4" />
-                          </button>
+                        {/* Status (Kirim Pesan, Cek Seleksi, Unduh SKHS) */}
+                        <td className="py-3 px-4">
+                          <div className="inline-flex flex-col gap-1.5 w-full max-w-[155px] mx-auto">
+                            {/* 1. Kirim Pesan */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSent(item)}
+                              title={
+                                item.isWaSent
+                                  ? `Pesan WA sudah dikirim${formatTrackingTime(item.waSentAt)}. Klik untuk ubah.`
+                                  : 'Pesan WA belum dikirim. Klik untuk tandai sudah dikirim.'
+                              }
+                              className={`flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg text-[10.5px] font-bold border transition cursor-pointer ${
+                                item.isWaSent
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900 hover:bg-emerald-100'
+                                  : 'bg-rose-50/80 border-rose-200 text-rose-800 hover:bg-rose-100/80'
+                              }`}
+                            >
+                              <span className="truncate">Kirim Pesan</span>
+                              {item.isWaSent ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                              )}
+                            </button>
 
-                          {/* Tombol Quick Copy */}
-                          <button
-                            type="button"
-                            onClick={() => handleCopyMessage(item)}
-                            title="Salin template pesan ke clipboard"
-                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-                          >
-                            {copiedId === item.noPendaftaran ? (
-                              <Check className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-4 h-4" />
-                            )}
-                          </button>
+                            {/* 2. Cek Seleksi */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCekSeleksi(item)}
+                              title={
+                                item.isCekSeleksi
+                                  ? `Orang tua sudah terdeteksi mengecek hasil seleksi${formatTrackingTime(item.cekSeleksiAt)}.`
+                                  : 'Orang tua belum terdeteksi melakukan pengecekan hasil seleksi.'
+                              }
+                              className={`flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg text-[10.5px] font-bold border transition cursor-pointer ${
+                                item.isCekSeleksi
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900 hover:bg-emerald-100'
+                                  : 'bg-rose-50/80 border-rose-200 text-rose-800 hover:bg-rose-100/80'
+                              }`}
+                            >
+                              <span className="truncate">Cek Seleksi</span>
+                              {item.isCekSeleksi ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                              )}
+                            </button>
 
-                          {/* Tombol Uji Tautan Cek Website */}
-                          <button
-                            type="button"
-                            onClick={() => handleCheckWebsite(item)}
-                            title="Uji langsung tautan cek kelulusan calon murid ini"
-                            className="p-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 transition cursor-pointer"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </button>
+                            {/* 3. Unduh SKHS */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleUnduhSkhs(item)}
+                              title={
+                                item.isUnduhSkhs
+                                  ? `Orang tua sudah terdeteksi mengunduh Surat Keterangan Hasil Seleksi (SKHS)${formatTrackingTime(item.unduhSkhsAt)}.`
+                                  : 'Orang tua belum terdeteksi mengunduh Surat Keterangan Hasil Seleksi (SKHS).'
+                              }
+                              className={`flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg text-[10.5px] font-bold border transition cursor-pointer ${
+                                item.isUnduhSkhs
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900 hover:bg-emerald-100'
+                                  : 'bg-rose-50/80 border-rose-200 text-rose-800 hover:bg-rose-100/80'
+                              }`}
+                            >
+                              <span className="truncate">Unduh SKHS</span>
+                              {item.isUnduhSkhs ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              ) : (
+                                <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
 
-                          {/* Toggle Terkirim Manual */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleSent(item)}
-                            title={item.isWaSent ? "Ubah status ke Belum Dikirim" : "Tandai sudah dikirim"}
-                            className={`p-1.5 rounded-xl border transition cursor-pointer ${
-                              item.isWaSent
-                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
-                                : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
+                        {/* Aksi Pengiriman */}
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            
+                            {/* Tombol Utama: Kirim WhatsApp */}
+                            <button
+                              type="button"
+                              onClick={() => handleSendWa(item)}
+                              title="Kirim pesan informasi pengumuman seleksi via WhatsApp"
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Kirim WA</span>
+                            </button>
 
-                        </div>
-                      </td>
+                            {/* Tombol Preview Bubble & Copy */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenPreview(item)}
+                              title="Pratinjau pesan WhatsApp & salin teks"
+                              className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
 
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            {/* Tombol Quick Copy */}
+                            <button
+                              type="button"
+                              onClick={() => handleCopyMessage(item)}
+                              title="Salin template pesan ke clipboard"
+                              className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                            >
+                              {copiedId === item.noPendaftaran ? (
+                                <Check className="w-4 h-4 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-4 h-4" />
+                              )}
+                            </button>
+
+                            {/* Tombol Uji Tautan Cek Website */}
+                            <button
+                              type="button"
+                              onClick={() => handleCheckWebsite(item)}
+                              title="Uji langsung tautan cek kelulusan calon murid ini"
+                              className="p-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 transition cursor-pointer"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </button>
+
+                            {/* Toggle Terkirim Manual */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSent(item)}
+                              title={item.isWaSent ? "Ubah status ke Belum Dikirim" : "Tandai sudah dikirim"}
+                              className={`p-1.5 rounded-xl border transition cursor-pointer ${
+                                item.isWaSent
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                                  : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                              }`}
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+
+                          </div>
+                        </td>
+
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

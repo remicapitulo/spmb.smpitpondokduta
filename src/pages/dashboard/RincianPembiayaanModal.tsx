@@ -150,7 +150,7 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                  Lampiran SKL Lembar ke-2
+                  Lampiran Surat Keterangan Hasil Seleksi Lembar ke-2
                 </span>
                 <span className="text-xs text-slate-400">| Format Baru Modern</span>
               </div>
@@ -166,11 +166,11 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
                 type="button"
                 onClick={onOpenFullSklPreview}
                 className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                title="Buka Pratinjau SKL Lengkap 2 Halaman"
+                title="Buka Pratinjau Surat Keterangan Hasil Seleksi Lengkap 2 Halaman"
               >
                 <FileText className="w-4 h-4" />
-                <span className="hidden sm:inline">Pratinjau SKL 2 Halaman</span>
-                <span className="sm:hidden">SKL 2 Hal</span>
+                <span className="hidden sm:inline">Pratinjau Surat Keterangan Hasil Seleksi</span>
+                <span className="sm:hidden">Hasil Seleksi 2 Hal</span>
               </button>
             )}
             <button

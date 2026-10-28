@@ -24,6 +24,23 @@ const SHEET_WAWANCARA_SISWA = "Wawancara_Siswa";
 const SHEET_KELULUSAN = "Kelulusan";
 const SHEET_PEMBIAYAAN = "Pembiayaan";
 
+// Header Kolom Database Sheet "Kelulusan" (13 Kolom Resmi termasuk 3 Kolom Status Pengumuman per Baris Siswa)
+const KELULUSAN_HEADERS = [
+  "No Pendaftaran",
+  "NISN",
+  "Nama Lengkap",
+  "Asal Sekolah",
+  "Jalur",
+  "Status Kelulusan",
+  "Skor Akhir",
+  "Pesan Pengumuman",
+  "Jadwal Daftar Ulang",
+  "Updated At",
+  "Status Kirim Pesan",
+  "Status Cek Seleksi",
+  "Status Unduh SKHS"
+];
+
 // Header Kolom Database Sheet "Pembiayaan" (16 Kolom Resmi Rincian Daftar Ulang)
 const PEMBIAYAAN_HEADERS = [
   "Kategori",
@@ -498,11 +515,63 @@ function setupSheets(customHeadersMap) {
     "Motivasi Masuk", "Target Hafalan", "JSON Detail Asesmen"
   ]);
 
-  // 9. Sheet Kelulusan
-  ensureSheet(SHEET_KELULUSAN, [
-    "No Pendaftaran", "NISN", "Nama Lengkap", "Asal Sekolah",
-    "Jalur", "Status Kelulusan", "Skor Akhir", "Pesan Pengumuman", "Jadwal Daftar Ulang", "Updated At"
-  ]);
+  // 9. Sheet Kelulusan (13 Kolom Resmi termasuk 3 Kolom Status Pengumuman per Baris Siswa)
+  const activeKelulusanHeaders = (customHeadersMap && customHeadersMap.Kelulusan) || KELULUSAN_HEADERS;
+  const lulusSheet = ensureSheet(SHEET_KELULUSAN, activeKelulusanHeaders);
+
+  // Migrasi & pembersihan otomatis jika ada sisa baris __TRACKING_PENGUMUMAN__ lama di Sheet Wawancara_Siswa
+  let legacyTrackingMap = {};
+  try {
+    const wsSheet = ss.getSheetByName(SHEET_WAWANCARA_SISWA);
+    if (wsSheet && wsSheet.getLastRow() >= 2) {
+      const wsRows = wsSheet.getDataRange().getValues();
+      for (let r = wsRows.length - 1; r >= 1; r--) {
+        if (String(wsRows[r][1] || "").trim() === "__TRACKING_PENGUMUMAN__") {
+          const jsonStr = String(wsRows[r][6] || "");
+          if (jsonStr) {
+            try {
+              const parsedWs = JSON.parse(jsonStr);
+              if (parsedWs && parsedWs.kegiatanWaktuLuang) {
+                legacyTrackingMap = JSON.parse(parsedWs.kegiatanWaktuLuang) || {};
+              }
+            } catch (e) {}
+          }
+          wsSheet.deleteRow(r + 1);
+        }
+      }
+    }
+  } catch (cleanErr) {}
+
+  // Pastikan setiap baris siswa di Sheet Kelulusan memiliki nilai default "BELUM" pada 3 kolom status jika masih kosong
+  try {
+    if (lulusSheet && lulusSheet.getLastRow() >= 2) {
+      const lRows = lulusSheet.getDataRange().getValues();
+      for (let r = 1; r < lRows.length; r++) {
+        const noPend = String(lRows[r][0] || "").trim().toUpperCase();
+        if (!noPend) continue;
+        const leg = legacyTrackingMap[noPend] || {};
+        let colK = String(lRows[r][10] || "").trim();
+        let colL = String(lRows[r][11] || "").trim();
+        let colM = String(lRows[r][12] || "").trim();
+        let changed = false;
+        if (!colK) {
+          colK = leg.sentAt ? formatStatusPengumumanCell(leg.sentAt) : "BELUM";
+          changed = true;
+        }
+        if (!colL) {
+          colL = leg.cekSeleksiAt ? formatStatusPengumumanCell(leg.cekSeleksiAt) : "BELUM";
+          changed = true;
+        }
+        if (!colM) {
+          colM = leg.unduhSkhsAt ? formatStatusPengumumanCell(leg.unduhSkhsAt) : "BELUM";
+          changed = true;
+        }
+        if (changed) {
+          lulusSheet.getRange(r + 1, 11, 1, 3).setValues([[colK, colL, colM]]);
+        }
+      }
+    }
+  } catch (lulusMigErr) {}
 
   // 10. Sheet Pembiayaan (Rincian Biaya Daftar Ulang Resmi - 16 Kolom)
   const activePembiayaanHeaders = (customHeadersMap && customHeadersMap.Pembiayaan) || PEMBIAYAAN_HEADERS;
@@ -669,6 +738,11 @@ function doGet(e) {
     let result = { success: false, action: action };
 
     try {
+      const isForceOrNoCache = e.parameter.nocache === "true" || e.parameter.refresh === "true" || e.parameter.force === "true";
+      if (isForceOrNoCache) {
+        clearAppCache();
+      }
+
       const ss = getSpreadsheet();
       if (action === "ping") {
         result.success = true;
@@ -686,28 +760,28 @@ function doGet(e) {
         result.success = true;
         result.message = "Cache Google Apps Script berhasil dibersihkan!";
       } else if (action === "getSettings") {
-        const cached = getAppCache("SETTINGS");
+        const cached = isForceOrNoCache ? null : getAppCache("SETTINGS");
         if (cached) {
           return jsonResponse({ success: true, settings: cached, fromCache: true });
         }
         result.settings = getSettingsFromSheet();
-        setAppCache("SETTINGS", result.settings);
+        if (!isForceOrNoCache) setAppCache("SETTINGS", result.settings);
         result.success = true;
       } else if (action === "getStudentList" || action === "getSiswaList") {
-        const cached = getAppCache("STUDENT_LIST");
+        const cached = isForceOrNoCache ? null : getAppCache("STUDENT_LIST");
         if (cached) {
           return jsonResponse({ success: true, data: cached, fromCache: true });
         }
         result.data = getStudentList();
-        setAppCache("STUDENT_LIST", result.data);
+        if (!isForceOrNoCache) setAppCache("STUDENT_LIST", result.data);
         result.success = true;
       } else if (action === "getAllData") {
-        const cached = getAppCache("ALL_DATA");
+        const cached = isForceOrNoCache ? null : getAppCache("ALL_DATA");
         if (cached) {
           return jsonResponse({ success: true, data: cached, fromCache: true });
         }
         result.data = getAllDatabaseData();
-        setAppCache("ALL_DATA", result.data);
+        if (!isForceOrNoCache) setAppCache("ALL_DATA", result.data);
         result.success = true;
       } else if (action === "getDataInduk") {
         const cached = getAppCache("DATA_INDUK");
@@ -793,6 +867,8 @@ function doPost(e) {
       result = upsertOtmAnswersToSheet(postData);
     } else if (action === "saveWawancaraSiswa") {
       result = upsertWawancaraSiswaToSheet(postData.data || postData);
+    } else if (action === "updateStatusPengumuman" || action === "saveWaSentLog" || action === "saveStatusPengumuman") {
+      result = updateStatusPengumumanInSheet(postData);
     } else if (action === "saveDataInduk" || action === "saveBatchDataInduk" || action === "syncDataInduk") {
       result = saveBatchDataIndukToSheet(postData);
     } else if (action === "updateNis") {
@@ -955,40 +1031,45 @@ function buildFullSiswaRow(siswa) {
 
 function mapRowToSiswaObject(row) {
   if (!row || !row[0]) return null;
-  // Cari apakah ada cell JSON di baris ini
+  let baseObj = {};
+  // Cari apakah ada cell JSON di baris ini sebagai fallback atribut tambahan
   for (let c = row.length - 1; c >= 20; c--) {
     const val = row[c];
     if (typeof val === "string" && val.indexOf("{") !== -1 && val.indexOf("noPendaftaran") !== -1) {
       try {
         const parsed = JSON.parse(val);
-        if (parsed && parsed.noPendaftaran) return parsed;
+        if (parsed && typeof parsed === "object") {
+          baseObj = parsed;
+          break;
+        }
       } catch (e) {}
     }
   }
 
-  return {
-    noPendaftaran: String(row[0] || ""),
-    namaLengkap: String(row[1] || ""),
-    namaPanggilan: String(row[2] || ""),
-    nisn: String(row[3] || ""),
-    jenisKelamin: String(row[4] || "Laki-laki"),
-    tempatLahir: String(row[5] || ""),
-    tanggalLahir: String(row[6] || ""),
-    agama: String(row[7] || "Islam"),
-    asalSekolah: String(row[8] || ""),
-    alamat: String(row[9] || ""),
-    kelurahan: String(row[10] || ""),
-    kecamatan: String(row[11] || ""),
-    kotaKabupaten: String(row[12] || ""),
-    nomorHandphone: String(row[13] || ""),
-    namaAyah: String(row[14] || ""),
-    pekerjaanAyah: String(row[15] || ""),
-    penghasilanAyah: String(row[16] || ""),
-    noHpAyah: String(row[17] || ""),
-    namaIbu: String(row[18] || ""),
-    pekerjaanIbu: String(row[19] || ""),
-    penghasilanIbu: String(row[20] || ""),
-    noHpIbu: String(row[21] || ""),
+  // Kolom eksplisit di Spreadsheet (row[0] s/d row[21]) SELALU menjadi sumber kebenaran utama (mengalahkan JSON lama jika diedit manual di Sheet)
+  return Object.assign({}, baseObj, {
+    noPendaftaran: String(row[0] || baseObj.noPendaftaran || "").trim(),
+    namaLengkap: String(row[1] || baseObj.namaLengkap || "").trim(),
+    namaPanggilan: String(row[2] || baseObj.namaPanggilan || "").trim(),
+    nisn: String(row[3] !== undefined && row[3] !== "" ? row[3] : (baseObj.nisn || "")).trim(),
+    jenisKelamin: String(row[4] || baseObj.jenisKelamin || "Laki-laki"),
+    tempatLahir: String(row[5] || baseObj.tempatLahir || ""),
+    tanggalLahir: String(row[6] || baseObj.tanggalLahir || ""),
+    agama: String(row[7] || baseObj.agama || "Islam"),
+    asalSekolah: String(row[8] || baseObj.asalSekolah || "").trim(),
+    alamat: String(row[9] || baseObj.alamat || ""),
+    kelurahan: String(row[10] || baseObj.kelurahan || ""),
+    kecamatan: String(row[11] || baseObj.kecamatan || ""),
+    kotaKabupaten: String(row[12] || baseObj.kotaKabupaten || ""),
+    nomorHandphone: String(row[13] || baseObj.nomorHandphone || ""),
+    namaAyah: String(row[14] || baseObj.namaAyah || ""),
+    pekerjaanAyah: String(row[15] || baseObj.pekerjaanAyah || ""),
+    penghasilanAyah: String(row[16] || baseObj.penghasilanAyah || ""),
+    noHpAyah: String(row[17] || baseObj.noHpAyah || ""),
+    namaIbu: String(row[18] || baseObj.namaIbu || ""),
+    pekerjaanIbu: String(row[19] || baseObj.pekerjaanIbu || ""),
+    penghasilanIbu: String(row[20] || baseObj.penghasilanIbu || ""),
+    noHpIbu: String(row[21] || baseObj.noHpIbu || ""),
     nik: String(row[22] || ""),
     kewarganegaraan: String(row[23] || "Indonesia"),
     anakNomorKe: row[24] !== undefined && row[24] !== "" ? row[24] : 1,
@@ -1030,7 +1111,7 @@ function mapRowToSiswaObject(row) {
     alamatWali: String(row[60] || "-"),
     noHpWali: String(row[61] || "-"),
     statusHubunganWali: String(row[62] || "-")
-  };
+  });
 }
 
 /**
@@ -1360,6 +1441,15 @@ function upsertWawancaraSiswaToSheet(data) {
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_WAWANCARA_SISWA);
 
+  if (String(data.noPendaftaran || "").trim() === "__TRACKING_PENGUMUMAN__") {
+    // Alihkan ke penyimpanan per-baris di Sheet Kelulusan (bukan 1 sel JSON di Wawancara_Siswa)
+    let parsedLogs = {};
+    try {
+      parsedLogs = typeof data.kegiatanWaktuLuang === "string" ? JSON.parse(data.kegiatanWaktuLuang) : (data.logs || {});
+    } catch (e) {}
+    return updateStatusPengumumanInSheet({ logs: parsedLogs });
+  }
+
   upsertRowByKey(sheet, 1, data.noPendaftaran, [
     new Date().toISOString(),
     data.noPendaftaran || "",
@@ -1371,6 +1461,106 @@ function upsertWawancaraSiswaToSheet(data) {
   ], 2);
 
   return { success: true, message: "Data wawancara siswa berhasil disimpan ke Spreadsheet." };
+}
+
+function formatStatusPengumumanCell(val) {
+  if (val === undefined || val === null || val === "" || val === false) return "BELUM";
+  var str = String(val).trim();
+  if (!str || str.toUpperCase() === "BELUM" || str === "-" || str.toUpperCase() === "TIDAK" || str.toUpperCase() === "FALSE") {
+    return "BELUM";
+  }
+  if (str.toUpperCase().indexOf("SUDAH") === 0) {
+    return str;
+  }
+  try {
+    var d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return "SUDAH (" + Utilities.formatDate(d, "Asia/Jakarta", "dd/MM/yyyy HH:mm") + " WIB)";
+    }
+  } catch (e) {}
+  return "SUDAH (" + str + ")";
+}
+
+/**
+ * Menyimpan 3 Kolom Status Pengumuman (Status Kirim Pesan, Status Cek Seleksi, Status Unduh SKHS)
+ * secara per-baris mengikuti data masing-masing siswa di Sheet "Kelulusan".
+ */
+function updateStatusPengumumanInSheet(payload) {
+  setupSheets();
+  const ss = getSpreadsheet();
+  const lulusSheet = ss.getSheetByName(SHEET_KELULUSAN);
+  if (!lulusSheet || lulusSheet.getLastRow() < 2) {
+    return { success: false, message: "Sheet Kelulusan masih kosong." };
+  }
+
+  const lastRow = lulusSheet.getLastRow();
+  const data = lulusSheet.getRange(2, 1, lastRow - 1, Math.max(lulusSheet.getLastColumn(), 13)).getValues();
+  const nowIso = new Date().toISOString();
+  let updatedCount = 0;
+
+  // 1. Jika pembaruan untuk 1 siswa spesifik (noPendaftaran)
+  if (payload.noPendaftaran) {
+    const targetNo = String(payload.noPendaftaran).trim().toUpperCase();
+    for (let i = 0; i < data.length; i++) {
+      if (String(data[i][0] || "").trim().toUpperCase() === targetNo) {
+        const targetRow = 2 + i;
+        const curKirim = String(data[i][10] || "BELUM").trim() || "BELUM";
+        const curCek = String(data[i][11] || "BELUM").trim() || "BELUM";
+        const curUnduh = String(data[i][12] || "BELUM").trim() || "BELUM";
+
+        const nextKirim = payload.statusKirimPesan !== undefined
+          ? formatStatusPengumumanCell(payload.statusKirimPesan)
+          : curKirim;
+        const nextCek = payload.statusCekSeleksi !== undefined
+          ? formatStatusPengumumanCell(payload.statusCekSeleksi)
+          : curCek;
+        const nextUnduh = payload.statusUnduhSkhs !== undefined
+          ? formatStatusPengumumanCell(payload.statusUnduhSkhs)
+          : curUnduh;
+
+        lulusSheet.getRange(targetRow, 10, 1, 4).setValues([[nowIso, nextKirim, nextCek, nextUnduh]]);
+        updatedCount++;
+        return {
+          success: true,
+          updated: true,
+          noPendaftaran: targetNo,
+          statusKirimPesan: nextKirim,
+          statusCekSeleksi: nextCek,
+          statusUnduhSkhs: nextUnduh,
+          message: "Status pengumuman untuk " + targetNo + " berhasil disimpan di Sheet Kelulusan."
+        };
+      }
+    }
+    return {
+      success: false,
+      message: "Siswa dengan No Pendaftaran " + payload.noPendaftaran + " belum terdaftar di Sheet Kelulusan."
+    };
+  }
+
+  // 2. Jika pembaruan berupa kumpulan logs (map per noPendaftaran)
+  if (payload.logs && typeof payload.logs === "object") {
+    const logsMap = payload.logs;
+    for (let i = 0; i < data.length; i++) {
+      const rowNo = String(data[i][0] || "").trim().toUpperCase();
+      if (!rowNo) continue;
+      const logEntry = logsMap[rowNo];
+      if (logEntry) {
+        const targetRow = 2 + i;
+        const nextKirim = logEntry.sentAt ? formatStatusPengumumanCell(logEntry.sentAt) : "BELUM";
+        const nextCek = logEntry.cekSeleksiAt ? formatStatusPengumumanCell(logEntry.cekSeleksiAt) : "BELUM";
+        const nextUnduh = logEntry.unduhSkhsAt ? formatStatusPengumumanCell(logEntry.unduhSkhsAt) : "BELUM";
+        lulusSheet.getRange(targetRow, 10, 1, 4).setValues([[nowIso, nextKirim, nextCek, nextUnduh]]);
+        updatedCount++;
+      }
+    }
+    return {
+      success: true,
+      count: updatedCount,
+      message: "Berhasil memperbarui 3 kolom status pengumuman untuk " + updatedCount + " baris siswa di Sheet Kelulusan."
+    };
+  }
+
+  return { success: false, message: "Parameter updateStatusPengumuman tidak lengkap." };
 }
 
 function saveDraftOrTtdOrtu(payload) {
@@ -1504,7 +1694,33 @@ function syncAllLocalToSheet(payload) {
 
   if (Array.isArray(payload.kelulusanList)) {
     const lulusSheet = ss.getSheetByName(SHEET_KELULUSAN);
+    const existingStatusMap = {};
+    if (lulusSheet && lulusSheet.getLastRow() >= 2) {
+      const lRows = lulusSheet.getDataRange().getValues();
+      for (let i = 1; i < lRows.length; i++) {
+        const k = String(lRows[i][0] || "").trim().toUpperCase();
+        if (k) {
+          existingStatusMap[k] = {
+            kirim: String(lRows[i][10] || "").trim(),
+            cek: String(lRows[i][11] || "").trim(),
+            unduh: String(lRows[i][12] || "").trim()
+          };
+        }
+      }
+    }
     payload.kelulusanList.forEach(function(kl) {
+      const key = String(kl.noPendaftaran || "").trim().toUpperCase();
+      const prev = existingStatusMap[key] || {};
+      const statusKirim = kl.statusKirimPesan !== undefined
+        ? formatStatusPengumumanCell(kl.statusKirimPesan)
+        : (prev.kirim || "BELUM");
+      const statusCek = kl.statusCekSeleksi !== undefined
+        ? formatStatusPengumumanCell(kl.statusCekSeleksi)
+        : (prev.cek || "BELUM");
+      const statusUnduh = kl.statusUnduhSkhs !== undefined
+        ? formatStatusPengumumanCell(kl.statusUnduhSkhs)
+        : (prev.unduh || "BELUM");
+
       upsertRowByKey(lulusSheet, 0, kl.noPendaftaran, [
         kl.noPendaftaran || "",
         kl.nisn || "",
@@ -1515,7 +1731,10 @@ function syncAllLocalToSheet(payload) {
         kl.skorAkhir || 0,
         kl.pesanPengumuman || "",
         kl.jadwalDaftarUlang || "-",
-        new Date().toISOString()
+        new Date().toISOString(),
+        statusKirim,
+        statusCek,
+        statusUnduh
       ], 2);
     });
   }
@@ -1725,10 +1944,54 @@ function getAllDatabaseData() {
   if (obsSheet && obsSheet.getLastRow() >= 2) {
     const rows = obsSheet.getDataRange().getValues();
     for (let i = 1; i < rows.length; i++) {
-      const jsonStr = rows[i][18];
+      const idSiswa = String(rows[i][1] || "").trim();
+      if (!idSiswa) continue;
+      var obsObj = null;
+      var jsonStr = rows[i][18];
       if (jsonStr) {
         try {
-          result.observasiList.push(JSON.parse(jsonStr));
+          obsObj = JSON.parse(jsonStr);
+        } catch (e) {}
+      }
+      if (!obsObj) {
+        var nTahsin = rows[i][4] !== "" ? Number(rows[i][4]) : "";
+        var nTahfidz = rows[i][6] !== "" ? Number(rows[i][6]) : "";
+        var nKarakter = rows[i][9] !== "" ? Number(rows[i][9]) : "";
+        var nAkademik = rows[i][11] !== "" ? Number(rows[i][11]) : "";
+        obsObj = {
+          noPendaftaran: idSiswa,
+          namaSiswa: String(rows[i][2] || "").trim(),
+          namaPenguji: String(rows[i][3] || "").trim(),
+          nilaiTahsin: nTahsin,
+          catatanTahsin: String(rows[i][5] || "").trim(),
+          nilaiTahfidz: nTahfidz,
+          juzDiuji: String(rows[i][7] || "").trim(),
+          catatanTahfidz: String(rows[i][8] || "").trim(),
+          nilaiKarakterAdab: nKarakter,
+          catatanKarakterAdab: String(rows[i][10] || "").trim(),
+          nilaiAkademikDasar: nAkademik,
+          catatanAkademikDasar: String(rows[i][12] || "").trim(),
+          totalSkor: Number(rows[i][13] || 0),
+          rataRata: Number(rows[i][14] || 0),
+          rekomendasi: String(rows[i][15] || "").trim(),
+          catatanPenguji: String(rows[i][16] || "").trim(),
+          pdfUrl: String(rows[i][17] || "").trim()
+        };
+      }
+      result.observasiList.push(obsObj);
+    }
+  }
+
+  const wsSheet = ss.getSheetByName(SHEET_WAWANCARA_SISWA);
+  if (wsSheet && wsSheet.getLastRow() >= 2) {
+    const rows = wsSheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      const noPendWs = String(rows[i][1] || "").trim();
+      if (noPendWs === "__TRACKING_PENGUMUMAN__") continue;
+      const jsonStr = rows[i][6];
+      if (jsonStr) {
+        try {
+          result.wawancaraSiswaList.push(JSON.parse(jsonStr));
         } catch (e) {}
       }
     }
@@ -1740,15 +2003,19 @@ function getAllDatabaseData() {
     for (let i = 1; i < rows.length; i++) {
       if (rows[i][0]) {
         result.kelulusanList.push({
-          noPendaftaran: String(rows[i][0]),
+          noPendaftaran: String(rows[i][0]).trim(),
           nisn: String(rows[i][1] || ""),
           namaLengkap: String(rows[i][2] || ""),
           asalSekolah: String(rows[i][3] || ""),
           jalur: String(rows[i][4] || "Jalur Reguler"),
-          status: String(rows[i][5] || "PROSES_SELEKSI"),
+          status: String(rows[i][5] || "PROSES_SELEKSI").trim(),
           skorAkhir: Number(rows[i][6] || 0),
           pesanPengumuman: String(rows[i][7] || ""),
-          jadwalDaftarUlang: String(rows[i][8] || "-")
+          jadwalDaftarUlang: String(rows[i][8] || "-"),
+          updatedAt: String(rows[i][9] || ""),
+          statusKirimPesan: String(rows[i][10] || "BELUM").trim() || "BELUM",
+          statusCekSeleksi: String(rows[i][11] || "BELUM").trim() || "BELUM",
+          statusUnduhSkhs: String(rows[i][12] || "BELUM").trim() || "BELUM"
         });
       }
     }
@@ -1977,6 +2244,21 @@ function processObservasiSiswa(data) {
     ? (data.tanggalMaksimalDaftarUlang || "20 - 25 Januari 2027")
     : "-";
 
+  let existingKirim = "BELUM";
+  let existingCek = "BELUM";
+  let existingUnduh = "BELUM";
+  if (lulusSheet && lulusSheet.getLastRow() >= 2) {
+    const lRows = lulusSheet.getDataRange().getValues();
+    for (let i = 1; i < lRows.length; i++) {
+      if (String(lRows[i][0] || "").trim().toUpperCase() === String(data.noPendaftaran || "").trim().toUpperCase()) {
+        if (lRows[i][10]) existingKirim = String(lRows[i][10]).trim() || "BELUM";
+        if (lRows[i][11]) existingCek = String(lRows[i][11]).trim() || "BELUM";
+        if (lRows[i][12]) existingUnduh = String(lRows[i][12]).trim() || "BELUM";
+        break;
+      }
+    }
+  }
+
   upsertRowByKey(lulusSheet, 0, data.noPendaftaran, [
     data.noPendaftaran || "",
     data.nisn || "",
@@ -1987,7 +2269,10 @@ function processObservasiSiswa(data) {
     data.rataRata || 0,
     pesan,
     jadwalDaftarUlangVal,
-    new Date().toISOString()
+    new Date().toISOString(),
+    existingKirim,
+    existingCek,
+    existingUnduh
   ], 2);
 
   return { success: true, message: "Observasi Siswa & Status Kelulusan berhasil disimpan di Spreadsheet!" };

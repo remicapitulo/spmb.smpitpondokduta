@@ -76,6 +76,9 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
       if (data.status === 'LULUS' && (!data.jadwalDaftarUlang || data.jadwalDaftarUlang === '-' || data.jadwalDaftarUlang.trim() === '')) {
         data.jadwalDaftarUlang = obs?.tanggalMaksimalDaftarUlang || '20 - 25 Januari 2027';
       }
+      if (data.noPendaftaran && data.status !== 'PROSES_SELEKSI') {
+        gasService.markCekSeleksi(data.noPendaftaran);
+      }
     }
     setIsSearching(false);
     setResult(data);
@@ -208,9 +211,10 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
     return '-';
   }, [result]);
 
-  // Pastikan Jadwal Daftar Ulang selalu tampil dan tidak kosong di SKL & halaman pengumuman
+  // Pastikan Jadwal Daftar Ulang hanya tampil jika LULUS, dan dikunci ('-') jika TIDAK_LULUS
   const effectiveJadwalDaftarUlang = useMemo(() => {
     if (!result) return '20 - 25 Januari 2027';
+    if (result.status !== 'LULUS') return '-';
     if (result.jadwalDaftarUlang && result.jadwalDaftarUlang !== '-' && result.jadwalDaftarUlang.trim()) {
       return result.jadwalDaftarUlang.trim();
     }
@@ -279,7 +283,7 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
     handleSearch(code);
   };
 
-  // Handler Unduh PDF Resmi Surat Keterangan Lulus (SKL - Langsung Download File PDF)
+  // Handler Unduh PDF Resmi Surat Keterangan Hasil Seleksi (Langsung Download File PDF)
   const handleDownloadPdf = async () => {
     if (isDownloadingPdf) return;
     setIsDownloadingPdf(true);
@@ -287,22 +291,25 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
     try {
       const docElement = sklDocRef.current;
       if (!docElement) {
-        throw new Error('Element dokumen SKL tidak ditemukan');
+        throw new Error('Element dokumen Surat Keterangan Hasil Seleksi tidak ditemukan');
       }
 
       const safeName = (result?.namaLengkap || 'Calon_Murid').replace(/\s+/g, '_');
-      const fileName = `SKL_SPMB_SMPIT_Pondok_Duta_${safeName}_${result?.noPendaftaran || ''}.pdf`;
+      const fileName = `Surat_Keterangan_Hasil_Seleksi_SPMB_${safeName}_${result?.noPendaftaran || ''}.pdf`;
 
       await downloadElementAsPdf({
         element: docElement,
         fileName,
-        pdfTitle: `Surat Keterangan Lulus SPMB - ${result?.namaLengkap || ''}`,
-        footerText: `Surat Keterangan Lulus Resmi SPMB SMPIT Pondok Duta · TP ${tahunPelajaran} · Sah terverifikasi via QR Code.`,
+        pdfTitle: `Surat Keterangan Hasil Seleksi SPMB - ${result?.namaLengkap || ''}`,
+        footerText: `Surat Keterangan Hasil Seleksi Resmi SPMB SMPIT Pondok Duta · TP ${tahunPelajaran} · Sah terverifikasi via QR Code.`,
         margin: 12
       });
+      if (result?.noPendaftaran) {
+        gasService.markUnduhSkhs(result.noPendaftaran);
+      }
     } catch (err) {
-      console.error('Gagal mengunduh dokumen SKL PDF:', err);
-      alert('Gagal mengunduh dokumen SKL PDF. ' + (err instanceof Error ? err.message : ''));
+      console.error('Gagal mengunduh dokumen Surat Keterangan Hasil Seleksi PDF:', err);
+      alert('Gagal mengunduh dokumen Surat Keterangan Hasil Seleksi PDF. ' + (err instanceof Error ? err.message : ''));
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -410,7 +417,7 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
           Pengumuman Hasil Seleksi SPMB
         </span>
         <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
-          Cek Status Kelulusan Calon Murid
+          Cek Hasil Seleksi Calon Murid
         </h1>
         <p className="text-xs sm:text-sm text-emerald-100 max-w-xl leading-relaxed">
           Masukkan Nomor Pendaftaran atau NISN murid untuk melihat hasil evaluasi observasi &amp; wawancara.
@@ -503,13 +510,6 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
                     </div>
                   </div>
                 </div>
-
-                {Boolean(result.skorAkhir && result.skorAkhir > 0 && result.status !== 'PROSES_SELEKSI') && (
-                  <div className="p-3 rounded-2xl bg-white border border-slate-200/80 text-center shrink-0">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase">Nilai Rata-rata</div>
-                    <div className="text-2xl font-extrabold text-emerald-700">{result.skorAkhir}</div>
-                  </div>
-                )}
               </div>
 
               {/* Detail Siswa */}
@@ -530,27 +530,46 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
                 </div>
                 <div className="p-3.5 rounded-xl bg-white/80 border border-slate-200/60 space-y-1">
                   <div className="text-[11px] text-slate-400 font-medium">Jadwal Daftar Ulang</div>
-                  <div className="font-bold text-emerald-800">
+                  <div className={`font-bold ${result.status === 'LULUS' ? 'text-emerald-800' : 'text-slate-400'}`}>
                     {effectiveJadwalDaftarUlang}
                   </div>
                 </div>
               </div>
 
               {/* Message Box */}
-              <div className="p-4 rounded-2xl bg-white border border-slate-200/80 text-xs text-slate-700 leading-relaxed space-y-1">
-                <strong className="text-slate-900 block font-bold">Keterangan Panitia:</strong>
-                <p>{(result.pesanPengumuman || '').replace(/2026\/2027/g, '2027/2028')}</p>
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/80 text-xs text-slate-700 leading-relaxed space-y-2">
+                <strong className="text-slate-900 block font-bold text-xs sm:text-sm">Keterangan Panitia:</strong>
+                <p>
+                  {(result.pesanPengumuman || '')
+                    .replace(/2026\/2027/g, '2027/2028')
+                    .replace(/Harap segera daftar ulang.*$/i, '')
+                    .replace(/Segera lakukan pendaftaran ulang.*$/i, '')
+                    .replace(/Surat Keterangan Lulus \(SKL\)/gi, 'Surat Keterangan Hasil Seleksi')
+                    .replace(/\bSKL\b/g, 'Surat Keterangan Hasil Seleksi')
+                    .trim()}
+                </p>
+                {result.status === 'LULUS' && (
+                  <div className="mt-2.5 p-3.5 sm:p-4 rounded-xl bg-emerald-50 border-2 border-emerald-500 text-emerald-950 shadow-2xs">
+                    <p className="text-sm sm:text-base font-extrabold leading-snug tracking-tight">
+                      Segera lakukan pendaftaran ulang. Informasi pembiayaannya, silahkan di Unduh Surat Keterangan Hasil Seleksi.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
-                {result.status === 'LULUS' && (
+                {result.status !== 'PROSES_SELEKSI' && (
                   <button
                     onClick={() => setShowSklModal(true)}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs shadow-md transition cursor-pointer"
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-xs shadow-md transition cursor-pointer ${
+                      result.status === 'LULUS'
+                        ? 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                        : 'bg-slate-800 hover:bg-slate-900 text-white'
+                    }`}
                   >
                     <Download className="w-4 h-4 text-amber-300" />
-                    <span>Unduh Surat Keterangan Lulus (SKL)</span>
+                    <span>Unduh Surat Keterangan Hasil Seleksi</span>
                   </button>
                 )}
                 <button
@@ -599,7 +618,7 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
         </div>
       )}
 
-      {/* SKL Printable Modal (2 Halaman Lengkap dengan Lampiran Rincian Biaya Modern) */}
+      {/* SKL Printable Modal (Tanpa Lampiran Pembiayaan jika Tidak Diterima) */}
       {showSklModal && result && (
         <SklKelulusanPrintModal
           data={{
@@ -610,7 +629,7 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
             jalur: result.jalur,
             status: result.status,
             jadwalDaftarUlang: effectiveJadwalDaftarUlang,
-            kategoriPembiayaan: result.kategoriPembiayaan,
+            kategoriPembiayaan: result.status === 'TIDAK_LULUS' ? '' : result.kategoriPembiayaan,
             pesanPengumuman: result.pesanPengumuman
           }}
           onClose={() => setShowSklModal(false)}

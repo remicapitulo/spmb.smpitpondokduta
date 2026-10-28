@@ -57,11 +57,15 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
   const siswaData = gasService.getSiswaByNo(data.noPendaftaran);
   const indukData = gasService.getDataIndukList().find(d => d.noPendaftaran === data.noPendaftaran);
 
+  const effectiveStatus = data.status || kelulusanData?.status || (obsData?.rekomendasi === 'Tidak Diterima' ? 'TIDAK_LULUS' : obsData?.rekomendasi === 'Cadangan' ? 'CADANGAN' : 'LULUS');
+  const isTidakDiterima = effectiveStatus === 'TIDAK_LULUS' || obsData?.rekomendasi === 'Tidak Diterima';
+  const isCadangan = !isTidakDiterima && (effectiveStatus === 'CADANGAN' || obsData?.rekomendasi === 'Cadangan');
+
   const effectiveNisn = data.nisn && data.nisn !== '-' ? data.nisn : (siswaData?.nisn || indukData?.nisn || kelulusanData?.nisn || '-');
   const effectiveAsalSekolah = data.asalSekolah || siswaData?.asalSekolah || kelulusanData?.asalSekolah || 'SD/MI Pendaftar';
-  const effectiveJadwal = data.jadwalDaftarUlang || obsData?.tanggalMaksimalDaftarUlang || kelulusanData?.jadwalDaftarUlang || '20 - 25 Januari 2027';
+  const effectiveJadwal = isTidakDiterima ? '-' : (data.jadwalDaftarUlang || obsData?.tanggalMaksimalDaftarUlang || kelulusanData?.jadwalDaftarUlang || '20 - 25 Januari 2027');
   const defaultSheetKat = gasService.getPembiayaanList()[0]?.kategori || '';
-  const effectiveKategoriName = data.kategoriPembiayaan || obsData?.kategoriPembiayaan || kelulusanData?.kategoriPembiayaan || defaultSheetKat;
+  const effectiveKategoriName = isTidakDiterima ? '' : (data.kategoriPembiayaan || obsData?.kategoriPembiayaan || kelulusanData?.kategoriPembiayaan || defaultSheetKat);
   
   const activeBiaya: PembiayaanCategory = gasService.getPembiayaanByCategory(effectiveKategoriName);
   const normalBiaya: PembiayaanCategory = gasService.getPembiayaanList()[0] || activeBiaya;
@@ -117,13 +121,16 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
       const safeNo = (data.noPendaftaran || 'PD').replace(/\s+/g, '_');
       await downloadElementAsPdf({
         element: docRef.current,
-        fileName: `SKL_Resmi_SPMB_${safeNo}_${safeName}.pdf`,
-        pdfTitle: `Surat Keterangan Lulus (SKL) SPMB - ${data.namaLengkap}`,
-        footerText: `Dokumen Resmi SKL & Rincian Daftar Ulang SMPIT Pondok Duta TP ${tahunPelajaran} · Terverifikasi Sah.`,
+        fileName: `Surat_Keterangan_Hasil_Seleksi_SPMB_${safeNo}_${safeName}.pdf`,
+        pdfTitle: `Surat Keterangan Hasil Seleksi SPMB - ${data.namaLengkap}`,
+        footerText: `Dokumen Resmi Surat Keterangan Hasil Seleksi & Rincian Daftar Ulang SMPIT Pondok Duta TP ${tahunPelajaran} · Terverifikasi Sah.`,
         margin: 10
       });
+      if (data.noPendaftaran) {
+        gasService.markUnduhSkhs(data.noPendaftaran);
+      }
     } catch (e) {
-      console.error('Gagal mengunduh PDF SKL:', e);
+      console.error('Gagal mengunduh PDF Surat Keterangan Hasil Seleksi:', e);
       alert('Gagal membuat file PDF. Silakan gunakan tombol Print di browser.');
     } finally {
       setIsDownloading(false);
@@ -131,6 +138,9 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
   };
 
   const handlePrint = () => {
+    if (data.noPendaftaran) {
+      gasService.markUnduhSkhs(data.noPendaftaran);
+    }
     window.print();
   };
 
@@ -147,18 +157,20 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                  Dokumen Resmi 2 Halaman
+                  {isTidakDiterima ? 'Dokumen Resmi 1 Halaman' : 'Dokumen Resmi 2 Halaman'}
                 </span>
-                <span className="text-xs text-slate-400">| SKL &amp; Rincian Daftar Ulang</span>
+                <span className="text-xs text-slate-400">
+                  {isTidakDiterima ? '| Surat Keterangan Hasil Seleksi (Tanpa Lampiran Pembiayaan)' : '| Surat Keterangan Hasil Seleksi & Rincian Daftar Ulang'}
+                </span>
               </div>
               <h3 className="font-extrabold text-sm sm:text-base text-white tracking-wide">
-                Pratinjau Surat Keterangan Lulus (SKL) Murid
+                {isTidakDiterima ? 'Pratinjau Surat Keterangan Hasil Seleksi Murid' : 'Pratinjau Surat Keterangan Hasil Seleksi Murid'}
               </h3>
             </div>
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
-            {onOpenRincianKategori && (
+            {onOpenRincianKategori && !isTidakDiterima && (
               <button
                 type="button"
                 onClick={onOpenRincianKategori}
@@ -191,48 +203,56 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
 
         {/* Tab Selector: Semua Halaman, Lembar 1, Lembar 2 (No-Print) */}
         <div className="no-print bg-slate-100 border-b border-slate-200 px-5 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'all'
-                  ? 'bg-emerald-800 text-white shadow-xs'
-                  : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
-              }`}
-            >
-              Semua Halaman (2 Lembar)
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('page1')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'page1'
-                  ? 'bg-emerald-800 text-white shadow-xs'
-                  : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
-              }`}
-            >
-              Lembar 1: Surat Kelulusan (SKL)
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('page2')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                activeTab === 'page2'
-                  ? 'bg-emerald-800 text-white shadow-xs'
-                  : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
-              }`}
-            >
-              Lembar 2: Lampiran Rincian Biaya
-            </button>
-          </div>
+          {isTidakDiterima ? (
+            <div className="flex items-center gap-2 text-xs font-bold text-rose-800 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200">
+              <span>Status: TIDAK DITERIMA — Dokumen PDF hanya berisi 1 Halaman Surat Pengumuman (Tanpa Lampiran Pembiayaan)</span>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === 'all'
+                      ? 'bg-emerald-800 text-white shadow-xs'
+                      : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
+                  }`}
+                >
+                  Semua Halaman (2 Lembar)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('page1')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === 'page1'
+                      ? 'bg-emerald-800 text-white shadow-xs'
+                      : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
+                  }`}
+                >
+                  Lembar 1: Surat Keterangan Hasil Seleksi
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('page2')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                    activeTab === 'page2'
+                      ? 'bg-emerald-800 text-white shadow-xs'
+                      : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
+                  }`}
+                >
+                  Lembar 2: Lampiran Rincian Biaya
+                </button>
+              </div>
 
-          <div className="flex items-center gap-1.5 text-xs text-slate-600">
-            <span className="font-semibold">Kategori Pembiayaan:</span>
-            <span className="font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
-              {activeBiaya.kategori}
-            </span>
-          </div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                <span className="font-semibold">Kategori Pembiayaan:</span>
+                <span className="font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                  {activeBiaya.kategori}
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Document Scrollable Body */}
@@ -335,7 +355,7 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  {/* Pernyataan Diterima (Table Layout 100% immune to html2canvas inline-block text clipping) */}
+                  {/* Pernyataan Hasil Seleksi (Table Layout 100% immune to html2canvas inline-block text clipping) */}
                   <div style={{ textAlign: 'center', margin: '8px 0' }}>
                     <div style={{ fontSize: '13px', color: '#475569', fontWeight: 600, marginBottom: '6px' }}>
                       Dinyatakan :
@@ -349,8 +369,8 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
                         maxWidth: '92%',
                         borderCollapse: 'separate',
                         borderSpacing: 0,
-                        backgroundColor: '#ecfdf5',
-                        border: '2px solid #059669',
+                        backgroundColor: isTidakDiterima ? '#fff1f2' : (isCadangan ? '#fffbeb' : '#ecfdf5'),
+                        border: isTidakDiterima ? '2px solid #e11d48' : (isCadangan ? '2px solid #d97706' : '2px solid #059669'),
                         borderRadius: '16px'
                       }}
                     >
@@ -361,14 +381,14 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
                             style={{
                               padding: '18px 30px',
                               textAlign: 'center',
-                              backgroundColor: '#ecfdf5',
+                              backgroundColor: isTidakDiterima ? '#fff1f2' : (isCadangan ? '#fffbeb' : '#ecfdf5'),
                               borderRadius: '14px',
                               verticalAlign: 'middle'
                             }}
                           >
                             <div 
                               style={{ 
-                                color: '#064e3b', 
+                                color: isTidakDiterima ? '#881337' : (isCadangan ? '#78350f' : '#064e3b'), 
                                 fontWeight: 900, 
                                 fontSize: '26px', 
                                 lineHeight: '32px',
@@ -376,29 +396,33 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
                                 letterSpacing: '2px'
                               }}
                             >
-                              ( DITERIMA )
+                              {isTidakDiterima ? '( TIDAK DITERIMA )' : (isCadangan ? '( CADANGAN )' : '( DITERIMA )')}
                             </div>
                             <div 
                               style={{ 
-                                color: '#065f46', 
+                                color: isTidakDiterima ? '#9f1239' : (isCadangan ? '#92400e' : '#065f46'), 
                                 fontWeight: 800, 
                                 fontSize: '14.5px', 
                                 marginTop: '5px', 
                                 lineHeight: '20px' 
                               }}
                             >
-                              Menjadi murid SMP Islam Terpadu Pondok Duta (Kelas VII)
+                              {isTidakDiterima
+                                ? 'Belum Memenuhi Kuota Penerimaan Murid Baru SMP Islam Terpadu Pondok Duta'
+                                : (isCadangan
+                                  ? 'Terdaftar pada Daftar Tunggu / Cadangan SMP Islam Terpadu Pondok Duta'
+                                  : 'Menjadi murid SMP Islam Terpadu Pondok Duta (Kelas VII)')}
                             </div>
                             <div 
                               style={{ 
-                                color: '#047857', 
+                                color: isTidakDiterima ? '#be123c' : (isCadangan ? '#b45309' : '#047857'), 
                                 fontWeight: 700, 
                                 fontSize: '12px', 
                                 marginTop: '4px', 
                                 lineHeight: '18px' 
                               }}
                             >
-                              Terhitung mulai Tahun Pelajaran {tahunPelajaran}.
+                              Tahun Pelajaran {tahunPelajaran}.
                             </div>
                           </td>
                         </tr>
@@ -406,33 +430,41 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
                     </table>
                   </div>
 
-                  <p className="leading-relaxed text-[13px] text-slate-800 text-left">
-                    Kami mengucapkan selamat atas keberhasilan putra-putri Bapak/Ibu, semoga menjadi kebahagiaan dan kebanggaan bagi Bapak/Ibu sekeluarga.
-                  </p>
+                  {isTidakDiterima ? (
+                    <p className="leading-relaxed text-[13px] text-slate-800 text-left">
+                      Kami menyampaikan terima kasih yang sebesar-besarnya atas partisipasi dan kepercayaan Bapak/Ibu telah mendaftarkan putra-putrinya mengikuti seleksi di SMPIT Pondok Duta. Semoga ananda senantiasa diberikan kesuksesan dan kemudahan di tempat pendidikan terbaik.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="leading-relaxed text-[13px] text-slate-800 text-left">
+                        Kami mengucapkan selamat atas keberhasilan putra-putri Bapak/Ibu, semoga menjadi kebahagiaan dan kebanggaan bagi Bapak/Ibu sekeluarga.
+                      </p>
 
-                  {/* Informasi Pelaksanaan Daftar Ulang */}
-                  <div 
-                    style={{
-                      padding: '14px 22px',
-                      borderRadius: '12px',
-                      backgroundColor: '#f8fafc',
-                      border: '1.5px solid #cbd5e1',
-                      fontSize: '13px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '12px'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Calendar className="w-4 h-4 text-emerald-700 shrink-0" />
-                      <span style={{ fontWeight: 700, color: '#1e293b' }}>Pelaksanaan Daftar Ulang :</span>
-                      <span style={{ fontWeight: 900, color: '#064e3b', textDecoration: 'underline' }}>{effectiveJadwal}</span>
-                    </div>
-                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#475569', backgroundColor: '#ffffff', padding: '5px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                      Rincian Biaya : Terlampir di Lembar 2
-                    </span>
-                  </div>
+                      {/* Informasi Pelaksanaan Daftar Ulang */}
+                      <div 
+                        style={{
+                          padding: '14px 22px',
+                          borderRadius: '12px',
+                          backgroundColor: '#f8fafc',
+                          border: '1.5px solid #cbd5e1',
+                          fontSize: '13px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '12px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Calendar className="w-4 h-4 text-emerald-700 shrink-0" />
+                          <span style={{ fontWeight: 700, color: '#1e293b' }}>Pelaksanaan Daftar Ulang :</span>
+                          <span style={{ fontWeight: 900, color: '#064e3b', textDecoration: 'underline' }}>{effectiveJadwal}</span>
+                        </div>
+                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#475569', backgroundColor: '#ffffff', padding: '5px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                          Rincian Biaya : Terlampir di Lembar 2
+                        </span>
+                      </div>
+                    </>
+                  )}
 
                   <p className="leading-relaxed text-[13px] text-slate-700">
                     Demikian hasil tes ini kami sampaikan, atas perhatian dan kerjasamanya kami ucapkan terima kasih.
@@ -462,7 +494,7 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
                         Verifikasi Keabsahan Dokumen
                       </span>
                       <p className="text-[10px] text-slate-500 leading-snug max-w-[240px]">
-                        Pindai QR Code untuk memvalidasi keaslian Surat Keterangan Lulus resmi SMPIT Pondok Duta.
+                        Pindai QR Code untuk memvalidasi keaslian Surat Keterangan Hasil Seleksi resmi SMPIT Pondok Duta.
                       </p>
                       <div className="text-[9.5px] font-mono text-emerald-800 font-bold">
                         Ref: SPMB-PD/{data.noPendaftaran}/{new Date().getFullYear()}
@@ -484,8 +516,9 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
 
             {/* ========================================================================= */}
             {/* LEMBAR 2 (F4 Folio Page 2): RINCIAN DAFTAR ULANG & PEMBIAYAAN            */}
+            {/* (Hanya tampil jika murid DITERIMA / CADANGAN — Ditiadakan jika TIDAK DITERIMA) */}
             {/* ========================================================================= */}
-            {(activeTab === 'all' || activeTab === 'page2') && (
+            {!isTidakDiterima && (activeTab === 'all' || activeTab === 'page2') && (
               <div 
                 className="a4-page-slice bg-white rounded-2xl border border-slate-200 text-slate-900"
                 style={{
@@ -940,7 +973,9 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
         <div className="no-print bg-white px-5 sm:px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <div className="text-xs text-slate-500 text-center sm:text-left">
             <span>Dokumen resmi </span>
-            <strong className="text-emerald-800">SKL &amp; Rincian Daftar Ulang</strong>
+            <strong className="text-emerald-800">
+              {isTidakDiterima ? 'Surat Keterangan Hasil Seleksi (Tanpa Lampiran Pembiayaan)' : 'Surat Keterangan Hasil Seleksi & Rincian Daftar Ulang'}
+            </strong>
             <span> siap dicetak atau diunduh sebagai PDF resmi.</span>
           </div>
 
@@ -966,7 +1001,7 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
               ) : (
                 <>
                   <Download className="w-4 h-4" />
-                  <span>Unduh PDF Resmi (2 Lembar)</span>
+                  <span>{isTidakDiterima ? 'Unduh PDF Resmi (1 Lembar)' : 'Unduh PDF Resmi (2 Lembar)'}</span>
                 </>
               )}
             </button>

@@ -89,37 +89,27 @@ export const SiswaDashboard: React.FC<Props> = ({
 
       const isSelfSiswa = currentUser?.role === 'siswa' && (currentUser.kodePendaftaran || '').toUpperCase() === activeNo.toUpperCase();
       const effectiveNama = biodataForm.namaLengkap || (isSelfSiswa ? currentUser?.namaSiswa : '') || '';
-      const effectivePanggilan = biodataForm.namaPanggilan || (effectiveNama ? effectiveNama.split(' ')[0] : '');
       const effectiveAsal = biodataForm.asalSekolah || (isSelfSiswa ? currentUser?.sekolahAsal : '') || '';
-      const effectiveOrtu = biodataForm.namaAyah || biodataForm.namaIbu || (isSelfSiswa ? currentUser?.namaOrangTua : '') || '-';
-      const effectiveHp = biodataForm.noHpAyah || biodataForm.noHpIbu || biodataForm.nomorHandphone || biodataForm.nomorTelepon || (isSelfSiswa ? currentUser?.nomorHp : '') || '-';
-      const ttlStr = (biodataForm.tempatLahir ? biodataForm.tempatLahir + ', ' : '') + (biodataForm.tanggalLahir || '-');
+      const effectiveOrtu = biodataForm.namaAyah || biodataForm.namaIbu || (isSelfSiswa ? currentUser?.namaOrangTua : '') || '';
+      const effectiveHp = biodataForm.noHpAyah || biodataForm.noHpIbu || biodataForm.nomorHandphone || biodataForm.nomorTelepon || (isSelfSiswa ? currentUser?.nomorHp : '') || '';
 
+      // Gunakan URL ringkas agar modul kotak QR Code berukuran besar, renggang, dan langsung terbaca kamera HP dari layar tanpa perlu zoom
       const queryParams = new URLSearchParams({
-        tab: 'cek-kelulusan',
         verifikasi: 'true',
-        no: activeNo,
-        nama: effectiveNama,
-        panggilan: effectivePanggilan,
-        nisn: biodataForm.nisn || '',
-        nik: biodataForm.nik || '',
-        asal: effectiveAsal,
-        jalur: biodataForm.jalurPendaftaran || 'Jalur Reguler SPMB',
-        jk: biodataForm.jenisKelamin || 'Laki-laki',
-        ttl: ttlStr,
-        ortu: effectiveOrtu,
-        hp: effectiveHp,
-        jadwal: 'Sabtu, 17 Januari 2026 · Pukul 08.00 - 11.30 WIB',
-        ruang: 'Ruang Aula - Gedung SMPIT Lt. 1'
+        no: activeNo
       });
+      if (effectiveNama && effectiveNama !== 'Calon Peserta Didik') queryParams.set('nama', effectiveNama);
+      if (effectiveAsal && effectiveAsal !== 'SD/MI Asal') queryParams.set('asal', effectiveAsal);
+      if (effectiveOrtu && effectiveOrtu !== '-') queryParams.set('ortu', effectiveOrtu);
+      if (effectiveHp && effectiveHp !== '-') queryParams.set('hp', effectiveHp);
 
       const verificationUrl = `${hostOrigin}/?${queryParams.toString()}`;
 
       QRCode.toDataURL(verificationUrl, {
-        width: 400,
+        width: 560,
         margin: 2,
         color: { dark: '#000000', light: '#ffffff' },
-        errorCorrectionLevel: 'M'
+        errorCorrectionLevel: 'L'
       })
         .then((url) => setCardQrDataUrl(url))
         .catch(() => {});
@@ -263,24 +253,24 @@ export const SiswaDashboard: React.FC<Props> = ({
         q14_sikapTerhadapOrtu: rawMap[23] || '',
         q15_pernahMelawanOrtu: rawMap[24] || '',
         q16_halBerkesan: rawMap[25] || '',
-        q17_ayahMerokok: (rawMap[26] as any) || 'Tidak',
-        q18_bundaMerokok: (rawMap[27] as any) || 'Tidak',
-        q19_keluargaLainMerokok: rawMap[28] || 'Tidak ada',
+        q17_ayahMerokok: (rawMap[26] as any) || '',
+        q18_bundaMerokok: (rawMap[27] as any) || '',
+        q19_keluargaLainMerokok: rawMap[28] || '',
         q20_durasiBersamaAnak: rawMap[29] || '',
         q21_kegiatanBersamaDiRumah: rawMap[30] || '',
-        q22_traumaBullying: rawMap[31] || 'Tidak ada',
-        q23_anakPernahMerokok: rawMap[32] || 'Tidak pernah',
+        q22_traumaBullying: rawMap[31] || '',
+        q23_anakPernahMerokok: rawMap[32] || '',
         q24_pendapatRokokPornografi: rawMap[33] || '',
-        q25_fasilitasGadget: rawMap[34] || 'Tidak',
-        q26_frekuensiGadget: rawMap[35] || 'Waktu libur',
+        q25_fasilitasGadget: rawMap[34] || '',
+        q26_frekuensiGadget: rawMap[35] || '',
         q27_bersediaAwasiGadget: rawMap[36] || '',
-        q28_installAplikasiBelajarAnak: rawMap[37] || 'Ya',
-        q29_installAplikasiPengawasanOrtu: rawMap[38] || 'Ya',
-        q30_jarakKeSekolah: rawMap[39] || '0 - 5 km',
-        q31_kendaraanSekolah: q31Raw || 'Motor',
-        q32_izinBawaMotorSendiri: rawMap[41] || 'Tidak',
+        q28_installAplikasiBelajarAnak: rawMap[37] || '',
+        q29_installAplikasiPengawasanOrtu: rawMap[38] || '',
+        q30_jarakKeSekolah: rawMap[39] || '',
+        q31_kendaraanSekolah: q31Raw || '',
+        q32_izinBawaMotorSendiri: rawMap[41] || '',
         q33_harapanSekolah: rawMap[42] || '',
-        q34_ttdMeterai: (rawMap[43] as any) || 'Ya',
+        q34_ttdMeterai: (rawMap[43] as any) || '',
         pernyataanSetuju: Boolean(rawMap[44] && rawMap[44].toUpperCase().includes('SETUJU')),
         updatedAt: new Date().toISOString()
       });
@@ -511,24 +501,25 @@ export const SiswaDashboard: React.FC<Props> = ({
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Kebiasaan Sholat 5 Waktu</label>
                 <select
-                  value={wawancaraSiswaForm.kebiasaanSholat || 'Selalu Berjamaah di Masjid'}
+                  value={wawancaraSiswaForm.kebiasaanSholat || ''}
                   onChange={(e) => setWawancaraSiswaForm({ ...wawancaraSiswaForm, kebiasaanSholat: e.target.value as any })}
                   className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
                 >
+                  <option value="">-- Pilih Kebiasaan Sholat --</option>
                   <option value="Selalu Berjamaah di Masjid">Selalu Berjamaah di Masjid</option>
                   <option value="Tepat Waktu Mandiri">Tepat Waktu Mandiri</option>
                   <option value="Kadang Perlu Diingatkan">Kadang Perlu Diingatkan</option>
                   <option value="Sering Terlambat">Sering Terlambat</option>
                 </select>
               </div>
-
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Jumlah Juz Hafalan Saat Ini</label>
                 <select
-                  value={wawancaraSiswaForm.jumlahJuzHafalan || 'Juz 30 (Lengkap)'}
+                  value={wawancaraSiswaForm.jumlahJuzHafalan || ''}
                   onChange={(e) => setWawancaraSiswaForm({ ...wawancaraSiswaForm, jumlahJuzHafalan: e.target.value as any })}
                   className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
                 >
+                  <option value="">-- Pilih Jumlah Juz Hafalan --</option>
                   <option value="> 5 Juz">&gt; 5 Juz</option>
                   <option value="3 - 5 Juz">3 - 5 Juz</option>
                   <option value="Juz 29 - 30 (2 Juz)">Juz 29 - 30 (2 Juz)</option>
@@ -778,10 +769,11 @@ export const SiswaDashboard: React.FC<Props> = ({
                         4. Berapa penghasilan Ayah / Wali per bulan? *
                       </label>
                       <select
-                        value={formOrtu34.q4_penghasilanAyah || 'Rp. 10.000.000 - 15.000.000'}
+                        value={formOrtu34.q4_penghasilanAyah || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q4_penghasilanAyah: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
                       >
+                        <option value="">-- Pilih Penghasilan Ayah --</option>
                         <option value="di bawah Rp.5.000.000">di bawah Rp.5.000.000</option>
                         <option value="Rp. 5.000.000 - 10.000.000">Rp. 5.000.000 - 10.000.000</option>
                         <option value="Rp. 10.000.000 - 15.000.000">Rp. 10.000.000 - 15.000.000</option>
@@ -793,10 +785,11 @@ export const SiswaDashboard: React.FC<Props> = ({
                         5. Berapa penghasilan Bunda / Wali per bulan? *
                       </label>
                       <select
-                        value={formOrtu34.q5_penghasilanBunda || 'Rp. 5.000.000 - 10.000.000'}
+                        value={formOrtu34.q5_penghasilanBunda || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q5_penghasilanBunda: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
                       >
+                        <option value="">-- Pilih Penghasilan Bunda --</option>
                         <option value="di bawah Rp.5.000.000">di bawah Rp.5.000.000</option>
                         <option value="Rp. 5.000.000 - 10.000.000">Rp. 5.000.000 - 10.000.000</option>
                         <option value="Rp. 10.000.000 - 15.000.000">Rp. 10.000.000 - 15.000.000</option>
@@ -1094,10 +1087,11 @@ export const SiswaDashboard: React.FC<Props> = ({
                         15. Apakah ananda pernah melawan perintah Ayah/Bunda? *
                       </label>
                       <select
-                        value={formOrtu34.q15_pernahMelawanOrtu || 'Tidak pernah'}
+                        value={formOrtu34.q15_pernahMelawanOrtu || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q15_pernahMelawanOrtu: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
                       >
+                        <option value="">-- Pilih Frekuensi --</option>
                         <option value="Selalu">Selalu</option>
                         <option value="Sering">Sering</option>
                         <option value="Jarang">Jarang</option>
@@ -1179,7 +1173,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                       </label>
                       <input
                         type="text"
-                        value={formOrtu34.q19_keluargaLainMerokok || 'Tidak ada'}
+                        value={formOrtu34.q19_keluargaLainMerokok || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q19_keluargaLainMerokok: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300"
                         placeholder="Contoh: Tidak ada / Kakek"
@@ -1223,7 +1217,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                       </label>
                       <input
                         type="text"
-                        value={formOrtu34.q22_traumaBullying || 'Tidak ada'}
+                        value={formOrtu34.q22_traumaBullying || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q22_traumaBullying: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300"
                         placeholder="Tulis 'Tidak ada' jika tidak pernah"
@@ -1235,7 +1229,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                       </label>
                       <input
                         type="text"
-                        value={formOrtu34.q23_anakPernahMerokok || 'Tidak pernah'}
+                        value={formOrtu34.q23_anakPernahMerokok || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q23_anakPernahMerokok: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300"
                         placeholder="Tulis 'Tidak pernah'"
@@ -1283,7 +1277,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                       </label>
                       <input
                         type="text"
-                        value={formOrtu34.q25_fasilitasGadget || 'Tidak'}
+                        value={formOrtu34.q25_fasilitasGadget || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q25_fasilitasGadget: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300"
                         placeholder="Contoh: Tidak / Smartphone bersama / Tab pribadi"
@@ -1294,10 +1288,11 @@ export const SiswaDashboard: React.FC<Props> = ({
                         26. Seberapa sering ananda menggunakan gadget? *
                       </label>
                       <select
-                        value={formOrtu34.q26_frekuensiGadget || 'Waktu libur'}
+                        value={formOrtu34.q26_frekuensiGadget || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q26_frekuensiGadget: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
                       >
+                        <option value="">-- Pilih Frekuensi --</option>
                         <option value="Setiap hari">Setiap hari</option>
                         <option value="Seminggu sekali">Seminggu sekali</option>
                         <option value="Waktu libur">Waktu libur</option>
@@ -1314,7 +1309,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                       </label>
                       <input
                         type="text"
-                        value={formOrtu34.q27_bersediaAwasiGadget || 'Ya, selalu didampingi'}
+                        value={formOrtu34.q27_bersediaAwasiGadget || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q27_bersediaAwasiGadget: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300"
                         placeholder="Contoh: Ya, sejak SD"
@@ -1326,7 +1321,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                       </label>
                       <input
                         type="text"
-                        value={formOrtu34.q28_installAplikasiBelajarAnak || 'Ya'}
+                        value={formOrtu34.q28_installAplikasiBelajarAnak || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q28_installAplikasiBelajarAnak: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300"
                         placeholder="Contoh: Ya, bersedia"
@@ -1338,7 +1333,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                       </label>
                       <input
                         type="text"
-                        value={formOrtu34.q29_installAplikasiPengawasanOrtu || 'Ya'}
+                        value={formOrtu34.q29_installAplikasiPengawasanOrtu || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q29_installAplikasiPengawasanOrtu: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300"
                         placeholder="Contoh: Ya, bersedia"
@@ -1353,10 +1348,11 @@ export const SiswaDashboard: React.FC<Props> = ({
                         30. Jarak tempuh rumah ke sekolah? *
                       </label>
                       <select
-                        value={formOrtu34.q30_jarakKeSekolah || '0 - 5 km'}
+                        value={formOrtu34.q30_jarakKeSekolah || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q30_jarakKeSekolah: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300 bg-white"
                       >
+                        <option value="">-- Pilih Jarak Tempuh --</option>
                         <option value="0 - 5 km">0 - 5 km</option>
                         <option value="di atas 5km">di atas 5km</option>
                       </select>
@@ -1368,7 +1364,13 @@ export const SiswaDashboard: React.FC<Props> = ({
                         31. Kendaraan mengantar ke sekolah? *
                       </label>
                       <select
-                        value={['Sepeda', 'Motor', 'Mobil'].includes(formOrtu34.q31_kendaraanSekolah || '') ? formOrtu34.q31_kendaraanSekolah : 'Yang lain'}
+                        value={
+                          !formOrtu34.q31_kendaraanSekolah 
+                            ? '' 
+                            : (['Sepeda', 'Motor', 'Mobil'].includes(formOrtu34.q31_kendaraanSekolah) 
+                                ? formOrtu34.q31_kendaraanSekolah 
+                                : 'Yang lain')
+                        }
                         onChange={(e) => {
                           const val = e.target.value;
                           if (val === 'Yang lain') {
@@ -1381,13 +1383,14 @@ export const SiswaDashboard: React.FC<Props> = ({
                         }}
                         className="w-full p-2 rounded-xl border border-slate-300 bg-white"
                       >
+                        <option value="">-- Pilih Kendaraan Mengantar --</option>
                         <option value="Sepeda">Sepeda</option>
                         <option value="Motor">Motor</option>
                         <option value="Mobil">Mobil</option>
                         <option value="Yang lain">Yang Lain (Isian Tambahan)</option>
                       </select>
 
-                      {(!['Sepeda', 'Motor', 'Mobil'].includes(formOrtu34.q31_kendaraanSekolah || '') || formOrtu34.q31_kendaraanSekolah?.startsWith('Yang lain')) && (
+                      {Boolean(formOrtu34.q31_kendaraanSekolah && (!['Sepeda', 'Motor', 'Mobil'].includes(formOrtu34.q31_kendaraanSekolah) || formOrtu34.q31_kendaraanSekolah?.startsWith('Yang lain'))) && (
                         <div className="pt-1.5">
                           <label className="block text-[10px] font-semibold text-emerald-900 mb-0.5">
                             Isian Tambahan (Yang Lain):
@@ -1414,7 +1417,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                       </label>
                       <input
                         type="text"
-                        value={formOrtu34.q32_izinBawaMotorSendiri || 'Tidak'}
+                        value={formOrtu34.q32_izinBawaMotorSendiri || ''}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, q32_izinBawaMotorSendiri: e.target.value })}
                         className="w-full p-2.5 rounded-xl border border-slate-300"
                         placeholder="Contoh: Tidak / Belum cukup umur"
@@ -1487,7 +1490,7 @@ export const SiswaDashboard: React.FC<Props> = ({
                     <label className="flex items-start gap-2.5 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={formOrtu34.pernyataanSetuju ?? true}
+                        checked={Boolean(formOrtu34.pernyataanSetuju)}
                         onChange={(e) => setFormOrtu34({ ...formOrtu34, pernyataanSetuju: e.target.checked })}
                         className="mt-0.5 h-4 w-4 text-emerald-700 rounded focus:ring-emerald-500"
                       />
@@ -1583,9 +1586,9 @@ export const SiswaDashboard: React.FC<Props> = ({
             </div>
 
             {/* Body */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4 items-start pt-2">
-              <div className="sm:col-span-1 flex flex-row sm:flex-col items-center justify-around sm:justify-center gap-3 bg-slate-50 p-2 sm:p-2.5 rounded-xl border border-slate-200">
-                <div className="w-20 sm:w-28 h-28 sm:h-36 border-2 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center p-1.5 text-center text-slate-400 shrink-0">
+            <div className="flex flex-col sm:flex-row gap-4 items-center sm:items-start pt-2">
+              <div className="w-full sm:w-[180px] shrink-0 flex flex-row sm:flex-col items-center justify-around sm:justify-center gap-3 bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-200">
+                <div className="w-24 sm:w-32 h-32 sm:h-40 border-2 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center p-1.5 text-center text-slate-400 shrink-0">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600 mb-1 text-[11px]">
                     3x4
                   </div>
@@ -1593,13 +1596,14 @@ export const SiswaDashboard: React.FC<Props> = ({
                   <span className="text-[7px] sm:text-[8px] text-slate-400">Tempel di sini</span>
                 </div>
                 <div className="text-center shrink-0">
-                  <span className="text-[8px] sm:text-[9px] font-bold text-slate-700 block mb-1">SCAN VERIFIKASI</span>
-                  <div className="w-20 h-20 sm:w-24 sm:h-24 border border-slate-300 rounded-xl p-1 mx-auto flex flex-col items-center justify-center bg-white shadow-xs">
+                  <span className="text-[8.5px] sm:text-[9px] font-bold text-slate-700 block mb-1">SCAN VERIFIKASI</span>
+                  <div className="w-32 h-32 sm:w-36 sm:h-36 border border-slate-300 rounded-xl p-1.5 mx-auto flex flex-col items-center justify-center bg-white shadow-xs">
                     {cardQrDataUrl ? (
                       <img 
                         src={cardQrDataUrl} 
                         alt={`QR Code Verifikasi ${biodataForm.noPendaftaran}`}
                         className="w-full h-full object-contain"
+                        style={{ imageRendering: 'pixelated' }}
                       />
                     ) : (
                       <div className="w-full h-full bg-slate-50 animate-pulse rounded-lg flex items-center justify-center text-[9px] text-slate-500 font-mono">
@@ -1607,11 +1611,11 @@ export const SiswaDashboard: React.FC<Props> = ({
                       </div>
                     )}
                   </div>
-                  <span className="text-[7.5px] sm:text-[8.5px] font-mono font-bold text-slate-900 mt-1 block truncate max-w-[85px] mx-auto bg-slate-100 px-1 py-0.5 rounded">{biodataForm.noPendaftaran}</span>
+                  <span className="text-[8.5px] sm:text-[9px] font-mono font-bold text-slate-900 mt-1 block truncate max-w-[130px] mx-auto bg-slate-100 px-1.5 py-0.5 rounded">{biodataForm.noPendaftaran}</span>
                 </div>
               </div>
 
-              <div className="sm:col-span-3 space-y-2 text-xs">
+              <div className="w-full flex-1 min-w-0 space-y-2 text-xs">
                 <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
                   <div>
                     <span className="text-[9px] sm:text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">

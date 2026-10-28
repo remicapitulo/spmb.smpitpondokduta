@@ -24,7 +24,8 @@ import {
   FileText,
   GraduationCap,
   BadgePercent,
-  RefreshCw
+  RefreshCw,
+  Lock
 } from 'lucide-react';
 
 interface Props {
@@ -48,23 +49,23 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
   const [isCustomPenguji, setIsCustomPenguji] = useState<boolean>(false);
   const [customPenguji, setCustomPenguji] = useState<string>('');
 
-  // Rubrik Nilai Observasi Siswa
-  const [nilaiTahsin, setNilaiTahsin] = useState<number>(85);
+  // Rubrik Nilai Observasi Siswa (Benar-benar kosong di awal jika belum dinilai di database)
+  const [nilaiTahsin, setNilaiTahsin] = useState<number | ''>('');
   const [catatanTahsin, setCatatanTahsin] = useState<string>('');
-  const [nilaiTahfidz, setNilaiTahfidz] = useState<number>(88);
-  const [juzDiuji, setJuzDiuji] = useState<string>('Juz 30 (Lengkap)');
+  const [nilaiTahfidz, setNilaiTahfidz] = useState<number | ''>('');
+  const [juzDiuji, setJuzDiuji] = useState<string>('');
   const [catatanTahfidz, setCatatanTahfidz] = useState<string>('');
-  const [nilaiKarakterAdab, setNilaiKarakterAdab] = useState<number>(90);
+  const [nilaiKarakterAdab, setNilaiKarakterAdab] = useState<number | ''>('');
   const [catatanKarakterAdab, setCatatanKarakterAdab] = useState<string>('');
-  const [nilaiAkademikDasar, setNilaiAkademikDasar] = useState<number>(85);
+  const [nilaiAkademikDasar, setNilaiAkademikDasar] = useState<number | ''>('');
   const [catatanAkademikDasar, setCatatanAkademikDasar] = useState<string>('');
-  const [nilaiPsikotes, setNilaiPsikotes] = useState<number>(85);
+  const [nilaiPsikotes, setNilaiPsikotes] = useState<number | ''>('');
   const [catatanPsikotes, setCatatanPsikotes] = useState<string>('');
-  const [rekomendasiSiswa, setRekomendasiSiswa] = useState<'Diterima' | 'Cadangan' | 'Tidak Diterima'>('Diterima');
+  const [rekomendasiSiswa, setRekomendasiSiswa] = useState<'Diterima' | 'Cadangan' | 'Tidak Diterima' | ''>('');
   const [catatanPengujiSiswa, setCatatanPengujiSiswa] = useState<string>('');
-  const [tanggalMaksimalDaftarUlang, setTanggalMaksimalDaftarUlang] = useState<string>('20 - 25 Januari 2027');
+  const [tanggalMaksimalDaftarUlang, setTanggalMaksimalDaftarUlang] = useState<string>('');
   const [pembiayaanCategories, setPembiayaanCategories] = useState<PembiayaanCategory[]>(() => gasService.getPembiayaanList());
-  const [kategoriPembiayaan, setKategoriPembiayaan] = useState<string>(() => gasService.getPembiayaanList()[0]?.kategori || '');
+  const [kategoriPembiayaan, setKategoriPembiayaan] = useState<string>('');
   const [isRefreshingKategori, setIsRefreshingKategori] = useState<boolean>(false);
   const [kategoriSyncMsg, setKategoriSyncMsg] = useState<string>('');
   const [showRincianModal, setShowRincianModal] = useState<boolean>(false);
@@ -79,9 +80,15 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
 
   useEffect(() => {
     const handleDbUpdate = () => {
+      gasService.getStudentList(false).then((updatedList) => {
+        setStudents(updatedList);
+      });
       const fresh = gasService.getPembiayaanList();
       if (fresh && fresh.length > 0) {
         setPembiayaanCategories(fresh);
+      }
+      if (selectedStudentId) {
+        loadExistingObservasiSiswa(selectedStudentId);
       }
     };
     window.addEventListener('spmb_db_updated', handleDbUpdate);
@@ -90,7 +97,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       window.removeEventListener('spmb_db_updated', handleDbUpdate);
       window.removeEventListener('storage', handleDbUpdate);
     };
-  }, []);
+  }, [selectedStudentId]);
 
   const handleRefreshKategoriSheet = async () => {
     setIsRefreshingKategori(true);
@@ -99,8 +106,8 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       const res = await gasService.fetchPembiayaanFromSpreadsheet();
       if (res.success && res.categories && res.categories.length > 0) {
         setPembiayaanCategories(res.categories);
-        if (!res.categories.some(c => c.kategori === kategoriPembiayaan)) {
-          setKategoriPembiayaan(res.categories[0].kategori);
+        if (kategoriPembiayaan && !res.categories.some(c => c.kategori === kategoriPembiayaan)) {
+          setKategoriPembiayaan('');
         }
         setKategoriSyncMsg(res.message);
       } else {
@@ -149,57 +156,58 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
           setCustomPenguji(existing.namaPenguji);
         }
       }
-      setNilaiTahsin(existing.nilaiTahsin);
+      setNilaiTahsin(existing.nilaiTahsin !== undefined && existing.nilaiTahsin !== null ? existing.nilaiTahsin : '');
       setCatatanTahsin(existing.catatanTahsin || '');
-      setNilaiTahfidz(existing.nilaiTahfidz);
-      setJuzDiuji(existing.juzDiuji || 'Juz 30 (Lengkap)');
+      setNilaiTahfidz(existing.nilaiTahfidz !== undefined && existing.nilaiTahfidz !== null ? existing.nilaiTahfidz : '');
+      setJuzDiuji(existing.juzDiuji || '');
       setCatatanTahfidz(existing.catatanTahfidz || '');
-      setNilaiKarakterAdab(existing.nilaiKarakterAdab);
+      setNilaiKarakterAdab(existing.nilaiKarakterAdab !== undefined && existing.nilaiKarakterAdab !== null ? existing.nilaiKarakterAdab : '');
       setCatatanKarakterAdab(existing.catatanKarakterAdab || '');
-      setNilaiAkademikDasar(existing.nilaiAkademikDasar);
+      setNilaiAkademikDasar(existing.nilaiAkademikDasar !== undefined && existing.nilaiAkademikDasar !== null ? existing.nilaiAkademikDasar : '');
       setCatatanAkademikDasar(existing.catatanAkademikDasar || '');
-      setNilaiPsikotes(existing.nilaiPsikotes !== undefined ? existing.nilaiPsikotes : 85);
+      setNilaiPsikotes(existing.nilaiPsikotes !== undefined && existing.nilaiPsikotes !== null ? existing.nilaiPsikotes : '');
       setCatatanPsikotes(existing.catatanPsikotes || '');
-      setRekomendasiSiswa(existing.rekomendasi);
+      setRekomendasiSiswa(existing.rekomendasi || '');
       setCatatanPengujiSiswa(existing.catatanPenguji || '');
-      const defaultKat = pembiayaanCategories[0]?.kategori || gasService.getPembiayaanList()[0]?.kategori || '';
-      setTanggalMaksimalDaftarUlang(existing.tanggalMaksimalDaftarUlang || '20 - 25 Januari 2027');
-      setKategoriPembiayaan(existing.kategoriPembiayaan || defaultKat);
+      setTanggalMaksimalDaftarUlang(existing.tanggalMaksimalDaftarUlang || '');
+      setKategoriPembiayaan(existing.kategoriPembiayaan || '');
     } else {
-      const defaultKat = pembiayaanCategories[0]?.kategori || gasService.getPembiayaanList()[0]?.kategori || '';
-      const existingLulus = gasService.getStatusKelulusan(noPend);
       setSavedSiswaResult(null);
-      setNilaiTahsin(85);
+      setNilaiTahsin('');
       setCatatanTahsin('');
-      setNilaiTahfidz(88);
-      setJuzDiuji('Juz 30 (Lengkap)');
+      setNilaiTahfidz('');
+      setJuzDiuji('');
       setCatatanTahfidz('');
-      setNilaiKarakterAdab(90);
+      setNilaiKarakterAdab('');
       setCatatanKarakterAdab('');
-      setNilaiAkademikDasar(85);
+      setNilaiAkademikDasar('');
       setCatatanAkademikDasar('');
-      setNilaiPsikotes(85);
+      setNilaiPsikotes('');
       setCatatanPsikotes('');
-      setRekomendasiSiswa('Diterima');
+      setRekomendasiSiswa('');
       setCatatanPengujiSiswa('');
-      setTanggalMaksimalDaftarUlang(existingLulus?.jadwalDaftarUlang && existingLulus.jadwalDaftarUlang !== '-' ? existingLulus.jadwalDaftarUlang : '20 - 25 Januari 2027');
-      setKategoriPembiayaan(existingLulus?.kategoriPembiayaan || defaultKat);
+      setTanggalMaksimalDaftarUlang('');
+      setKategoriPembiayaan('');
     }
   };
 
   const currentStudent = students.find(s => s.id === selectedStudentId) || students[0] || null;
   const isGasLive = gasService.isLiveGasConfigured();
 
-  const totalScore = Math.round(Number(nilaiTahsin) + Number(nilaiTahfidz) + Number(nilaiKarakterAdab) + Number(nilaiAkademikDasar) + Number(nilaiPsikotes));
-  const avgScore = Math.round(totalScore / 5);
+  const scoresArray = [nilaiTahsin, nilaiTahfidz, nilaiKarakterAdab, nilaiAkademikDasar, nilaiPsikotes].filter(
+    (val): val is number => typeof val === 'number' && !isNaN(val)
+  );
+  const totalScore = scoresArray.length > 0 ? Math.round(scoresArray.reduce((acc, curr) => acc + curr, 0)) : null;
+  const avgScore = scoresArray.length > 0 && totalScore !== null ? Math.round(totalScore / scoresArray.length) : null;
 
   const effectivePengujiName = isCustomPenguji ? customPenguji.trim() : namaPengujiSiswa;
-  const selectedBiayaCategory = gasService.getPembiayaanByCategory(kategoriPembiayaan);
+  const selectedBiayaCategory = kategoriPembiayaan ? gasService.getPembiayaanByCategory(kategoriPembiayaan) : null;
 
   const handleSubmitObservasiSiswa = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentStudent) { alert("Pilih siswa terlebih dahulu!"); return; }
     if (!effectivePengujiName) { alert("Pilih atau isi nama penguji terlebih dahulu!"); return; }
+    if (!rekomendasiSiswa) { alert("Pilih keputusan rekomendasi kelulusan terlebih dahulu!"); return; }
 
     setSaving(true);
     const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
@@ -214,7 +222,9 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
         : (existingLulus?.nisn && existingLulus.nisn !== '-' ? existingLulus.nisn : '-'));
     const resolvedAsalSekolah = currentStudent.sekolah || existingSiswa?.asalSekolah || existingLulus?.asalSekolah || 'SD/MI Pendaftar';
 
-    const rincianBiayaData = gasService.getPembiayaanByCategory(kategoriPembiayaan);
+    const rincianBiayaData = (rekomendasiSiswa === 'Tidak Diterima' || !kategoriPembiayaan) 
+      ? undefined 
+      : (gasService.getPembiayaanByCategory(kategoriPembiayaan) || undefined);
 
     const dataPayload: ObservasiSiswaData = {
       id: 'OS-' + Date.now(),
@@ -225,23 +235,23 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       namaSiswa: currentStudent.nama,
       namaPenguji: effectivePengujiName,
       tanggalObservasi: dateStr,
-      nilaiTahsin: Number(nilaiTahsin),
+      nilaiTahsin: Number(nilaiTahsin) || 0,
       catatanTahsin,
-      nilaiTahfidz: Number(nilaiTahfidz),
+      nilaiTahfidz: Number(nilaiTahfidz) || 0,
       juzDiuji,
       catatanTahfidz,
-      nilaiKarakterAdab: Number(nilaiKarakterAdab),
+      nilaiKarakterAdab: Number(nilaiKarakterAdab) || 0,
       catatanKarakterAdab,
-      nilaiAkademikDasar: Number(nilaiAkademikDasar),
+      nilaiAkademikDasar: Number(nilaiAkademikDasar) || 0,
       catatanAkademikDasar,
-      nilaiPsikotes: Number(nilaiPsikotes),
+      nilaiPsikotes: Number(nilaiPsikotes) || 0,
       catatanPsikotes,
-      totalSkor: totalScore,
-      rataRata: avgScore,
-      rekomendasi: rekomendasiSiswa,
+      totalSkor: totalScore !== null ? totalScore : 0,
+      rataRata: avgScore !== null ? avgScore : 0,
+      rekomendasi: rekomendasiSiswa as 'Diterima' | 'Cadangan' | 'Tidak Diterima',
       catatanPenguji: catatanPengujiSiswa,
-      tanggalMaksimalDaftarUlang: tanggalMaksimalDaftarUlang.trim() || '20 - 25 Januari 2027',
-      kategoriPembiayaan,
+      tanggalMaksimalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalMaksimalDaftarUlang.trim() || '-'),
+      kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaan,
       rincianBiaya: rincianBiayaData,
       createdAt: new Date().toISOString()
     };
@@ -397,7 +407,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500">Rata-rata:</span>
                 <span className="text-base font-black font-mono text-indigo-900 bg-indigo-50 px-2.5 py-1 rounded-xl border border-indigo-200">
-                  {avgScore} / 100
+                  {avgScore !== null ? `${avgScore} / 100` : '-'}
                 </span>
               </div>
             </div>
@@ -417,9 +427,9 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       type="number"
                       min="0"
                       max="100"
-                      required
+                      placeholder="-"
                       value={nilaiTahsin}
-                      onChange={(e) => setNilaiTahsin(Number(e.target.value))}
+                      onChange={(e) => setNilaiTahsin(e.target.value === '' ? '' : Number(e.target.value))}
                       className="w-16 p-1.5 rounded-lg border border-slate-300 text-center font-bold text-xs bg-white text-indigo-900"
                     />
                   </div>
@@ -446,9 +456,9 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       type="number"
                       min="0"
                       max="100"
-                      required
+                      placeholder="-"
                       value={nilaiTahfidz}
-                      onChange={(e) => setNilaiTahfidz(Number(e.target.value))}
+                      onChange={(e) => setNilaiTahfidz(e.target.value === '' ? '' : Number(e.target.value))}
                       className="w-16 p-1.5 rounded-lg border border-slate-300 text-center font-bold text-xs bg-white text-indigo-900"
                     />
                   </div>
@@ -460,6 +470,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                     onChange={(e) => setJuzDiuji(e.target.value)}
                     className="flex-1 p-1.5 rounded-lg border border-slate-200 text-xs bg-white"
                   >
+                    <option value="">-- Belum Ada / Pilih Juz Diuji --</option>
                     <option value="Juz 30 (Lengkap)">Juz 30 (Lengkap)</option>
                     <option value="Juz 30 (Sebagian)">Juz 30 (Sebagian)</option>
                     <option value="Juz 29 - 30 (2 Juz)">Juz 29 - 30 (2 Juz)</option>
@@ -489,9 +500,9 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       type="number"
                       min="0"
                       max="100"
-                      required
+                      placeholder="-"
                       value={nilaiKarakterAdab}
-                      onChange={(e) => setNilaiKarakterAdab(Number(e.target.value))}
+                      onChange={(e) => setNilaiKarakterAdab(e.target.value === '' ? '' : Number(e.target.value))}
                       className="w-16 p-1.5 rounded-lg border border-slate-300 text-center font-bold text-xs bg-white text-indigo-900"
                     />
                   </div>
@@ -518,9 +529,9 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       type="number"
                       min="0"
                       max="100"
-                      required
+                      placeholder="-"
                       value={nilaiAkademikDasar}
-                      onChange={(e) => setNilaiAkademikDasar(Number(e.target.value))}
+                      onChange={(e) => setNilaiAkademikDasar(e.target.value === '' ? '' : Number(e.target.value))}
                       className="w-16 p-1.5 rounded-lg border border-slate-300 text-center font-bold text-xs bg-white text-indigo-900"
                     />
                   </div>
@@ -547,9 +558,9 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       type="number"
                       min="0"
                       max="100"
-                      required
+                      placeholder="-"
                       value={nilaiPsikotes}
-                      onChange={(e) => setNilaiPsikotes(Number(e.target.value))}
+                      onChange={(e) => setNilaiPsikotes(e.target.value === '' ? '' : Number(e.target.value))}
                       className="w-16 p-1.5 rounded-lg border border-slate-300 text-center font-bold text-xs bg-white text-indigo-900"
                     />
                   </div>
@@ -577,6 +588,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                     onChange={(e) => setRekomendasiSiswa(e.target.value as any)}
                     className="w-full p-2.5 rounded-xl border border-indigo-300 bg-white font-bold text-xs text-indigo-950 focus:ring-2 focus:ring-indigo-500"
                   >
+                    <option value="">-- Pilih Rekomendasi Kelulusan --</option>
                     <option value="Diterima">DITERIMA (Memenuhi Standar KKM)</option>
                     <option value="Cadangan">CADANGAN (Perlu Pembinaan Tambahan)</option>
                     <option value="Tidak Diterima">TIDAK DITERIMA</option>
@@ -596,37 +608,54 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                 </div>
               </div>
 
-              {/* Menu Input Tanggal Daftar Ulang */}
+              {/* Menu Input Tanggal Daftar Ulang - Terkunci jika Tidak Diterima */}
               <div className="pt-3 border-t border-indigo-200/80">
-                <div className="p-4 rounded-2xl bg-emerald-50/80 border-2 border-emerald-400 space-y-2">
+                <div className={`p-4 rounded-2xl border-2 space-y-2 transition ${
+                  rekomendasiSiswa === 'Tidak Diterima'
+                    ? 'bg-slate-100 border-slate-300 opacity-75'
+                    : 'bg-emerald-50/80 border-emerald-400'
+                }`}>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
                     <label className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                      <Calendar className="w-4 h-4 text-emerald-700" />
-                      <span>Menu Input Tanggal / Batas Daftar Ulang Murid (Tercetak di SKL):</span>
+                      {rekomendasiSiswa === 'Tidak Diterima' ? (
+                        <Lock className="w-4 h-4 text-slate-500" />
+                      ) : (
+                        <Calendar className="w-4 h-4 text-emerald-700" />
+                      )}
+                      <span>Menu Input Tanggal / Batas Daftar Ulang Murid (Tercetak di Surat Keterangan Hasil Seleksi):</span>
                     </label>
-                    <span className="text-[10px] text-emerald-800 font-bold bg-emerald-200/80 px-2.5 py-0.5 rounded-md border border-emerald-300">
-                      Otomatis Tercetak di SKL Siswa
-                    </span>
+                    {rekomendasiSiswa === 'Tidak Diterima' ? (
+                      <span className="text-[10px] text-rose-800 font-bold bg-rose-100 px-2.5 py-0.5 rounded-md border border-rose-300 inline-flex items-center gap-1">
+                        <Lock className="w-3 h-3" />
+                        <span>Terkunci (Tidak Diterima)</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-emerald-800 font-bold bg-emerald-200/80 px-2.5 py-0.5 rounded-md border border-emerald-300">
+                        Otomatis Tercetak di Surat Keterangan Hasil Seleksi
+                      </span>
+                    )}
                   </div>
                   
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <input
                       type="text"
-                      value={tanggalMaksimalDaftarUlang}
+                      disabled={rekomendasiSiswa === 'Tidak Diterima'}
+                      value={rekomendasiSiswa === 'Tidak Diterima' ? '- (Tidak Diterima - Terkunci)' : tanggalMaksimalDaftarUlang}
                       onChange={(e) => setTanggalMaksimalDaftarUlang(e.target.value)}
                       placeholder="Contoh: 20 - 25 Januari 2027 atau 30 Januari 2027"
-                      className="flex-1 p-2.5 rounded-xl border border-emerald-500 bg-white font-bold text-xs text-emerald-950 focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                      className="flex-1 p-2.5 rounded-xl border border-emerald-500 disabled:border-slate-300 bg-white disabled:bg-slate-200/80 font-bold text-xs text-emerald-950 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                     />
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {['20 - 25 Januari 2027', '26 - 31 Januari 2027', '1 - 7 Februari 2027', '10 - 15 Februari 2027'].map((chip) => (
                         <button
                           key={chip}
                           type="button"
+                          disabled={rekomendasiSiswa === 'Tidak Diterima'}
                           onClick={() => setTanggalMaksimalDaftarUlang(chip)}
-                          className={`text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border transition cursor-pointer ${
-                            tanggalMaksimalDaftarUlang === chip
-                              ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
-                              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
+                          className={`text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                            rekomendasiSiswa !== 'Tidak Diterima' && tanggalMaksimalDaftarUlang === chip
+                              ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs cursor-pointer'
+                              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300 cursor-pointer'
                           }`}
                         >
                           {chip}
@@ -635,28 +664,45 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                     </div>
                   </div>
                   <p className="text-[10.5px] text-slate-600 mt-1.5 leading-snug">
-                    Batas tanggal ini akan langsung tercetak pada dokumen resmi Surat Keterangan Lulus (SKL) dan tertera pada halaman Pengumuman Kelulusan calon murid bersangkutan.
+                    {rekomendasiSiswa === 'Tidak Diterima'
+                      ? 'Kolom tanggal daftar ulang dikunci otomatis karena murid berstatus "Tidak Diterima".'
+                      : 'Batas tanggal ini akan langsung tercetak pada dokumen resmi Surat Keterangan Hasil Seleksi dan tertera pada halaman Pengumuman Hasil Seleksi calon murid bersangkutan.'}
                   </p>
                 </div>
               </div>
 
-              {/* Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori Pembiayaan) */}
+              {/* Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori Pembiayaan) - Terkunci jika Tidak Diterima */}
               <div className="pt-3 border-t border-indigo-200/80">
-                <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-50 via-purple-50 to-emerald-50 border-2 border-indigo-400 space-y-3.5 shadow-xs">
+                <div className={`p-5 rounded-2xl border-2 space-y-3.5 shadow-xs transition ${
+                  rekomendasiSiswa === 'Tidak Diterima'
+                    ? 'bg-slate-100 border-slate-300 opacity-75'
+                    : 'bg-gradient-to-r from-indigo-50 via-purple-50 to-emerald-50 border-indigo-400'
+                }`}>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-xl bg-indigo-700 text-white shrink-0 shadow-xs">
-                        <CreditCard className="w-4 h-4" />
+                      <div className={`p-2 rounded-xl text-white shrink-0 shadow-xs ${
+                        rekomendasiSiswa === 'Tidak Diterima' ? 'bg-slate-500' : 'bg-indigo-700'
+                      }`}>
+                        {rekomendasiSiswa === 'Tidak Diterima' ? <Lock className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
                       </div>
                       <div>
                         <h4 className="text-xs sm:text-sm font-extrabold text-indigo-950 flex items-center gap-1.5 flex-wrap">
                           <span>Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori)</span>
-                          <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded-md border border-indigo-300">
-                            Database Sheet: Pembiayaan
-                          </span>
+                          {rekomendasiSiswa === 'Tidak Diterima' ? (
+                            <span className="text-[10px] font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-300 inline-flex items-center gap-1">
+                              <Lock className="w-3 h-3" />
+                              <span>Terkunci &amp; Tanpa Lampiran PDF</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded-md border border-indigo-300">
+                              Database Sheet: Pembiayaan
+                            </span>
+                          )}
                         </h4>
-                        <p className="text-[11px] text-indigo-800 leading-snug">
-                          Pilih rujukan kategori biaya SPMB murid. Klik tombol untuk memunculkan rincian pembiayaan modern yang dilampirkan pada PDF SKL lembar ke-2.
+                        <p className="text-[11px] text-slate-600 leading-snug">
+                          {rekomendasiSiswa === 'Tidak Diterima'
+                            ? 'Pilihan rincian pembiayaan dikunci. Bagi murid yang "Tidak Diterima", tidak ada Lampiran Pembiayaan saat di-download PDF-nya.'
+                            : 'Pilih rujukan kategori biaya SPMB murid. Klik tombol untuk memunculkan rincian pembiayaan modern yang dilampirkan pada PDF Surat Keterangan Hasil Seleksi lembar ke-2.'}
                         </p>
                       </div>
                     </div>
@@ -665,8 +711,8 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       <button
                         type="button"
                         onClick={handleRefreshKategoriSheet}
-                        disabled={isRefreshingKategori}
-                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-900 font-black text-[11px] transition shadow-md flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50 border-2 border-amber-300"
+                        disabled={isRefreshingKategori || rekomendasiSiswa === 'Tidak Diterima'}
+                        className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-900 font-black text-[11px] transition shadow-md flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-2 border-amber-300"
                         title="Klik untuk menarik dan menyinkronkan daftar kategori pembiayaan langsung dari Sheet Pembiayaan di Google Spreadsheet"
                       >
                         <RefreshCw className={`w-4 h-4 text-slate-900 ${isRefreshingKategori ? 'animate-spin' : ''}`} />
@@ -675,9 +721,10 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
 
                       <button
                         type="button"
+                        disabled={rekomendasiSiswa === 'Tidak Diterima'}
                         onClick={() => setShowRincianModal(true)}
-                        className="px-3.5 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                        title="Klik untuk membuka rincian pembiayaan yang akan dilampirkan di PDF SKL lembar ke-2"
+                        className="px-3.5 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                        title="Klik untuk membuka rincian pembiayaan yang akan dilampirkan di PDF Surat Keterangan Hasil Seleksi lembar ke-2"
                       >
                         <FileText className="w-3.5 h-3.5 text-indigo-200" />
                         <span>Rincian Daftar Ulang (Lembar 2)</span>
@@ -687,10 +734,10 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                         type="button"
                         onClick={() => setShowSklModal(true)}
                         className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                        title="Klik untuk melihat pratinjau SKL kelulusan lengkap (2 Halaman)"
+                        title="Klik untuk melihat pratinjau Surat Keterangan Hasil Seleksi"
                       >
                         <GraduationCap className="w-3.5 h-3.5 text-emerald-200" />
-                        <span>Pratinjau SKL Kelulusan</span>
+                        <span>Pratinjau Surat Keterangan Hasil Seleksi</span>
                       </button>
                     </div>
                   </div>
@@ -701,8 +748,14 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
                         <Tag className="w-3.5 h-3.5 text-indigo-600" />
                         <span>Pilih Kategori Rujukan Pembiayaan Murid:</span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border bg-emerald-100 text-emerald-800 border-emerald-300">
-                          {pembiayaanCategories.length} Kategori Murni dari Sheet
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                          rekomendasiSiswa === 'Tidak Diterima'
+                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        }`}>
+                          {rekomendasiSiswa === 'Tidak Diterima'
+                            ? 'Terkunci — Tidak Ada Lampiran Pembiayaan'
+                            : `${pembiayaanCategories.length} Kategori Murni dari Sheet`}
                         </span>
                       </label>
                     </div>
@@ -715,42 +768,65 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                     )}
 
                     <select
-                      value={kategoriPembiayaan}
+                      disabled={rekomendasiSiswa === 'Tidak Diterima'}
+                      value={rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaan}
                       onChange={(e) => setKategoriPembiayaan(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-indigo-300 bg-white font-bold text-xs text-indigo-950 focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
+                      className="w-full p-2.5 rounded-xl border border-indigo-300 disabled:border-slate-300 bg-white disabled:bg-slate-200/80 font-bold text-xs text-indigo-950 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
                     >
-                      {pembiayaanCategories.map((c, i) => (
-                        <option key={i} value={c.kategori}>
-                          {c.kategori}{c.catatan ? ` — ${c.catatan}` : ''}
-                        </option>
-                      ))}
+                      {rekomendasiSiswa === 'Tidak Diterima' ? (
+                        <option value="">🔒 Terkunci — Murid Berstatus Tidak Diterima (Tanpa Lampiran Pembiayaan)</option>
+                      ) : (
+                        <>
+                          <option value="">-- Belum Dipilih / Pilih Kategori Rujukan Pembiayaan --</option>
+                          {pembiayaanCategories.map((c, i) => (
+                            <option key={i} value={c.kategori}>
+                              {c.kategori}{c.catatan ? ` — ${c.catatan}` : ''}
+                            </option>
+                          ))}
+                        </>
+                      )}
                     </select>
                   </div>
 
                   {/* Live Cost Summary Card */}
-                  <div className="p-3.5 rounded-xl bg-white border border-indigo-200 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs shadow-2xs">
-                    <div>
-                      <span className="text-[10px] text-slate-500 block">Subtotal I (Gedung/BPP/Seragam):</span>
-                      <span className="font-mono font-bold text-slate-800">{formatRupiah(selectedBiayaCategory.subtotalI)}</span>
+                  {rekomendasiSiswa === 'Tidak Diterima' ? (
+                    <div className="p-3.5 rounded-xl bg-rose-50/80 border border-rose-200 text-rose-900 text-xs flex items-center gap-2.5 font-medium">
+                      <Lock className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>
+                        Rincian pembiayaan dinonaktifkan karena rekomendasi murid adalah <strong>Tidak Diterima</strong>. Saat murid/orang tua mengunduh PDF hasil pengumuman, <strong>Lampiran Pembiayaan (Lembar ke-2) otomatis ditiadakan</strong>.
+                      </span>
                     </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 block">Subtotal II (Kegiatan/Buku/KBM):</span>
-                      <span className="font-mono font-bold text-slate-800">{formatRupiah(selectedBiayaCategory.subtotalII)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 block">SPP Juli (Flat 3 Thn):</span>
-                      <span className="font-mono font-bold text-slate-800">{formatRupiah(selectedBiayaCategory.spp)}</span>
-                    </div>
-                    <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-200">
-                      <span className="text-[10px] text-emerald-800 font-bold block">Total Biaya Daftar Ulang:</span>
-                      <span className="font-mono font-black text-emerald-900 text-sm">{formatRupiah(selectedBiayaCategory.totalBiaya)}</span>
-                    </div>
-                  </div>
+                  ) : selectedBiayaCategory ? (
+                    <>
+                      <div className="p-3.5 rounded-xl bg-white border border-indigo-200 grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs shadow-2xs">
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">Subtotal I (Gedung/BPP/Seragam):</span>
+                          <span className="font-mono font-bold text-slate-800">{formatRupiah(selectedBiayaCategory.subtotalI)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">Subtotal II (Kegiatan/Buku/KBM):</span>
+                          <span className="font-mono font-bold text-slate-800">{formatRupiah(selectedBiayaCategory.subtotalII)}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">SPP Juli (Flat 3 Thn):</span>
+                          <span className="font-mono font-bold text-slate-800">{formatRupiah(selectedBiayaCategory.spp)}</span>
+                        </div>
+                        <div className="bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+                          <span className="text-[10px] text-emerald-800 font-bold block">Total Biaya Daftar Ulang:</span>
+                          <span className="font-mono font-black text-emerald-900 text-sm">{formatRupiah(selectedBiayaCategory.totalBiaya)}</span>
+                        </div>
+                      </div>
 
-                  {selectedBiayaCategory.catatan && (
-                    <div className="flex items-center gap-2 text-[11px] text-indigo-900 bg-indigo-100/70 p-2 rounded-lg border border-indigo-200">
-                      <BadgePercent className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
-                      <span><strong>Catatan:</strong> {selectedBiayaCategory.catatan}</span>
+                      {selectedBiayaCategory.catatan && (
+                        <div className="flex items-center gap-2 text-[11px] text-indigo-900 bg-indigo-100/70 p-2 rounded-lg border border-indigo-200">
+                          <BadgePercent className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
+                          <span><strong>Catatan:</strong> {selectedBiayaCategory.catatan}</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 text-xs text-center font-medium">
+                      Pilih kategori pembiayaan di atas untuk menampilkan rincian biaya daftar ulang murid.
                     </div>
                   )}
                 </div>
@@ -761,7 +837,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
             {/* Submit & Action Buttons */}
             <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <span className="text-[11px] text-slate-400">
-                Data disimpan di sheet Observasi_Siswa &amp; terintegrasi ke SKL Kelulusan murid.
+                Data disimpan di sheet Observasi_Siswa &amp; terintegrasi ke Surat Keterangan Hasil Seleksi murid.
               </span>
 
               <div className="flex items-center gap-2 flex-wrap">
@@ -771,7 +847,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                   className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
                 >
                   <GraduationCap className="w-4 h-4" />
-                  <span>Pratinjau SKL</span>
+                  <span>Pratinjau Surat Keterangan Hasil Seleksi</span>
                 </button>
 
                 <button
@@ -797,21 +873,22 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                         namaSiswa: currentStudent.nama,
                         namaPenguji: effectivePengujiName,
                         tanggalObservasi: new Date().toLocaleDateString('id-ID'),
-                        nilaiTahsin,
+                        nilaiTahsin: Number(nilaiTahsin) || 0,
                         catatanTahsin,
-                        nilaiTahfidz,
+                        nilaiTahfidz: Number(nilaiTahfidz) || 0,
                         juzDiuji,
                         catatanTahfidz,
-                        nilaiKarakterAdab,
+                        nilaiKarakterAdab: Number(nilaiKarakterAdab) || 0,
                         catatanKarakterAdab,
-                        nilaiAkademikDasar,
+                        nilaiAkademikDasar: Number(nilaiAkademikDasar) || 0,
                         catatanAkademikDasar,
-                        totalSkor: totalScore,
-                        rataRata: avgScore,
-                        rekomendasi: rekomendasiSiswa,
+                        totalSkor: totalScore !== null ? totalScore : 0,
+                        rataRata: avgScore || 0,
+                        rekomendasi: (rekomendasiSiswa || 'Cadangan') as any,
                         catatanPenguji: catatanPengujiSiswa,
-                        kategoriPembiayaan,
-                        rincianBiaya: selectedBiayaCategory,
+                        tanggalMaksimalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalMaksimalDaftarUlang.trim() || '-'),
+                        kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaan,
+                        rincianBiaya: (rekomendasiSiswa === 'Tidak Diterima' || !selectedBiayaCategory) ? undefined : selectedBiayaCategory,
                         createdAt: new Date().toISOString()
                       });
                     }
@@ -842,7 +919,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       )}
 
       {/* Modal Rincian Pembiayaan Lembar ke-2 (Format Baru Modern) */}
-      {showRincianModal && currentStudent && (
+      {showRincianModal && currentStudent && rekomendasiSiswa !== 'Tidak Diterima' && (
         <RincianPembiayaanModal
           siswa={{
             noPendaftaran: currentStudent.id,
@@ -860,7 +937,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
         />
       )}
 
-      {/* Modal Pratinjau SKL Kelulusan Resmi (2 Halaman Lengkap) */}
+      {/* Modal Pratinjau SKL Kelulusan Resmi */}
       {showSklModal && currentStudent && (
         <SklKelulusanPrintModal
           data={{
@@ -868,14 +945,14 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
             namaLengkap: currentStudent.nama,
             asalSekolah: currentStudent.sekolah,
             status: rekomendasiSiswa === 'Diterima' ? 'LULUS' : (rekomendasiSiswa === 'Cadangan' ? 'CADANGAN' : 'TIDAK_LULUS'),
-            jadwalDaftarUlang: tanggalMaksimalDaftarUlang,
-            kategoriPembiayaan
+            jadwalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : tanggalMaksimalDaftarUlang,
+            kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaan
           }}
           onClose={() => setShowSklModal(false)}
-          onOpenRincianKategori={() => {
+          onOpenRincianKategori={rekomendasiSiswa !== 'Tidak Diterima' ? () => {
             setShowSklModal(false);
             setShowRincianModal(true);
-          }}
+          } : undefined}
         />
       )}
 

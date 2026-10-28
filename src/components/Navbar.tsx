@@ -303,7 +303,7 @@ export const Navbar: React.FC<Props> = ({
                               <MessageCircle className="w-3.5 h-3.5" />
                             </div>
                             <div className="text-left">
-                              <div className="font-bold text-slate-800">WhatsApp Pengumuman</div>
+                              <div className="font-bold text-slate-800">Pengumuman</div>
                               <div className="text-[10px] text-slate-500 font-normal">Kirim Pengumuman ke No. Akun Ortu</div>
                             </div>
                           </div>

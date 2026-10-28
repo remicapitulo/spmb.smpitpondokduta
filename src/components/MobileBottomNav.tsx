@@ -582,7 +582,7 @@ export const MobileBottomNav: React.FC<Props> = ({
                         <MessageCircle className="w-4 h-4" />
                       </div>
                       <div className="text-left">
-                        <div className="font-bold text-xs text-slate-800">WhatsApp Pengumuman</div>
+                        <div className="font-bold text-xs text-slate-800">Pengumuman</div>
                         <div className="text-[10px] text-slate-500 font-normal">Kirim Pengumuman ke Nomor Akun Pendaftar</div>
                       </div>
                     </div>

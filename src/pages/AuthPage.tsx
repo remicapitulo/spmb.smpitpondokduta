@@ -443,7 +443,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                         setLoginKode(e.target.value);
                         setLoginError(null);
                       }}
-                      placeholder="CONTOH: PD-2027-001"
+                      placeholder="CONTOH: PD27-3JBPJD"
                       className="w-full pl-10 pr-20 py-3.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 font-mono font-bold text-sm tracking-widest placeholder:tracking-normal placeholder:font-sans placeholder:font-normal focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600/20 focus:border-emerald-600 transition uppercase shadow-2xs"
                       autoFocus
                       required

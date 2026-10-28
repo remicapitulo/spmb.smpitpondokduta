@@ -4,6 +4,7 @@ import { gasService } from './services/gasService';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { OfflineIndicator } from './components/OfflineIndicator';
+import { PWAInstallButton } from './components/PWAInstallButton';
 import { GasConfigModal } from './components/GasConfigModal';
 import { PanduanDeployModal } from './components/PanduanDeployModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
@@ -265,6 +266,9 @@ export default function App() {
 
       {/* PWA Offline Mode Indicator */}
       <OfflineIndicator />
+
+      {/* Floating PWA Install Badge Melayang */}
+      <PWAInstallButton variant="floating" />
 
       {/* Mobile Bottom Navigation Bar (< lg) - Tampil setelah login */}
       <MobileBottomNav

@@ -180,7 +180,9 @@ export const HasilObservasiSiswaPrintView: React.FC<Props> = ({ data, onClose })
             </div>
             <div className="col-span-2 sm:col-span-3">
               <span className="text-slate-500 block text-[10px]">Batas Maksimal Daftar Ulang: </span>
-              <strong className="text-emerald-800">{data.tanggalMaksimalDaftarUlang || '20 - 25 Januari 2027'}</strong>
+              <strong className={data.rekomendasi === 'Tidak Diterima' ? 'text-slate-400' : 'text-emerald-800'}>
+                {data.rekomendasi === 'Tidak Diterima' ? '- (Tidak Diterima)' : (data.tanggalMaksimalDaftarUlang || '20 - 25 Januari 2027')}
+              </strong>
             </div>
           </div>
 

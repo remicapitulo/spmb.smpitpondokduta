@@ -52,7 +52,9 @@ import {
   CreditCard,
   Tag,
   BadgePercent,
-  MessageCircle
+  MessageCircle,
+  Lock,
+  AlertCircle
 } from 'lucide-react';
 
 interface Props {
@@ -95,12 +97,8 @@ export const GuruDashboard: React.FC<Props> = ({
   const [selectedOrtuIndex, setSelectedOrtuIndex] = useState<number>(0);
   const [searchKeywordOrtu, setSearchKeywordOrtu] = useState<string>('');
   const [namaPewawancaraOrtu, setNamaPewawancaraOrtu] = useState<string>(
-    currentUser?.role === 'guru' && currentUser.namaSiswa
-      ? currentUser.namaSiswa
-      : (gasService.getPewawancaraAccounts()[0]?.namaSiswa || '')
+    currentUser?.namaSiswa || ''
   );
-  const [isCustomPewawancara, setIsCustomPewawancara] = useState<boolean>(false);
-  const [customPewawancaraName, setCustomPewawancaraName] = useState<string>('');
   
   const [ortuAnswers, setOrtuAnswers] = useState<{ [qIndex: number]: string }>({});
   const [catatanKhususOrtu, setCatatanKhususOrtu] = useState<string>('');
@@ -117,33 +115,30 @@ export const GuruDashboard: React.FC<Props> = ({
   const [selectedSiswaIndex, setSelectedSiswaIndex] = useState<number>(0);
   const [searchKeywordSiswa, setSearchKeywordSiswa] = useState<string>('');
   const [namaPengujiSiswa, setNamaPengujiSiswa] = useState<string>(
-    currentUser?.role === 'guru' && currentUser.namaSiswa
-      ? currentUser.namaSiswa
-      : (gasService.getPewawancaraAccounts()[0]?.namaSiswa || '')
+    currentUser?.namaSiswa || ''
   );
-  const [isCustomPenguji, setIsCustomPenguji] = useState<boolean>(false);
-  const [customPengujiName, setCustomPengujiName] = useState<string>('');
 
-  const [nilaiTahsin, setNilaiTahsin] = useState<number>(85);
+  const [nilaiTahsin, setNilaiTahsin] = useState<number | ''>('');
   const [catatanTahsin, setCatatanTahsin] = useState('');
-  const [nilaiTahfidz, setNilaiTahfidz] = useState<number>(88);
-  const [juzDiuji, setJuzDiuji] = useState('Juz 30 (Lengkap)');
+  const [nilaiTahfidz, setNilaiTahfidz] = useState<number | ''>('');
+  const [juzDiuji, setJuzDiuji] = useState('');
   const [catatanTahfidz, setCatatanTahfidz] = useState('');
-  const [nilaiKarakterAdab, setNilaiKarakterAdab] = useState<number>(90);
+  const [nilaiKarakterAdab, setNilaiKarakterAdab] = useState<number | ''>('');
   const [catatanKarakterAdab, setCatatanKarakterAdab] = useState('');
-  const [nilaiAkademikDasar, setNilaiAkademikDasar] = useState<number>(85);
+  const [nilaiAkademikDasar, setNilaiAkademikDasar] = useState<number | ''>('');
   const [catatanAkademikDasar, setCatatanAkademikDasar] = useState('');
-  const [nilaiPsikotes, setNilaiPsikotes] = useState<number>(85);
+  const [nilaiPsikotes, setNilaiPsikotes] = useState<number | ''>('');
   const [catatanPsikotes, setCatatanPsikotes] = useState('');
-  const [rekomendasiSiswa, setRekomendasiSiswa] = useState<'Diterima' | 'Cadangan' | 'Tidak Diterima'>('Diterima');
+  const [rekomendasiSiswa, setRekomendasiSiswa] = useState<'Diterima' | 'Cadangan' | 'Tidak Diterima' | ''>('');
   const [catatanPengujiSiswa, setCatatanPengujiSiswa] = useState('');
-  const [tanggalMaksimalDaftarUlang, setTanggalMaksimalDaftarUlang] = useState<string>('20 - 25 Januari 2027');
+  const [tanggalMaksimalDaftarUlang, setTanggalMaksimalDaftarUlang] = useState<string>('');
   const [pembiayaanCategories, setPembiayaanCategories] = useState<PembiayaanCategory[]>(() => gasService.getPembiayaanList());
-  const [kategoriPembiayaanSiswa, setKategoriPembiayaanSiswa] = useState<string>(() => gasService.getPembiayaanList()[0]?.kategori || '');
+  const [kategoriPembiayaanSiswa, setKategoriPembiayaanSiswa] = useState<string>('');
   const [isRefreshingKategori, setIsRefreshingKategori] = useState<boolean>(false);
   const [kategoriSyncMsg, setKategoriSyncMsg] = useState<string>('');
   const [showRincianPembiayaanModal, setShowRincianPembiayaanModal] = useState<boolean>(false);
   const [showSklKelulusanModal, setShowSklKelulusanModal] = useState<boolean>(false);
+
   const [savedSiswaResult, setSavedSiswaResult] = useState<ObservasiSiswaData | null>(null);
   const [previewSiswaModal, setPreviewSiswaModal] = useState<ObservasiSiswaData | null>(null);
 
@@ -154,8 +149,8 @@ export const GuruDashboard: React.FC<Props> = ({
       const res = await gasService.fetchPembiayaanFromSpreadsheet();
       if (res.success && res.categories && res.categories.length > 0) {
         setPembiayaanCategories(res.categories);
-        if (!kategoriPembiayaanSiswa || !res.categories.some(c => c.kategori === kategoriPembiayaanSiswa)) {
-          setKategoriPembiayaanSiswa(res.categories[0].kategori);
+        if (kategoriPembiayaanSiswa && !res.categories.some(c => c.kategori === kategoriPembiayaanSiswa)) {
+          setKategoriPembiayaanSiswa('');
         }
         setKategoriSyncMsg(`Alhamdulillah! Berhasil memuat ${res.categories.length} kategori dari Sheet Pembiayaan.`);
       } else {
@@ -174,6 +169,7 @@ export const GuruDashboard: React.FC<Props> = ({
     if (gasService.isLiveGasConfigured() && typeof navigator !== 'undefined' && navigator.onLine) {
       handleRefreshKategoriSheet();
     }
+
     const handleDbUpdate = () => {
       gasService.getStudentList(false).then((updatedList) => {
         setStudents(updatedList);
@@ -185,11 +181,13 @@ export const GuruDashboard: React.FC<Props> = ({
         setPembiayaanCategories(freshCategories);
       }
     };
+
     const handleSwitchTeam = (e: any) => {
       if (e?.detail) {
         setActiveTeam(e.detail);
       }
     };
+
     window.addEventListener('spmb_db_updated', handleDbUpdate);
     window.addEventListener('storage', handleDbUpdate);
     window.addEventListener('switch_guru_team', handleSwitchTeam);
@@ -200,17 +198,22 @@ export const GuruDashboard: React.FC<Props> = ({
     };
   }, []);
 
+  useEffect(() => {
+    if (currentUser?.namaSiswa) {
+      setNamaPewawancaraOrtu(currentUser.namaSiswa);
+      setNamaPengujiSiswa(currentUser.namaSiswa);
+    }
+  }, [currentUser?.namaSiswa]);
+
   const loadStudentList = async () => {
     // Hanya tampilkan loading jika belum ada data siswa sama sekali di memori
     setLoading(prev => students.length === 0);
     const list = await gasService.getStudentList();
     const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
     setDbGuruNames(gurus);
-    if (!namaPewawancaraOrtu && gurus.length > 0) {
-      setNamaPewawancaraOrtu(currentUser?.role === 'guru' && currentUser.namaSiswa ? currentUser.namaSiswa : gurus[0]);
-    }
-    if (!namaPengujiSiswa && gurus.length > 0) {
-      setNamaPengujiSiswa(currentUser?.role === 'guru' && currentUser.namaSiswa ? currentUser.namaSiswa : gurus[0]);
+    if (currentUser?.namaSiswa) {
+      setNamaPewawancaraOrtu(currentUser.namaSiswa);
+      setNamaPengujiSiswa(currentUser.namaSiswa);
     }
     setStudents(list);
     if (list.length > 0) {
@@ -251,6 +254,20 @@ export const GuruDashboard: React.FC<Props> = ({
   const currentStudentOrtu = students[selectedOrtuIndex] || null;
   const currentStudentSiswa = students[selectedSiswaIndex] || null;
 
+  // Pastikan setiap kali siswa yang sedang diuji berubah (baik karena dipilih maupun pembaruan daftar),
+  // form langsung membaca ulang data dari database (atau dikosongkan total jika belum ada di database)
+  useEffect(() => {
+    if (currentStudentSiswa?.id) {
+      loadExistingObservasiSiswa(currentStudentSiswa.id);
+    }
+  }, [currentStudentSiswa?.id, students]);
+
+  useEffect(() => {
+    if (currentStudentOrtu?.id) {
+      loadExistingWawancaraOrtu(currentStudentOrtu.id);
+    }
+  }, [currentStudentOrtu?.id, students]);
+
   // Handler ganti siswa Tim OTM
   const handleSelectStudentOrtu = (origIdx: number) => {
     setSelectedOrtuIndex(origIdx);
@@ -272,8 +289,12 @@ export const GuruDashboard: React.FC<Props> = ({
   // Load hasil wawancara OTM yang sudah ada
   const loadExistingWawancaraOrtu = (noPend: string) => {
     const existing = gasService.getHasilWawancaraOrtu(noPend);
-    if (existing) {
+    if (currentUser?.namaSiswa) {
+      setNamaPewawancaraOrtu(currentUser.namaSiswa);
+    } else if (existing?.namaPewawancara) {
       setNamaPewawancaraOrtu(existing.namaPewawancara);
+    }
+    if (existing) {
       setCatatanKhususOrtu(existing.catatanKhusus || '');
       const map: { [qIdx: number]: string } = {};
       if (existing.jsonAnswers) {
@@ -292,41 +313,66 @@ export const GuruDashboard: React.FC<Props> = ({
   const loadExistingObservasiSiswa = (noPend: string) => {
     const existing = gasService.getObservasiSiswa(noPend);
     const existingLulus = gasService.getStatusKelulusan(noPend);
-    if (existing) {
+    if (currentUser?.namaSiswa) {
+      setNamaPengujiSiswa(currentUser.namaSiswa);
+    } else if (existing?.namaPenguji) {
       setNamaPengujiSiswa(existing.namaPenguji);
-      setNilaiTahsin(existing.nilaiTahsin);
-      setCatatanTahsin(existing.catatanTahsin);
-      setNilaiTahfidz(existing.nilaiTahfidz);
-      setJuzDiuji(existing.juzDiuji);
-      setCatatanTahfidz(existing.catatanTahfidz);
-      setNilaiKarakterAdab(existing.nilaiKarakterAdab);
-      setCatatanKarakterAdab(existing.catatanKarakterAdab);
-      setNilaiAkademikDasar(existing.nilaiAkademikDasar);
-      setCatatanAkademikDasar(existing.catatanAkademikDasar);
-      setNilaiPsikotes(existing.nilaiPsikotes !== undefined ? existing.nilaiPsikotes : 85);
+    }
+    if (existing) {
+      setNilaiTahsin(existing.nilaiTahsin !== undefined && existing.nilaiTahsin !== null ? existing.nilaiTahsin : '');
+      setCatatanTahsin(existing.catatanTahsin || '');
+      setNilaiTahfidz(existing.nilaiTahfidz !== undefined && existing.nilaiTahfidz !== null ? existing.nilaiTahfidz : '');
+      setJuzDiuji(existing.juzDiuji || '');
+      setCatatanTahfidz(existing.catatanTahfidz || '');
+      setNilaiKarakterAdab(existing.nilaiKarakterAdab !== undefined && existing.nilaiKarakterAdab !== null ? existing.nilaiKarakterAdab : '');
+      setCatatanKarakterAdab(existing.catatanKarakterAdab || '');
+      setNilaiAkademikDasar(existing.nilaiAkademikDasar !== undefined && existing.nilaiAkademikDasar !== null ? existing.nilaiAkademikDasar : '');
+      setCatatanAkademikDasar(existing.catatanAkademikDasar || '');
+      setNilaiPsikotes(existing.nilaiPsikotes !== undefined && existing.nilaiPsikotes !== null ? existing.nilaiPsikotes : '');
       setCatatanPsikotes(existing.catatanPsikotes || '');
-      setRekomendasiSiswa(existing.rekomendasi);
-      setCatatanPengujiSiswa(existing.catatanPenguji);
-      const defaultKat = pembiayaanCategories[0]?.kategori || gasService.getPembiayaanList()[0]?.kategori || '';
-      setTanggalMaksimalDaftarUlang(existing.tanggalMaksimalDaftarUlang || (existingLulus?.jadwalDaftarUlang && existingLulus.jadwalDaftarUlang !== '-' ? existingLulus.jadwalDaftarUlang : '20 - 25 Januari 2027'));
-      setKategoriPembiayaanSiswa(existing.kategoriPembiayaan || defaultKat);
-    } else {
-      const defaultKat = pembiayaanCategories[0]?.kategori || gasService.getPembiayaanList()[0]?.kategori || '';
-      setNilaiTahsin(85);
+      setRekomendasiSiswa(existing.rekomendasi || '');
+      setCatatanPengujiSiswa(existing.catatanPenguji || '');
+      setTanggalMaksimalDaftarUlang(existing.tanggalMaksimalDaftarUlang || '');
+      setKategoriPembiayaanSiswa(existing.kategoriPembiayaan || '');
+    } else if (existingLulus && ['LULUS', 'CADANGAN', 'TIDAK_LULUS'].includes(existingLulus.status) && Number(existingLulus.skorAkhir) > 0) {
+      // Jika data sudah tersimpan dalam sheet kelulusan (dan sudah dievaluasi oleh guru), website membaca data dari sheet kelulusan
+      let mappedRek: 'Diterima' | 'Cadangan' | 'Tidak Diterima' | '' = '';
+      if (existingLulus.status === 'LULUS') mappedRek = 'Diterima';
+      else if (existingLulus.status === 'CADANGAN') mappedRek = 'Cadangan';
+      else if (existingLulus.status === 'TIDAK_LULUS') mappedRek = 'Tidak Diterima';
+
+      setNilaiTahsin('');
       setCatatanTahsin('');
-      setNilaiTahfidz(88);
-      setJuzDiuji('Juz 30 (Lengkap)');
+      setNilaiTahfidz('');
+      setJuzDiuji('');
       setCatatanTahfidz('');
-      setNilaiKarakterAdab(90);
+      setNilaiKarakterAdab('');
       setCatatanKarakterAdab('');
-      setNilaiAkademikDasar(85);
+      setNilaiAkademikDasar('');
       setCatatanAkademikDasar('');
-      setNilaiPsikotes(85);
+      setNilaiPsikotes('');
       setCatatanPsikotes('');
-      setRekomendasiSiswa('Diterima');
+      setRekomendasiSiswa(mappedRek);
+      setCatatanPengujiSiswa(existingLulus.pesanPengumuman || '');
+      setTanggalMaksimalDaftarUlang(existingLulus.jadwalDaftarUlang && existingLulus.jadwalDaftarUlang !== '-' ? existingLulus.jadwalDaftarUlang : '');
+      setKategoriPembiayaanSiswa(existingLulus.kategoriPembiayaan && existingLulus.kategoriPembiayaan !== '-' ? existingLulus.kategoriPembiayaan : '');
+    } else {
+      // Benar-benar kosong di awal jika belum diisi dan belum ada di sheet observasi murid
+      setNilaiTahsin('');
+      setCatatanTahsin('');
+      setNilaiTahfidz('');
+      setJuzDiuji('');
+      setCatatanTahfidz('');
+      setNilaiKarakterAdab('');
+      setCatatanKarakterAdab('');
+      setNilaiAkademikDasar('');
+      setCatatanAkademikDasar('');
+      setNilaiPsikotes('');
+      setCatatanPsikotes('');
+      setRekomendasiSiswa('');
       setCatatanPengujiSiswa('');
-      setTanggalMaksimalDaftarUlang(existingLulus?.jadwalDaftarUlang && existingLulus.jadwalDaftarUlang !== '-' ? existingLulus.jadwalDaftarUlang : '20 - 25 Januari 2027');
-      setKategoriPembiayaanSiswa(existingLulus?.kategoriPembiayaan || defaultKat);
+      setTanggalMaksimalDaftarUlang('');
+      setKategoriPembiayaanSiswa('');
     }
   };
 
@@ -345,14 +391,9 @@ export const GuruDashboard: React.FC<Props> = ({
     return '-';
   };
 
-  // Active interviewer name resolution
-  const activePewawancaraName = isCustomPewawancara && customPewawancaraName.trim()
-    ? customPewawancaraName.trim()
-    : namaPewawancaraOrtu;
-
-  const activePengujiName = isCustomPenguji && customPengujiName.trim()
-    ? customPengujiName.trim()
-    : namaPengujiSiswa;
+  // Active interviewer & examiner name locked to logged-in user
+  const activePewawancaraName = (currentUser?.namaSiswa || namaPewawancaraOrtu || '').trim();
+  const activePengujiName = (currentUser?.namaSiswa || namaPengujiSiswa || '').trim();
 
   // Helper merangkum jawaban wawancara OTM
   const buildCollectedAnswers = () => {
@@ -490,13 +531,17 @@ export const GuruDashboard: React.FC<Props> = ({
   // =========================================================================
   // --- SUBMIT TIM 2: OBSERVASI SISWA (TERPISAH & MANDIRI) ---
   // =========================================================================
-  const skorTotalSiswa = Number(nilaiTahsin) + Number(nilaiTahfidz) + Number(nilaiKarakterAdab) + Number(nilaiAkademikDasar) + Number(nilaiPsikotes);
-  const rataRataSiswa = Number((skorTotalSiswa / 5).toFixed(1));
+  const scoresArraySiswa = [nilaiTahsin, nilaiTahfidz, nilaiKarakterAdab, nilaiAkademikDasar, nilaiPsikotes].filter(
+    (s): s is number => s !== '' && !isNaN(Number(s))
+  );
+  const skorTotalSiswa = scoresArraySiswa.length > 0 ? scoresArraySiswa.reduce((a, b) => a + Number(b), 0) : null;
+  const rataRataSiswa = scoresArraySiswa.length > 0 ? Number((skorTotalSiswa! / scoresArraySiswa.length).toFixed(1)) : null;
 
   const handleSubmitObservasiSiswa = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentStudentSiswa) { alert("Pilih siswa yang diuji!"); return; }
     if (!activePengujiName.trim()) { alert("Pilih atau isi nama penguji siswa!"); return; }
+    if (!rekomendasiSiswa) { alert("Pilih keputusan rekomendasi hasil evaluasi siswa terlebih dahulu!"); return; }
 
     setSaving(true);
     const existingSiswa = gasService.getSiswaByNo(currentStudentSiswa.id);
@@ -518,24 +563,24 @@ export const GuruDashboard: React.FC<Props> = ({
       namaSiswa: currentStudentSiswa.nama,
       namaPenguji: activePengujiName,
       tanggalObservasi: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-      nilaiTahsin: Number(nilaiTahsin),
+      nilaiTahsin: Number(nilaiTahsin) || 0,
       catatanTahsin: catatanTahsin,
-      nilaiTahfidz: Number(nilaiTahfidz),
+      nilaiTahfidz: Number(nilaiTahfidz) || 0,
       juzDiuji: juzDiuji,
       catatanTahfidz: catatanTahfidz,
-      nilaiKarakterAdab: Number(nilaiKarakterAdab),
+      nilaiKarakterAdab: Number(nilaiKarakterAdab) || 0,
       catatanKarakterAdab: catatanKarakterAdab,
-      nilaiAkademikDasar: Number(nilaiAkademikDasar),
+      nilaiAkademikDasar: Number(nilaiAkademikDasar) || 0,
       catatanAkademikDasar: catatanAkademikDasar,
-      nilaiPsikotes: Number(nilaiPsikotes),
+      nilaiPsikotes: Number(nilaiPsikotes) || 0,
       catatanPsikotes: catatanPsikotes,
-      totalSkor: skorTotalSiswa,
-      rataRata: rataRataSiswa,
-      rekomendasi: rekomendasiSiswa,
+      totalSkor: skorTotalSiswa !== null ? skorTotalSiswa : 0,
+      rataRata: rataRataSiswa !== null ? rataRataSiswa : 0,
+      rekomendasi: rekomendasiSiswa as 'Diterima' | 'Cadangan' | 'Tidak Diterima',
       catatanPenguji: catatanPengujiSiswa,
-      tanggalMaksimalDaftarUlang: tanggalMaksimalDaftarUlang.trim() || '20 - 25 Januari 2027',
-      kategoriPembiayaan: kategoriPembiayaanSiswa,
-      rincianBiaya: gasService.getPembiayaanByCategory(kategoriPembiayaanSiswa),
+      tanggalMaksimalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalMaksimalDaftarUlang.trim() || '-'),
+      kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaanSiswa,
+      rincianBiaya: (rekomendasiSiswa === 'Tidak Diterima' || !kategoriPembiayaanSiswa) ? undefined : gasService.getPembiayaanByCategory(kategoriPembiayaanSiswa),
       createdAt: new Date().toISOString()
     };
 
@@ -635,7 +680,7 @@ export const GuruDashboard: React.FC<Props> = ({
           >
             <MessageCircle className="w-4 h-4 text-teal-200 shrink-0" />
             <div className="text-left min-w-0">
-              <span className="block leading-tight truncate">4. WhatsApp Pengumuman</span>
+              <span className="block leading-tight truncate">4. Pengumuman</span>
               <span className="text-[10px] opacity-80 font-normal truncate">Kirim Pengumuman</span>
             </div>
           </button>
@@ -778,41 +823,21 @@ export const GuruDashboard: React.FC<Props> = ({
               )}
             </div>
 
-            {/* ROW 2: IDENTITAS SISWA & PILIH NAMA PEWAWANCARA DARI LIST */}
+            {/* ROW 2: IDENTITAS SISWA & NAMA PEWAWANCARA TERKUNCI SESUAI LOGIN */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-blue-200/60">
               
-              {/* Nama Pewawancara (Mengambil dari LIST DAFTAR_PEWAWANCARA_LIST) */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-800">
-                  Nama Pewawancara (Pilih dari List Resmi):
+              {/* Nama Pewawancara (Dikunci sesuai akun login user) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Nama Pewawancara (Sesuai Login):</span>
                 </label>
-                <select
-                  value={isCustomPewawancara ? '__CUSTOM__' : namaPewawancaraOrtu}
-                  onChange={(e) => {
-                    if (e.target.value === '__CUSTOM__') {
-                      setIsCustomPewawancara(true);
-                    } else {
-                      setIsCustomPewawancara(false);
-                      setNamaPewawancaraOrtu(e.target.value);
-                    }
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-blue-500"
-                >
-                  {dbGuruNames.map((guru) => (
-                    <option key={guru} value={guru}>{guru}</option>
-                  ))}
-                  <option value="__CUSTOM__">[+] Tulis Nama Lain / Penguji Pengganti...</option>
-                </select>
-
-                {isCustomPewawancara && (
-                  <input
-                    type="text"
-                    value={customPewawancaraName}
-                    onChange={(e) => setCustomPewawancaraName(e.target.value)}
-                    placeholder="Ketik nama lengkap pewawancara pengganti beserta gelar..."
-                    className="w-full px-3 py-2 rounded-xl border border-blue-400 bg-white font-semibold text-xs mt-1.5"
-                  />
-                )}
+                <input
+                  type="text"
+                  readOnly
+                  value={activePewawancaraName || '-'}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-200/80 text-slate-700 cursor-not-allowed font-bold text-xs"
+                />
               </div>
 
               {/* Asal Sekolah (Otomatis) */}
@@ -1314,39 +1339,19 @@ export const GuruDashboard: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* BARIS PENGUJI OBSERVASI SISWA (LIST DAFTAR_PENGUJI_SISWA_LIST) */}
+            {/* BARIS PENGUJI OBSERVASI SISWA (DIKUNCI SESUAI LOGIN USER) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-indigo-200/60">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-800">
-                  Nama Penguji Murid (Pilih dari List Resmi):
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Nama Penguji Murid (Sesuai Login):</span>
                 </label>
-                <select
-                  value={isCustomPenguji ? '__CUSTOM__' : namaPengujiSiswa}
-                  onChange={(e) => {
-                    if (e.target.value === '__CUSTOM__') {
-                      setIsCustomPenguji(true);
-                    } else {
-                      setIsCustomPenguji(false);
-                      setNamaPengujiSiswa(e.target.value);
-                    }
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-indigo-500"
-                >
-                  {dbGuruNames.map((penguji) => (
-                    <option key={penguji} value={penguji}>{penguji}</option>
-                  ))}
-                  <option value="__CUSTOM__">[+] Tulis Nama Penguji Lain / Pengganti...</option>
-                </select>
-
-                {isCustomPenguji && (
-                  <input
-                    type="text"
-                    value={customPengujiName}
-                    onChange={(e) => setCustomPengujiName(e.target.value)}
-                    placeholder="Ketik nama lengkap penguji murid pengganti..."
-                    className="w-full px-3 py-2 rounded-xl border border-indigo-400 bg-white font-semibold text-xs mt-1.5"
-                  />
-                )}
+                <input
+                  type="text"
+                  readOnly
+                  value={activePengujiName || '-'}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-200/80 text-slate-700 cursor-not-allowed font-bold text-xs"
+                />
               </div>
 
               <div>
@@ -1398,9 +1403,9 @@ export const GuruDashboard: React.FC<Props> = ({
                         type="number"
                         min={0}
                         max={100}
-                        required
+                        placeholder="-"
                         value={nilaiTahsin}
-                        onChange={(e) => setNilaiTahsin(Number(e.target.value))}
+                        onChange={(e) => setNilaiTahsin(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-16 px-2 py-1 rounded-lg border border-slate-300 bg-white font-bold text-center text-emerald-800"
                       />
                     </div>
@@ -1423,7 +1428,7 @@ export const GuruDashboard: React.FC<Props> = ({
                         type="text"
                         value={juzDiuji}
                         onChange={(e) => setJuzDiuji(e.target.value)}
-                        placeholder="Juz yang diuji"
+                        placeholder="Juz yang diuji (contoh: Juz 30)"
                         className="text-[11px] font-semibold text-indigo-700 bg-white px-2 py-0.5 rounded border border-slate-200 mt-1"
                       />
                     </div>
@@ -1433,9 +1438,9 @@ export const GuruDashboard: React.FC<Props> = ({
                         type="number"
                         min={0}
                         max={100}
-                        required
+                        placeholder="-"
                         value={nilaiTahfidz}
-                        onChange={(e) => setNilaiTahfidz(Number(e.target.value))}
+                        onChange={(e) => setNilaiTahfidz(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-16 px-2 py-1 rounded-lg border border-slate-300 bg-white font-bold text-center text-emerald-800"
                       />
                     </div>
@@ -1462,9 +1467,9 @@ export const GuruDashboard: React.FC<Props> = ({
                         type="number"
                         min={0}
                         max={100}
-                        required
+                        placeholder="-"
                         value={nilaiKarakterAdab}
-                        onChange={(e) => setNilaiKarakterAdab(Number(e.target.value))}
+                        onChange={(e) => setNilaiKarakterAdab(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-16 px-2 py-1 rounded-lg border border-slate-300 bg-white font-bold text-center text-emerald-800"
                       />
                     </div>
@@ -1491,9 +1496,9 @@ export const GuruDashboard: React.FC<Props> = ({
                         type="number"
                         min={0}
                         max={100}
-                        required
+                        placeholder="-"
                         value={nilaiAkademikDasar}
-                        onChange={(e) => setNilaiAkademikDasar(Number(e.target.value))}
+                        onChange={(e) => setNilaiAkademikDasar(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-16 px-2 py-1 rounded-lg border border-slate-300 bg-white font-bold text-center text-emerald-800"
                       />
                     </div>
@@ -1520,9 +1525,9 @@ export const GuruDashboard: React.FC<Props> = ({
                         type="number"
                         min={0}
                         max={100}
-                        required
+                        placeholder="-"
                         value={nilaiPsikotes}
-                        onChange={(e) => setNilaiPsikotes(Number(e.target.value))}
+                        onChange={(e) => setNilaiPsikotes(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-16 px-2 py-1 rounded-lg border border-slate-300 bg-white font-bold text-center text-emerald-800"
                       />
                     </div>
@@ -1535,7 +1540,6 @@ export const GuruDashboard: React.FC<Props> = ({
                     className="w-full p-2.5 rounded-xl border border-slate-300 text-xs bg-white"
                   />
                 </div>
-
               </div>
 
               {/* Rekomendasi Hasil Evaluasi Siswa */}
@@ -1578,12 +1582,12 @@ export const GuruDashboard: React.FC<Props> = ({
                 <div className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-indigo-200">
                   <div className="text-center px-2">
                     <div className="text-[10px] font-bold text-slate-400">Total Skor</div>
-                    <div className="text-base font-extrabold text-indigo-900">{skorTotalSiswa}</div>
+                    <div className="text-base font-extrabold text-indigo-900">{skorTotalSiswa !== null ? skorTotalSiswa : '-'}</div>
                   </div>
                   <div className="h-6 w-px bg-slate-200" />
                   <div className="text-center px-2">
                     <div className="text-[10px] font-bold text-slate-400">Rata-Rata</div>
-                    <div className="text-base font-extrabold text-emerald-700">{rataRataSiswa}</div>
+                    <div className="text-base font-extrabold text-emerald-700">{rataRataSiswa !== null ? rataRataSiswa : '-'}</div>
                   </div>
                 </div>
               </div>
@@ -1601,30 +1605,46 @@ export const GuruDashboard: React.FC<Props> = ({
                 />
               </div>
 
-              {/* Menu Input Tanggal Daftar Ulang (Tunggal di Bawah Form) */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-2 border-emerald-400 space-y-3 shadow-xs">
+              {/* Menu Input Tanggal Daftar Ulang (Tunggal di Bawah Form) - Terkunci jika Tidak Diterima */}
+              <div className={`p-4 sm:p-5 rounded-2xl border-2 space-y-3 shadow-xs transition ${
+                rekomendasiSiswa === 'Tidak Diterima'
+                  ? 'bg-slate-100 border-slate-300 opacity-75'
+                  : 'bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-emerald-400'
+              }`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-xl bg-emerald-600 text-white shrink-0 shadow-xs">
-                      <Calendar className="w-4 h-4" />
+                    <div className={`p-2 rounded-xl text-white shrink-0 shadow-xs ${
+                      rekomendasiSiswa === 'Tidak Diterima' ? 'bg-slate-500' : 'bg-emerald-600'
+                    }`}>
+                      {rekomendasiSiswa === 'Tidak Diterima' ? <Lock className="w-4 h-4" /> : <Calendar className="w-4 h-4" />}
                     </div>
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-emerald-950 flex items-center gap-1.5 flex-wrap">
-                        <span>Tanggal Batas Daftar Ulang Murid (Tercetak di SKL)</span>
-                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-300">
-                          Integrasi SKL &amp; Kelulusan
-                        </span>
+                        <span>Tanggal Batas Daftar Ulang Murid (Tercetak di Surat Keterangan Hasil Seleksi)</span>
+                        {rekomendasiSiswa === 'Tidak Diterima' ? (
+                          <span className="text-[10px] font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-300 inline-flex items-center gap-1">
+                            <Lock className="w-3 h-3" />
+                            <span>Terkunci (Tidak Diterima)</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-300">
+                            Integrasi Surat Keterangan Hasil Seleksi
+                          </span>
+                        )}
                       </h4>
-                      <p className="text-[11px] text-emerald-800 leading-snug">
-                        Jadwal ini otomatis tersimpan ke data kelulusan murid dan tercetak resmi di dokumen Surat Keterangan Lulus (SKL) serta Portal Cek Kelulusan.
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        {rekomendasiSiswa === 'Tidak Diterima'
+                          ? 'Kolom tanggal daftar ulang dikunci otomatis karena murid berstatus "Tidak Diterima".'
+                          : 'Jadwal ini otomatis tersimpan ke data hasil seleksi murid dan tercetak resmi di dokumen Surat Keterangan Hasil Seleksi serta Portal Cek Hasil Seleksi.'}
                       </p>
                     </div>
                   </div>
 
                   <button
                     type="button"
+                    disabled={rekomendasiSiswa === 'Tidak Diterima'}
                     onClick={() => handleApplyTanggalToAllLulus(tanggalMaksimalDaftarUlang)}
-                    className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer self-start sm:self-auto"
+                    className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer self-start sm:self-auto"
                     title="Terapkan jadwal daftar ulang ini untuk semua calon murid berstatus Diterima/Lulus"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
@@ -1636,12 +1656,17 @@ export const GuruDashboard: React.FC<Props> = ({
                   <div className="relative flex-1">
                     <input
                       type="text"
-                      value={tanggalMaksimalDaftarUlang}
+                      disabled={rekomendasiSiswa === 'Tidak Diterima'}
+                      value={rekomendasiSiswa === 'Tidak Diterima' ? '- (Tidak Diterima - Terkunci)' : tanggalMaksimalDaftarUlang}
                       onChange={(e) => setTanggalMaksimalDaftarUlang(e.target.value)}
                       placeholder="Contoh: 20 - 25 Januari 2027 atau 30 Januari 2027"
-                      className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-emerald-400 bg-white font-bold text-xs text-emerald-950 focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                      className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-emerald-400 disabled:border-slate-300 bg-white disabled:bg-slate-200/80 font-bold text-xs text-emerald-950 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                     />
-                    <Calendar className="w-4 h-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    {rekomendasiSiswa === 'Tidak Diterima' ? (
+                      <Lock className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    ) : (
+                      <Calendar className="w-4 h-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    )}
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -1649,11 +1674,12 @@ export const GuruDashboard: React.FC<Props> = ({
                       <button
                         key={chip}
                         type="button"
+                        disabled={rekomendasiSiswa === 'Tidak Diterima'}
                         onClick={() => setTanggalMaksimalDaftarUlang(chip)}
-                        className={`text-[10.5px] font-semibold px-2.5 py-1.5 rounded-lg border transition cursor-pointer ${
-                          tanggalMaksimalDaftarUlang === chip
-                            ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
-                            : 'bg-white hover:bg-emerald-100/60 text-slate-700 border-emerald-200'
+                        className={`text-[10.5px] font-semibold px-2.5 py-1.5 rounded-lg border transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                          rekomendasiSiswa !== 'Tidak Diterima' && tanggalMaksimalDaftarUlang === chip
+                            ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs cursor-pointer'
+                            : 'bg-white hover:bg-emerald-100/60 text-slate-700 border-emerald-200 cursor-pointer'
                         }`}
                       >
                         {chip}
@@ -1663,22 +1689,37 @@ export const GuruDashboard: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori Pembiayaan) */}
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-50 via-purple-50 to-emerald-50 border-2 border-indigo-400 space-y-3.5 shadow-xs">
+              {/* Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori Pembiayaan) - Terkunci jika Tidak Diterima */}
+              <div className={`p-5 rounded-2xl border-2 space-y-3.5 shadow-xs transition ${
+                rekomendasiSiswa === 'Tidak Diterima'
+                  ? 'bg-slate-100 border-slate-300 opacity-75'
+                  : 'bg-gradient-to-r from-indigo-50 via-purple-50 to-emerald-50 border-indigo-400'
+              }`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-xl bg-indigo-700 text-white shrink-0 shadow-xs">
-                      <CreditCard className="w-4 h-4" />
+                    <div className={`p-2 rounded-xl text-white shrink-0 shadow-xs ${
+                      rekomendasiSiswa === 'Tidak Diterima' ? 'bg-slate-500' : 'bg-indigo-700'
+                    }`}>
+                      {rekomendasiSiswa === 'Tidak Diterima' ? <Lock className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
                     </div>
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-indigo-950 flex items-center gap-1.5 flex-wrap">
                         <span>Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori)</span>
-                        <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded-md border border-indigo-300">
-                          Database Sheet: Pembiayaan
-                        </span>
+                        {rekomendasiSiswa === 'Tidak Diterima' ? (
+                          <span className="text-[10px] font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-300 inline-flex items-center gap-1">
+                            <Lock className="w-3 h-3" />
+                            <span>Terkunci &amp; Tanpa Lampiran PDF</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded-md border border-indigo-300">
+                            Database Sheet: Pembiayaan
+                          </span>
+                        )}
                       </h4>
-                      <p className="text-[11px] text-indigo-800 leading-snug">
-                        Pilih rujukan kategori biaya SPMB murid. Klik tombol untuk memunculkan rincian pembiayaan modern yang dilampirkan pada PDF SKL lembar ke-2.
+                      <p className="text-[11px] text-slate-600 leading-snug">
+                        {rekomendasiSiswa === 'Tidak Diterima'
+                          ? 'Pilihan rincian pembiayaan dikunci. Bagi murid yang "Tidak Diterima", tidak ada Lampiran Pembiayaan saat di-download PDF-nya.'
+                          : 'Pilih rujukan kategori biaya SPMB murid. Klik tombol untuk memunculkan rincian pembiayaan modern yang dilampirkan pada PDF Surat Keterangan Hasil Seleksi lembar ke-2.'}
                       </p>
                     </div>
                   </div>
@@ -1687,8 +1728,8 @@ export const GuruDashboard: React.FC<Props> = ({
                     <button
                       type="button"
                       onClick={handleRefreshKategoriSheet}
-                      disabled={isRefreshingKategori}
-                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-900 font-black text-[11px] transition shadow-md flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50 border-2 border-amber-300"
+                      disabled={isRefreshingKategori || rekomendasiSiswa === 'Tidak Diterima'}
+                      className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-slate-900 font-black text-[11px] transition shadow-md flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed border-2 border-amber-300"
                       title="Klik untuk menarik dan menyinkronkan daftar kategori pembiayaan langsung dari Sheet Pembiayaan di Google Spreadsheet"
                     >
                       <RefreshCw className={`w-4 h-4 text-slate-900 ${isRefreshingKategori ? 'animate-spin' : ''}`} />
@@ -1697,9 +1738,10 @@ export const GuruDashboard: React.FC<Props> = ({
 
                     <button
                       type="button"
+                      disabled={rekomendasiSiswa === 'Tidak Diterima'}
                       onClick={() => setShowRincianPembiayaanModal(true)}
-                      className="px-3.5 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                      title="Klik untuk membuka rincian pembiayaan yang akan dilampirkan di PDF SKL lembar ke-2"
+                      className="px-3.5 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                      title="Klik untuk membuka rincian pembiayaan yang akan dilampirkan di PDF Surat Keterangan Hasil Seleksi lembar ke-2"
                     >
                       <FileText className="w-3.5 h-3.5 text-indigo-200" />
                       <span>Rincian Daftar Ulang (Lembar 2)</span>
@@ -1709,10 +1751,10 @@ export const GuruDashboard: React.FC<Props> = ({
                       type="button"
                       onClick={() => setShowSklKelulusanModal(true)}
                       className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                      title="Klik untuk melihat pratinjau SKL kelulusan lengkap (2 Halaman)"
+                      title="Klik untuk melihat pratinjau Surat Keterangan Hasil Seleksi"
                     >
                       <GraduationCap className="w-3.5 h-3.5 text-emerald-200" />
-                      <span>Pratinjau SKL Kelulusan</span>
+                      <span>Pratinjau Surat Keterangan Hasil Seleksi</span>
                     </button>
                   </div>
                 </div>
@@ -1724,11 +1766,15 @@ export const GuruDashboard: React.FC<Props> = ({
                       <Tag className="w-3.5 h-3.5 text-indigo-600" />
                       <span>Pilih Kategori Rujukan Pembiayaan Murid:</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                        pembiayaanCategories.length > 0 
+                        rekomendasiSiswa === 'Tidak Diterima'
+                          ? 'bg-rose-100 text-rose-800 border-rose-300'
+                          : pembiayaanCategories.length > 0 
                           ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
                           : 'bg-amber-100 text-amber-800 border-amber-300'
                       }`}>
-                        {pembiayaanCategories.length > 0 ? `${pembiayaanCategories.length} Kategori Murni dari Sheet` : 'Belum Ada Kategori — Klik Tarik Kategori dari Sheet'}
+                        {rekomendasiSiswa === 'Tidak Diterima'
+                          ? 'Terkunci — Tidak Ada Lampiran Pembiayaan'
+                          : (pembiayaanCategories.length > 0 ? `${pembiayaanCategories.length} Kategori Murni dari Sheet` : 'Belum Ada Kategori — Klik Tarik Kategori dari Sheet')}
                       </span>
                     </label>
                   </div>
@@ -1741,28 +1787,46 @@ export const GuruDashboard: React.FC<Props> = ({
                   )}
 
                   <select
-                    value={kategoriPembiayaanSiswa}
+                    disabled={rekomendasiSiswa === 'Tidak Diterima'}
+                    value={rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaanSiswa}
                     onChange={(e) => setKategoriPembiayaanSiswa(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-indigo-300 bg-white font-bold text-xs text-indigo-950 focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
+                    className="w-full p-2.5 rounded-xl border border-indigo-300 disabled:border-slate-300 bg-white disabled:bg-slate-200/80 font-bold text-xs text-indigo-950 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
                   >
-                    {pembiayaanCategories.length === 0 ? (
+                    {rekomendasiSiswa === 'Tidak Diterima' ? (
+                      <option value="">🔒 Terkunci — Murid Berstatus Tidak Diterima (Tanpa Lampiran Pembiayaan)</option>
+                    ) : pembiayaanCategories.length === 0 ? (
                       <option value="">
                         {isRefreshingKategori
                           ? '⏳ Sedang menarik kategori dari Sheet Pembiayaan di Google Spreadsheet...'
                           : '⚠️ Belum ada kategori dari database. Klik tombol "Tarik Kategori dari Sheet" di atas'}
                       </option>
                     ) : (
-                      pembiayaanCategories.map((c, i) => (
-                        <option key={i} value={c.kategori}>
-                          {c.kategori}{c.catatan ? ` — ${c.catatan}` : ''}
-                        </option>
-                      ))
+                      <>
+                        <option value="">-- Belum Dipilih / Pilih Kategori Pembiayaan Murid --</option>
+                        {pembiayaanCategories.map((c, i) => (
+                          <option key={i} value={c.kategori}>
+                            {c.kategori}{c.catatan ? ` — ${c.catatan}` : ''}
+                          </option>
+                        ))}
+                      </>
                     )}
                   </select>
                 </div>
 
                 {/* Ringkasan Live Biaya Kategori Terpilih */}
-                {(() => {
+                {rekomendasiSiswa === 'Tidak Diterima' ? (
+                  <div className="p-3.5 rounded-xl bg-rose-50/80 border border-rose-200 text-rose-900 text-xs flex items-center gap-2.5 font-medium">
+                    <Lock className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>
+                      Rincian pembiayaan dinonaktifkan karena rekomendasi murid adalah <strong>Tidak Diterima</strong>. Saat murid/orang tua mengunduh PDF hasil pengumuman, <strong>Lampiran Pembiayaan (Lembar ke-2) otomatis ditiadakan</strong>.
+                    </span>
+                  </div>
+                ) : !kategoriPembiayaanSiswa ? (
+                  <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2 font-medium">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Silakan pilih kategori pembiayaan di atas untuk menampilkan rincian biaya daftar ulang murid baru.</span>
+                  </div>
+                ) : (() => {
                   const currCat = gasService.getPembiayaanByCategory(kategoriPembiayaanSiswa);
                   return (
                     <>
@@ -1784,7 +1848,6 @@ export const GuruDashboard: React.FC<Props> = ({
                           <span className="font-mono font-black text-emerald-900 text-sm">{formatRupiah(currCat.totalBiaya)}</span>
                         </div>
                       </div>
-
                       {currCat.catatan && (
                         <div className="flex items-center gap-2 text-[11px] text-indigo-900 bg-indigo-100/70 p-2 rounded-lg border border-indigo-200">
                           <BadgePercent className="w-3.5 h-3.5 text-indigo-700 shrink-0" />
@@ -1799,7 +1862,7 @@ export const GuruDashboard: React.FC<Props> = ({
               {/* Actions */}
               <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
                 <span className="text-[11px] text-slate-400">
-                  Data tersimpan mandiri di sheet Observasi_Siswa &amp; terintegrasi ke SKL Kelulusan murid.
+                  Data tersimpan mandiri di sheet Observasi_Siswa &amp; terintegrasi ke Surat Keterangan Hasil Seleksi murid.
                 </span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
@@ -1808,9 +1871,8 @@ export const GuruDashboard: React.FC<Props> = ({
                     className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
                   >
                     <GraduationCap className="w-4 h-4" />
-                    <span>Pratinjau SKL</span>
+                    <span>Pratinjau Surat Keterangan Hasil Seleksi</span>
                   </button>
-
                   <button
                     type="submit"
                     disabled={saving || !currentStudentSiswa}
@@ -1835,7 +1897,6 @@ export const GuruDashboard: React.FC<Props> = ({
                             ? existingInduk.nisn 
                             : (existingLulus?.nisn && existingLulus.nisn !== '-' ? existingLulus.nisn : '-'));
                         const resolvedAsalSekolah = currentStudentSiswa.sekolah || existingSiswa?.asalSekolah || existingLulus?.asalSekolah || 'SD/MI Pendaftar';
-
                         setPreviewSiswaModal({
                           id: 'OBS-DRAFT',
                           siswaId: currentStudentSiswa.id,
@@ -1845,24 +1906,24 @@ export const GuruDashboard: React.FC<Props> = ({
                           namaSiswa: currentStudentSiswa.nama,
                           namaPenguji: activePengujiName,
                           tanggalObservasi: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-                          nilaiTahsin,
+                          nilaiTahsin: Number(nilaiTahsin) || 0,
                           catatanTahsin,
-                          nilaiTahfidz,
+                          nilaiTahfidz: Number(nilaiTahfidz) || 0,
                           juzDiuji,
                           catatanTahfidz,
-                          nilaiKarakterAdab,
+                          nilaiKarakterAdab: Number(nilaiKarakterAdab) || 0,
                           catatanKarakterAdab,
-                          nilaiAkademikDasar,
+                          nilaiAkademikDasar: Number(nilaiAkademikDasar) || 0,
                           catatanAkademikDasar,
-                          nilaiPsikotes,
+                          nilaiPsikotes: Number(nilaiPsikotes) || 0,
                           catatanPsikotes,
-                          totalSkor: skorTotalSiswa,
-                          rataRata: rataRataSiswa,
-                          rekomendasi: rekomendasiSiswa,
+                          totalSkor: skorTotalSiswa !== null ? skorTotalSiswa : 0,
+                          rataRata: rataRataSiswa !== null ? rataRataSiswa : 0,
+                          rekomendasi: (rekomendasiSiswa || 'Cadangan') as any,
                           catatanPenguji: catatanPengujiSiswa,
-                          tanggalMaksimalDaftarUlang: tanggalMaksimalDaftarUlang.trim() || '20 - 25 Januari 2027',
-                          kategoriPembiayaan: kategoriPembiayaanSiswa,
-                          rincianBiaya: gasService.getPembiayaanByCategory(kategoriPembiayaanSiswa),
+                          tanggalMaksimalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalMaksimalDaftarUlang.trim() || '-'),
+                          kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaanSiswa,
+                          rincianBiaya: (rekomendasiSiswa === 'Tidak Diterima' || !kategoriPembiayaanSiswa) ? undefined : gasService.getPembiayaanByCategory(kategoriPembiayaanSiswa),
                           createdAt: new Date().toISOString()
                         });
                       }
@@ -1937,7 +1998,7 @@ export const GuruDashboard: React.FC<Props> = ({
       {/* ===================================================================== */}
       {/* MODAL 4: PRATINJAU RINCIAN PEMBIAYAAN DAFTAR ULANG LEMBAR KE-2        */}
       {/* ===================================================================== */}
-      {showRincianPembiayaanModal && currentStudentSiswa && (
+      {showRincianPembiayaanModal && currentStudentSiswa && rekomendasiSiswa !== 'Tidak Diterima' && (
         <RincianPembiayaanModal
           siswa={{
             noPendaftaran: currentStudentSiswa.id,
@@ -1956,7 +2017,7 @@ export const GuruDashboard: React.FC<Props> = ({
       )}
 
       {/* ===================================================================== */}
-      {/* MODAL 5: PRATINJAU SURAT KETERANGAN LULUS (SKL) RESMI (2 HALAMAN)     */}
+      {/* MODAL 5: PRATINJAU SURAT KETERANGAN LULUS (SKL) RESMI                 */}
       {/* ===================================================================== */}
       {showSklKelulusanModal && currentStudentSiswa && (
         <SklKelulusanPrintModal
@@ -1965,14 +2026,14 @@ export const GuruDashboard: React.FC<Props> = ({
             namaLengkap: currentStudentSiswa.nama,
             asalSekolah: currentStudentSiswa.sekolah,
             status: rekomendasiSiswa === 'Diterima' ? 'LULUS' : (rekomendasiSiswa === 'Cadangan' ? 'CADANGAN' : 'TIDAK_LULUS'),
-            jadwalDaftarUlang: tanggalMaksimalDaftarUlang,
-            kategoriPembiayaan: kategoriPembiayaanSiswa
+            jadwalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : tanggalMaksimalDaftarUlang,
+            kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaanSiswa
           }}
           onClose={() => setShowSklKelulusanModal(false)}
-          onOpenRincianKategori={() => {
+          onOpenRincianKategori={rekomendasiSiswa !== 'Tidak Diterima' ? () => {
             setShowSklKelulusanModal(false);
             setShowRincianPembiayaanModal(true);
-          }}
+          } : undefined}
         />
       )}
 

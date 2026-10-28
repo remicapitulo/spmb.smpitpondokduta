@@ -71,48 +71,44 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
   useEffect(() => {
     // Generate 100% Real Scannable QR Code yang dapat dibuka langsung dari HP
     let hostOrigin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
-    // Jika dibuka di localhost atau IP lokal komputer, gunakan domain publik Cloud Run atau spmb.smpitpondokduta.sch.id
-    // agar HP pengguna dapat membuka verifikasi data secara langsung tanpa error connection refused!
     if (hostOrigin.includes('localhost') || hostOrigin.includes('127.0.0.1')) {
       hostOrigin = 'https://ais-pre-v4ovydp5l654kzwgy4biwq-755407641990.asia-southeast1.run.app';
     } else if (hostOrigin.includes('ais-dev-')) {
       hostOrigin = hostOrigin.replace('ais-dev-', 'ais-pre-');
     }
 
-    const ttlStr = (siswa.tempatLahir ? siswa.tempatLahir + ', ' : '') + (siswa.tanggalLahir || '-');
-    const ortuStr = siswa.namaAyah || siswa.namaIbu || '-';
-    const hpStr = siswa.noHpAyah || siswa.noHpIbu || siswa.nomorHandphone || siswa.nomorTelepon || '-';
+    const ortuStr = siswa.namaAyah || siswa.namaIbu || '';
+    const hpStr = siswa.noHpAyah || siswa.noHpIbu || siswa.nomorHandphone || siswa.nomorTelepon || '';
 
-    // Sertakan seluruh parameter verifikasi lengkap langsung di dalam URL QR Code
-    // sehingga saat di-scan HP mana pun, halaman verifikasi langsung tampil 100% utuh tanpa ketergantungan localStorage!
+    // Gunakan URL ringkas agar kepadatan titik QR Code rendah (kotak besar & tegas),
+    // sehingga kamera HP langsung mendeteksi QR dari layar laptop/HP dalam <0.5 detik tanpa perlu zoom!
     const queryParams = new URLSearchParams({
-      tab: 'cek-kelulusan',
       verifikasi: 'true',
-      no: siswa.noPendaftaran || '',
-      nama: siswa.namaLengkap || '',
-      panggilan: siswa.namaPanggilan || '',
-      nisn: siswa.nisn || '',
-      nik: siswa.nik || '',
-      asal: siswa.asalSekolah || '',
-      jalur: siswa.jalurPendaftaran || 'Jalur Reguler SPMB',
-      jk: siswa.jenisKelamin || 'Laki-laki',
-      ttl: ttlStr,
-      ortu: ortuStr,
-      hp: hpStr,
-      jadwal: 'Sabtu, 17 Januari 2026 · Pukul 08.00 - 11.30 WIB',
-      ruang: 'Ruang Aula - Gedung SMPIT Lt. 1'
+      no: siswa.noPendaftaran || ''
     });
+    if (siswa.namaLengkap && siswa.namaLengkap !== 'Calon Peserta Didik') {
+      queryParams.set('nama', siswa.namaLengkap);
+    }
+    if (siswa.asalSekolah && siswa.asalSekolah !== 'SD/MI Asal') {
+      queryParams.set('asal', siswa.asalSekolah);
+    }
+    if (ortuStr && ortuStr !== '-') {
+      queryParams.set('ortu', ortuStr);
+    }
+    if (hpStr && hpStr !== '-') {
+      queryParams.set('hp', hpStr);
+    }
 
     const verificationUrl = `${hostOrigin}/?${queryParams.toString()}`;
 
     QRCode.toDataURL(verificationUrl, {
-      width: 480,
+      width: 600,
       margin: 2,
       color: {
         dark: '#000000', // Hitam pekat solid untuk deteksi optik kamera HP instan & akurat
         light: '#ffffff'
       },
-      errorCorrectionLevel: 'M'
+      errorCorrectionLevel: 'L'
     })
       .then((url) => setQrDataUrl(url))
       .catch((err) => {
@@ -181,10 +177,17 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
         allowTaint: false,
         backgroundColor: '#ffffff',
         logging: false,
+        windowWidth: 1024,
         scrollX: 0,
         scrollY: 0,
         onclone: (clonedDoc) => {
           sanitizeDocumentForCanvas(clonedDoc);
+          const clonedCard = clonedDoc.getElementById('printable-kartu-peserta');
+          if (clonedCard) {
+            clonedCard.style.width = '760px';
+            clonedCard.style.minWidth = '760px';
+            clonedCard.style.maxWidth = '760px';
+          }
         }
       });
 
@@ -223,7 +226,7 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-xs p-2 sm:p-4 md:p-6 animate-in fade-in duration-200"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full max-w-2xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 flex flex-col h-[94vh] sm:max-h-[92vh] overflow-hidden my-auto">
+      <div className="w-full max-w-4xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[94vh] overflow-hidden my-auto">
         
         {/* Controls Header */}
         <div className="no-print flex items-center justify-between px-4 sm:px-6 py-3 border-b border-slate-200 bg-white shrink-0 z-10 gap-2">
@@ -256,14 +259,14 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
           </div>
         )}
 
-        {/* Scrollable Preview Canvas */}
-        <div className="overflow-y-auto overflow-x-auto flex-1 p-3 sm:p-6 bg-slate-100/70 custom-scrollbar">
+        {/* Scrollable Preview Canvas (Pas di layar tanpa melebihi layout) */}
+        <div className="overflow-y-auto overflow-x-hidden flex-1 p-3 sm:p-6 bg-slate-100/70 custom-scrollbar">
 
-          {/* Printable Official Card Body (Fixed 760px width for 100% reliable A4 PDF Capture) */}
+          {/* Printable Official Card Body (Responsive di layar, otomatis 794px saat cetak PDF/PNG) */}
           <div 
             ref={cardRef}
             id="printable-kartu-peserta"
-            className="print-container w-[760px] min-w-[760px] max-w-[760px] mx-auto border-4 border-double border-emerald-900 rounded-2xl p-7 bg-white space-y-4 text-slate-900 shadow-sm relative overflow-hidden font-sans"
+            className="print-container w-full max-w-[760px] mx-auto border-4 border-double border-emerald-900 rounded-2xl p-4 sm:p-6 bg-white space-y-4 text-slate-900 shadow-sm relative overflow-hidden font-sans"
             style={{ fontFamily: "'Plus Jakarta Sans', Arial, Helvetica, sans-serif" }}
           >
             {/* Background Accent Subtle Watermark */}
@@ -271,10 +274,10 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
             
             {/* KOP KARTU RESMI DINAS SEKOLAH (GARIS GANDA TEBAL-TIPIS RESMI) */}
             <div className="border-b-4 border-double border-slate-900 pb-3 relative">
-              <div className="flex items-center justify-between gap-4 text-left">
-                <div className="flex items-center gap-3.5 min-w-0 flex-1">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   {/* Logo Resmi Sekolah Base64 (0% Taint / 100% CORS Safe) */}
-                  <div className="w-18 h-18 rounded-2xl bg-white border border-emerald-300 flex items-center justify-center p-1 shadow-2xs shrink-0 overflow-hidden">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border border-emerald-300 flex items-center justify-center p-1 shadow-2xs shrink-0 overflow-hidden">
                     <img
                       src={logoBase64 || LOGO_PONDOK_DUTA_BASE64}
                       alt="Logo Resmi SMPIT Pondok Duta"
@@ -282,30 +285,30 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
                     />
                   </div>
                   <div className="min-w-0 space-y-0.5">
-                    <div className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">
+                    <div className="text-[10px] sm:text-[11px] font-bold text-slate-600 uppercase tracking-widest">
                       YAYASAN PERGURUAN ISLAM PONDOK DUTA
                     </div>
-                    <div className="text-2xl font-black text-slate-900 leading-tight tracking-wide">
+                    <div className="text-lg sm:text-2xl font-black text-slate-900 leading-tight tracking-wide">
                       SMPIT PONDOK DUTA
                     </div>
-                    <div className="text-[9.5px] text-slate-600 leading-snug">
+                    <div className="text-[9px] sm:text-[9.5px] text-slate-600 leading-snug">
                       <span className="font-bold text-emerald-800">Terakreditasi "A" BAN-PDM</span> | NPSN: 20276180 | NSS: 202026601007
                     </div>
-                    <div className="text-[9px] text-slate-500 leading-snug">
+                    <div className="text-[8.5px] sm:text-[9px] text-slate-500 leading-snug">
                       Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok 16451 | Telp: (021) 29378301
                     </div>
                   </div>
                 </div>
 
-                <div className="shrink-0 text-right">
-                  <div className="px-4 py-2 rounded-xl bg-slate-900 text-white text-center shadow-xs border border-slate-800 space-y-0.5">
-                    <span className="block text-[11.5px] font-black uppercase tracking-wider leading-none">
+                <div className="shrink-0 self-start sm:self-center text-right">
+                  <div className="px-3.5 py-2 rounded-xl bg-slate-900 text-white text-center shadow-xs border border-slate-800 space-y-0.5">
+                    <span className="block text-[10.5px] sm:text-[11.5px] font-black uppercase tracking-wider leading-none">
                       KARTU TANDA PESERTA
                     </span>
-                    <span className="block text-[9.5px] text-emerald-300 font-semibold leading-none pt-0.5">
+                    <span className="block text-[9px] sm:text-[9.5px] text-emerald-300 font-semibold leading-none pt-0.5">
                       OBSERVASI &amp; WAWANCARA
                     </span>
-                    <span className="block text-[9px] font-mono text-slate-300 font-bold leading-none pt-0.5">
+                    <span className="block text-[8.5px] sm:text-[9px] font-mono text-slate-300 font-bold leading-none pt-0.5">
                       TP {getAcademicYear()}
                     </span>
                   </div>
@@ -314,20 +317,20 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
             </div>
 
             {/* Banner Nomor Registrasi */}
-            <div className="p-3 bg-emerald-50/90 border border-emerald-200 rounded-xl flex items-center justify-between">
+            <div className="p-3 bg-emerald-50/90 border border-emerald-200 rounded-xl flex flex-wrap items-center justify-between gap-2">
               <div>
                 <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
                   NOMOR REGISTRASI / PENDAFTARAN
                 </span>
-                <span className="text-2xl font-black font-mono text-emerald-950 tracking-wider">
+                <span className="text-xl sm:text-2xl font-black font-mono text-emerald-950 tracking-wider">
                   {siswa.noPendaftaran}
                 </span>
               </div>
-              <div className="text-right flex items-center gap-2">
-                <span className="px-3 py-1 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold text-xs">
+              <div className="text-right flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-100 border border-emerald-300 text-emerald-900 font-bold text-[11px] sm:text-xs">
                   {siswa.jalurPendaftaran || 'Jalur Reguler SPMB'}
                 </span>
-                <span className="px-3 py-1 rounded-lg bg-emerald-800 text-white text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-800 text-white text-[11px] sm:text-xs font-bold inline-flex items-center gap-1 shadow-2xs">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
                   <span>TERDAFTAR RESMI</span>
                 </span>
@@ -335,12 +338,12 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
             </div>
 
             {/* Main Card Content (2 Columns: Foto+QR di kiri, Biodata Lengkap di kanan) */}
-            <div className="flex items-start gap-5 relative">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 relative">
               
-              {/* Kolom Kiri: Foto 3x4 & QR Code Verifikasi HP */}
-              <div className="w-[175px] shrink-0 flex flex-col items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              {/* Kolom Kiri: Foto 3x4 & QR Code Verifikasi HP Ukuran Besar */}
+              <div className="w-full sm:w-[190px] shrink-0 flex flex-row sm:flex-col items-center justify-around sm:justify-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 {/* 3x4 Pas Foto Box */}
-                <div className="w-[136px] h-[175px] border-2 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center p-2 text-center text-slate-400 shrink-0 shadow-2xs">
+                <div className="w-[120px] sm:w-[140px] h-[155px] sm:h-[175px] border-2 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center p-2 text-center text-slate-400 shrink-0 shadow-2xs">
                   <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 mb-1.5 text-xs">
                     3x4
                   </div>
@@ -349,18 +352,19 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
                   <span className="text-[8px] text-slate-400 mt-0.5">Warna (Biru / Merah)</span>
                 </div>
 
-                {/* 100% Real Scannable QR Code */}
-                <div className="w-[136px] border border-slate-200 rounded-xl p-2 bg-white flex flex-col items-center text-center shadow-2xs">
-                  <span className="text-[8.5px] font-bold text-slate-700 flex items-center justify-center gap-1 mb-1">
+                {/* 100% Real Scannable QR Code Ukuran Besar & Tajam */}
+                <div className="w-[164px] border border-slate-200 rounded-xl p-2 bg-white flex flex-col items-center text-center shadow-2xs shrink-0">
+                  <span className="text-[9px] font-bold text-slate-700 flex items-center justify-center gap-1 mb-1">
                     <QrCode className="w-3 h-3 text-emerald-800" />
                     <span>PINDAI DARI HP</span>
                   </span>
-                  <div className="w-[110px] h-[110px] border border-slate-200 rounded-lg p-1 mx-auto flex items-center justify-center bg-white">
+                  <div className="w-[148px] h-[148px] border border-slate-200 rounded-lg p-1 mx-auto flex items-center justify-center bg-white">
                     {qrDataUrl ? (
                       <img 
                         src={qrDataUrl} 
                         alt={`QR Code Verifikasi ${siswa.noPendaftaran}`}
                         className="w-full h-full object-contain"
+                        style={{ imageRendering: 'pixelated' }}
                       />
                     ) : (
                       <div className="w-full h-full bg-slate-50 animate-pulse rounded flex items-center justify-center text-[9px] text-slate-500 font-mono">
@@ -368,24 +372,24 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
                       </div>
                     )}
                   </div>
-                  <span className="text-[8.5px] font-mono font-bold text-slate-800 mt-1 block truncate max-w-[120px] bg-slate-100 px-1 py-0.5 rounded">
+                  <span className="text-[9px] font-mono font-bold text-slate-800 mt-1 block truncate max-w-[145px] bg-slate-100 px-1.5 py-0.5 rounded">
                     {siswa.noPendaftaran}
                   </span>
-                  <span className="text-[7.5px] text-emerald-700 font-bold block mt-0.5">
+                  <span className="text-[8px] text-emerald-700 font-bold block mt-0.5">
                     Verifikasi Data Resmi
                   </span>
                 </div>
               </div>
 
               {/* Kolom Kanan: Biodata Lengkap Murid & Jadwal */}
-              <div className="flex-1 space-y-3 text-xs">
+              <div className="w-full flex-1 min-w-0 space-y-3 text-xs">
                 {/* Tabel Data Diri dengan Align Kolom Sempurna (100% Rapi & Sejajar) */}
-                <table className="w-full text-xs font-sans table-fixed">
+                <table className="w-full text-xs font-sans">
                   <tbody>
                     <tr className="border-b border-slate-100">
-                      <td className="py-1.5 text-slate-600 w-44 font-semibold">Nama Lengkap Murid</td>
+                      <td className="py-1.5 text-slate-600 w-36 sm:w-44 font-semibold">Nama Lengkap Murid</td>
                       <td className="py-1.5 text-slate-400 w-3 font-bold">:</td>
-                      <td className="py-1.5 font-bold text-slate-900 text-[13px]">{siswa.namaLengkap}</td>
+                      <td className="py-1.5 font-bold text-slate-900 text-[13px] break-words">{siswa.namaLengkap}</td>
                     </tr>
                     <tr className="border-b border-slate-100">
                       <td className="py-1.5 text-slate-600 font-semibold">Nama Panggilan</td>
@@ -431,7 +435,7 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
                 </table>
 
                 {/* Jadwal & Lokasi Ujian / Observasi Resmi */}
-                <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div className="border-l-3 border-emerald-600 pl-2.5">
                     <span className="text-slate-500 block font-semibold text-[10px] uppercase">Jadwal Pelaksanaan:</span>
                     <span className="font-bold text-slate-900 block text-xs">Sabtu, 17 Januari 2026</span>
