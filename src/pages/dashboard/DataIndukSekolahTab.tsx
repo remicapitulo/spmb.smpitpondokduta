@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { DataIndukSiswa, DataSiswa, StatusKelulusanInfo } from '../../types';
 import { gasService } from '../../services/gasService';
 import { BukuIndukPrintView } from './BukuIndukPrintView';
+import { showAppAlert, showAppConfirm } from '../../components/AppDialogModal';
 import { 
   BookOpen, 
   CheckCircle2, 
@@ -147,23 +148,45 @@ export const DataIndukSekolahTab: React.FC<Props> = ({
   // Eksekusi Salin Murid Lulus ke Data Induk Sekolah
   const handleCopySelectedToDataInduk = async () => {
     if (selectedToCopy.length === 0) {
-      alert('Silakan centang siswa lulus yang ingin disalin ke Data Induk Sekolah terlebih dahulu.');
+      showAppAlert({
+        title: 'Pilih Calon Murid Terlebih Dahulu',
+        message: 'Silakan centang murid yang dinyatakan Diterima untuk disalin ke Buku Induk Sekolah terlebih dahulu.',
+        variant: 'warning',
+      });
       return;
     }
+
+    const confirmed = await showAppConfirm({
+      title: 'Salin ke Buku Induk Sekolah?',
+      message: `Salin ${selectedToCopy.length} calon murid terpilih ke database Buku Induk Sekolah?`,
+      subMessage: 'Seluruh 67 parameter biodata murid dan orang tua akan disalin otomatis ke Buku Induk.',
+      variant: 'info',
+      confirmText: 'Ya, Salin Sekarang',
+      cancelText: 'Batal',
+    });
+    if (!confirmed) return;
 
     setSaving(true);
     const res = await gasService.copyLulusToDataInduk(selectedToCopy);
     setSaving(false);
     setSelectedToCopy([]);
     loadDataInduk();
-    alert(res.message);
+    showAppAlert({
+      title: 'Berhasil Disalin ke Buku Induk',
+      message: res.message,
+      variant: 'success',
+    });
   };
 
   // Handler Simpan NIS Individual
   const handleSaveNis = async (noPendaftaran: string) => {
     const nisValue = editingNisMap[noPendaftaran] || '';
     if (!nisValue.trim()) {
-      alert('Silakan isi Nomor Induk Murid (NIS) terlebih dahulu.');
+      showAppAlert({
+        title: 'NIS Belum Diisi',
+        message: 'Silakan isi Nomor Induk Murid (NIS) terlebih dahulu sebelum menyimpan.',
+        variant: 'warning',
+      });
       return;
     }
 
@@ -178,7 +201,11 @@ export const DataIndukSekolahTab: React.FC<Props> = ({
       }, 2500);
       loadDataInduk();
     } else {
-      alert(res.message);
+      showAppAlert({
+        title: 'Gagal Menyimpan NIS',
+        message: res.message,
+        variant: 'warning',
+      });
     }
   };
 
@@ -189,12 +216,24 @@ export const DataIndukSekolahTab: React.FC<Props> = ({
     setSaving(false);
     setShowNisModal(false);
     loadDataInduk();
-    alert(res.message);
+    showAppAlert({
+      title: 'Generator NIS Otomatis Selesai',
+      message: res.message,
+      variant: 'success',
+    });
   };
 
   // Handler Hapus Siswa dari Data Induk
   const handleDeleteFromDataInduk = async (noPend: string, nama: string) => {
-    if (confirm(`Apakah Anda yakin ingin mengeluarkan ${nama} (${noPend}) dari Buku Induk Sekolah?`)) {
+    const confirmed = await showAppConfirm({
+      title: 'Keluarkan dari Buku Induk?',
+      message: `Apakah Anda yakin ingin mengeluarkan ${nama} (${noPend}) dari Buku Induk Sekolah?`,
+      subMessage: 'Data biodata pendaftaran murid tetap aman dan dapat disalin ulang kapan saja jika diperlukan.',
+      variant: 'danger',
+      confirmText: 'Ya, Keluarkan',
+      cancelText: 'Batal',
+    });
+    if (confirmed) {
       setSaving(true);
       await gasService.removeFromDataInduk(noPend);
       setSaving(false);
@@ -207,13 +246,21 @@ export const DataIndukSekolahTab: React.FC<Props> = ({
     setLoading(true);
     const res = await gasService.syncDataIndukToSpreadsheet();
     setLoading(false);
-    alert(res.message);
+    showAppAlert({
+      title: 'Sinkronisasi Buku Induk Selesai',
+      message: res.message,
+      variant: 'success',
+    });
   };
 
   // Handler Ekspor CSV Tabel Lengkap Tanpa JSON
   const handleExportCsv = () => {
     if (dataIndukList.length === 0) {
-      alert('Belum ada data di Buku Induk Sekolah untuk diekspor.');
+      showAppAlert({
+        title: 'Data Buku Induk Kosong',
+        message: 'Belum ada data murid di Buku Induk Sekolah untuk diekspor ke file CSV.',
+        variant: 'warning',
+      });
       return;
     }
 

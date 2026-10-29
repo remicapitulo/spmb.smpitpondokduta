@@ -32,6 +32,7 @@ interface Props {
     jalur?: string;
     status?: 'LULUS' | 'CADANGAN' | 'TIDAK_LULUS' | 'PROSES_SELEKSI';
     jadwalDaftarUlang?: string;
+    tanggalBatasPengunduranDiri?: string;
     kategoriPembiayaan?: string;
     pesanPengumuman?: string;
   };
@@ -64,6 +65,17 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
   const effectiveNisn = data.nisn && data.nisn !== '-' ? data.nisn : (siswaData?.nisn || indukData?.nisn || kelulusanData?.nisn || '-');
   const effectiveAsalSekolah = data.asalSekolah || siswaData?.asalSekolah || kelulusanData?.asalSekolah || 'SD/MI Pendaftar';
   const effectiveJadwal = isTidakDiterima ? '-' : (data.jadwalDaftarUlang || obsData?.tanggalMaksimalDaftarUlang || kelulusanData?.jadwalDaftarUlang || '20 - 25 Januari 2027');
+  const effectiveBatasPengunduranDiri = isTidakDiterima
+    ? '-'
+    : (
+        (data.tanggalBatasPengunduranDiri && data.tanggalBatasPengunduranDiri !== '-')
+          ? data.tanggalBatasPengunduranDiri
+          : (obsData?.tanggalBatasPengunduranDiri && obsData.tanggalBatasPengunduranDiri !== '-')
+            ? obsData.tanggalBatasPengunduranDiri
+            : (kelulusanData?.tanggalBatasPengunduranDiri && kelulusanData.tanggalBatasPengunduranDiri !== '-')
+              ? kelulusanData.tanggalBatasPengunduranDiri
+              : gasService.getDefaultBatasPengunduranDiri()
+      );
   const defaultSheetKat = gasService.getPembiayaanList()[0]?.kategori || '';
   const effectiveKategoriName = isTidakDiterima ? '' : (data.kategoriPembiayaan || obsData?.kategoriPembiayaan || kelulusanData?.kategoriPembiayaan || defaultSheetKat);
   
@@ -942,13 +954,16 @@ export const SklKelulusanPrintModal: React.FC<Props> = ({
                         Uang Muka dibayarkan setelah pengumuman kelulusan sesuai jadwal daftar ulang yang ditetapkan pada tanggal <strong style={{ color: '#064e3b', fontWeight: 900 }}>{effectiveJadwal}</strong> (Apabila lewat dari batas waktu yang ditentukan mohon untuk konfirmasi ke sekolah).
                       </li>
                       <li>
-                        Sisa Uang Pangkal dapat dilakukan dengan cara diangsur selama <strong style={{ color: '#0f172a', fontWeight: 800 }}>6 (enam) bulan</strong>.
+                        Sisa Uang Pangkal dapat dilakukan dengan cara diangsur selama <strong style={{ color: '#0f172a', fontWeight: 800 }}>6 (enam) bulan</strong> terhitung dari tanggal daftar ulang.
                       </li>
                       <li>
                         Bagi murid yang mengundurkan diri dikenakan biaya sebesar <strong style={{ color: '#991b1b', fontWeight: 900 }}>50% dari DP 1</strong> (berdasarkan poin No. 1).
                       </li>
                       <li>
-                        Batas pengunduran diri maksimal tanggal sebelum masa orientasi/tahun ajaran baru dimulai.
+                        Batas pengunduran diri maksimal tanggal{' '}
+                        <strong style={{ color: '#064e3b', fontWeight: 900 }}>
+                          {effectiveBatasPengunduranDiri && effectiveBatasPengunduranDiri !== '-' ? effectiveBatasPengunduranDiri : '30 Juni 2027'}
+                        </strong>.
                       </li>
                     </ol>
                   </div>

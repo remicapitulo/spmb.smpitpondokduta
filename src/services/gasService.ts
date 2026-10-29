@@ -475,6 +475,7 @@ const LOCAL_CURRENT_USER_KEY = 'spmb_pd_current_user';
 const PURE_DB_MODE_KEY = 'spmb_pd_pure_db_mode_v3';
 export const LOCAL_WA_LOGS_KEY = 'spmb_pd_wa_kelulusan_logs';
 export const LOCAL_WA_TEMPLATE_KEY = 'spmb_pd_wa_kelulusan_template';
+const LOCAL_DEFAULT_BATAS_UNDUR_DIRI_KEY = 'spmb_pd_default_batas_pengunduran_diri';
 
 /**
  * Membersihkan dan memformat nomor HP menjadi format standar WhatsApp internasional.
@@ -1619,6 +1620,15 @@ export const gasService = {
               unduhSkhsAt: sheetUnduh.isDone ? (sheetUnduh.detailText || finalUnduhCell) : undefined
             };
 
+            let batasUndurDiri = kl.tanggalBatasPengunduranDiri;
+            if (kl.status === 'LULUS' && (!batasUndurDiri || batasUndurDiri === '-')) {
+              if (ownerObs?.tanggalBatasPengunduranDiri && ownerObs.tanggalBatasPengunduranDiri !== '-' && ownerObs.tanggalBatasPengunduranDiri.trim()) {
+                batasUndurDiri = ownerObs.tanggalBatasPengunduranDiri.trim();
+              } else {
+                batasUndurDiri = this.getDefaultBatasPengunduranDiri();
+              }
+            }
+
             healedKelulusan.push({
               ...kl,
               noPendaftaran: String(kl.noPendaftaran || '').trim(),
@@ -1626,6 +1636,7 @@ export const gasService = {
               nisn: nisn || '-',
               asalSekolah: asalSekolah || 'SD/MI Pendaftar',
               jadwalDaftarUlang: kl.status === 'LULUS' ? (jadwal || '20 - 25 Januari 2027') : '-',
+              tanggalBatasPengunduranDiri: kl.status === 'LULUS' ? (batasUndurDiri || this.getDefaultBatasPengunduranDiri()) : '-',
               statusKirimPesan: finalKirimCell,
               statusCekSeleksi: finalCekCell,
               statusUnduhSkhs: finalUnduhCell
@@ -1965,6 +1976,18 @@ export const gasService = {
       ? data.tanggalMaksimalDaftarUlang.trim()
       : (stLulus?.jadwalDaftarUlang && stLulus.jadwalDaftarUlang !== '-' ? stLulus.jadwalDaftarUlang : '20 - 25 Januari 2027');
 
+    const resolvedBatasUndurDiri = (data.tanggalBatasPengunduranDiri && data.tanggalBatasPengunduranDiri.trim() && data.tanggalBatasPengunduranDiri !== '-')
+      ? data.tanggalBatasPengunduranDiri.trim()
+      : ((idx >= 0 && list[idx]?.tanggalBatasPengunduranDiri && list[idx].tanggalBatasPengunduranDiri !== '-')
+        ? list[idx].tanggalBatasPengunduranDiri!
+        : ((stLulus?.tanggalBatasPengunduranDiri && stLulus.tanggalBatasPengunduranDiri !== '-')
+          ? stLulus.tanggalBatasPengunduranDiri
+          : this.getDefaultBatasPengunduranDiri()));
+
+    if (resolvedBatasUndurDiri && resolvedBatasUndurDiri !== '-') {
+      this.setDefaultBatasPengunduranDiri(resolvedBatasUndurDiri);
+    }
+
     const defaultSheetKat = this.getPembiayaanList()[0]?.kategori || '';
     const resolvedKategori = data.kategoriPembiayaan || (idx >= 0 ? list[idx].kategoriPembiayaan : '') || defaultSheetKat;
     const resolvedRincian = data.rincianBiaya || this.getPembiayaanByCategory(resolvedKategori);
@@ -1975,6 +1998,7 @@ export const gasService = {
       nisn: resolvedNisn,
       asalSekolah: resolvedAsalSekolah,
       tanggalMaksimalDaftarUlang: resolvedJadwal,
+      tanggalBatasPengunduranDiri: data.rekomendasi === 'Tidak Diterima' ? '-' : resolvedBatasUndurDiri,
       kategoriPembiayaan: resolvedKategori,
       rincianBiaya: resolvedRincian,
       pdfUrl: pdfUrl,
@@ -1998,6 +2022,7 @@ export const gasService = {
         nisn: resolvedNisn,
         asalSekolah: resolvedAsalSekolah,
         tanggalMaksimalDaftarUlang: resolvedJadwal,
+        tanggalBatasPengunduranDiri: finalized.tanggalBatasPengunduranDiri,
         kategoriPembiayaan: resolvedKategori
       });
       this.setLastSyncTime();
@@ -2555,6 +2580,13 @@ export const gasService = {
           : '20 - 25 Januari 2027';
       }
 
+      if (found.status === 'LULUS' && (!found.tanggalBatasPengunduranDiri || found.tanggalBatasPengunduranDiri === '-' || found.tanggalBatasPengunduranDiri.trim() === '')) {
+        const obs = this.getObservasiSiswa(found.noPendaftaran);
+        found.tanggalBatasPengunduranDiri = (obs?.tanggalBatasPengunduranDiri && obs.tanggalBatasPengunduranDiri.trim() && obs.tanggalBatasPengunduranDiri !== '-')
+          ? obs.tanggalBatasPengunduranDiri.trim()
+          : this.getDefaultBatasPengunduranDiri();
+      }
+
       if (found.pesanPengumuman) {
         found.pesanPengumuman = found.pesanPengumuman.replace(/2026\/2027/g, '2027/2028');
       }
@@ -2572,6 +2604,17 @@ export const gasService = {
     }
 
     return found;
+  },
+
+  getDefaultBatasPengunduranDiri(): string {
+    return localStorage.getItem(LOCAL_DEFAULT_BATAS_UNDUR_DIRI_KEY) || '30 Juni 2027';
+  },
+
+  setDefaultBatasPengunduranDiri(val: string) {
+    const trimmed = (val || '').trim();
+    if (trimmed && trimmed !== '-') {
+      localStorage.setItem(LOCAL_DEFAULT_BATAS_UNDUR_DIRI_KEY, trimmed);
+    }
   },
 
   getStatusKelulusan(noPendaftaran: string): StatusKelulusanInfo | null {
@@ -2604,6 +2647,10 @@ export const gasService = {
       ? obs.tanggalMaksimalDaftarUlang.trim()
       : (list[idx]?.jadwalDaftarUlang && list[idx]?.jadwalDaftarUlang !== '-' ? list[idx].jadwalDaftarUlang : '20 - 25 Januari 2027');
 
+    const effectiveBatasUndurDiri = (obs.tanggalBatasPengunduranDiri && obs.tanggalBatasPengunduranDiri.trim() && obs.tanggalBatasPengunduranDiri !== '-')
+      ? obs.tanggalBatasPengunduranDiri.trim()
+      : (list[idx]?.tanggalBatasPengunduranDiri && list[idx]?.tanggalBatasPengunduranDiri !== '-' ? list[idx].tanggalBatasPengunduranDiri : this.getDefaultBatasPengunduranDiri());
+
     const effectiveNisn = (obs.nisn && obs.nisn !== '-' && obs.nisn.trim())
       ? obs.nisn.trim()
       : ((st?.nisn && st.nisn !== '-') 
@@ -2635,6 +2682,7 @@ export const gasService = {
           ? `Ananda berada pada posisi CADANGAN berdasarkan hasil evaluasi seleksi SPMB SMPIT Pondok Duta.`
           : `Mohon maaf, ananda belum memenuhi kuota penerimaan SMPIT Pondok Duta tahun ini.`),
       jadwalDaftarUlang: newStatus === 'LULUS' ? effectiveJadwal : '-',
+      tanggalBatasPengunduranDiri: newStatus === 'LULUS' ? effectiveBatasUndurDiri : '-',
       kategoriPembiayaan: effectiveKategori,
       rincianBiaya: effectiveRincian,
       updatedAt: new Date().toISOString(),
@@ -2690,6 +2738,48 @@ export const gasService = {
       success: true,
       count,
       message: `Berhasil memperbarui jadwal daftar ulang (${trimmed}) untuk ${count} calon murid berstatus LULUS.`
+    };
+  },
+
+  applyBatasPengunduranDiriToAllLulus(batasTanggal: string): { success: boolean; count: number; message: string } {
+    const trimmed = (batasTanggal || '').trim() || '30 Juni 2027';
+    this.setDefaultBatasPengunduranDiri(trimmed);
+    const raw = localStorage.getItem(LOCAL_LULUS_KEY);
+    const list: StatusKelulusanInfo[] = raw ? JSON.parse(raw) : [];
+    let count = 0;
+    const updated = list.map(item => {
+      if (item.status === 'LULUS') {
+        count++;
+        return { ...item, tanggalBatasPengunduranDiri: trimmed };
+      }
+      return item;
+    });
+    localStorage.setItem(LOCAL_LULUS_KEY, JSON.stringify(updated));
+
+    const rawObs = localStorage.getItem(LOCAL_OBS_SISWA_KEY);
+    if (rawObs) {
+      try {
+        const obsList: ObservasiSiswaData[] = JSON.parse(rawObs);
+        const updatedObs = obsList.map(o => {
+          if (o.rekomendasi === 'Diterima') {
+            return { ...o, tanggalBatasPengunduranDiri: trimmed };
+          }
+          return o;
+        });
+        localStorage.setItem(LOCAL_OBS_SISWA_KEY, JSON.stringify(updatedObs));
+      } catch {
+        // ignore
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('spmb_db_updated'));
+    }
+
+    return {
+      success: true,
+      count,
+      message: `Berhasil memperbarui tanggal batas pengunduran diri (${trimmed}) untuk ${count} calon murid berstatus LULUS.`
     };
   },
 

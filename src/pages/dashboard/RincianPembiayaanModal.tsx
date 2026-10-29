@@ -37,6 +37,7 @@ interface Props {
   onClose: () => void;
   onOpenFullSklPreview?: () => void;
   tanggalDaftarUlang?: string;
+  tanggalBatasPengunduranDiri?: string;
 }
 
 export const RincianPembiayaanModal: React.FC<Props> = ({
@@ -45,7 +46,8 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
   onSelectKategori,
   onClose,
   onOpenFullSklPreview,
-  tanggalDaftarUlang = '20 - 25 Januari 2027'
+  tanggalDaftarUlang = '20 - 25 Januari 2027',
+  tanggalBatasPengunduranDiri
 }) => {
   const [categories, setCategories] = useState<PembiayaanCategory[]>(() => gasService.getPembiayaanList());
   const [currentKategoriName, setCurrentKategoriName] = useState<string>(selectedKategori || (categories[0]?.kategori || ''));
@@ -53,6 +55,17 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const docRef = useRef<HTMLDivElement | null>(null);
   const tahunPelajaran = getAcademicYear();
+
+  const obsData = gasService.getObservasiSiswa(siswa.noPendaftaran);
+  const kelulusanData = gasService.getStatusKelulusan(siswa.noPendaftaran);
+  const effectiveBatasPengunduranDiri =
+    (tanggalBatasPengunduranDiri && tanggalBatasPengunduranDiri !== '-')
+      ? tanggalBatasPengunduranDiri
+      : (obsData?.tanggalBatasPengunduranDiri && obsData.tanggalBatasPengunduranDiri !== '-')
+        ? obsData.tanggalBatasPengunduranDiri
+        : (kelulusanData?.tanggalBatasPengunduranDiri && kelulusanData.tanggalBatasPengunduranDiri !== '-')
+          ? kelulusanData.tanggalBatasPengunduranDiri
+          : gasService.getDefaultBatasPengunduranDiri();
 
   useEffect(() => {
     // Sinkronkan daftar kategori terbaru jika ada update
@@ -207,11 +220,14 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
               onChange={(e) => handleKategoriChange(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-bold text-xs text-slate-900 shadow-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             >
-              {categories.map((cat, idx) => (
-                <option key={idx} value={cat.kategori}>
-                  {cat.kategori}{cat.catatan ? ` — ${cat.catatan}` : ''}
-                </option>
-              ))}
+              {categories.map((cat, idx) => {
+                const numberedLabel = /^\d+\./.test(cat.kategori.trim()) ? cat.kategori : `${idx + 1}. ${cat.kategori}`;
+                return (
+                  <option key={idx} value={cat.kategori}>
+                    {numberedLabel}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -643,13 +659,16 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
                     Uang Muka dibayarkan setelah pengumuman kelulusan sesuai jadwal daftar ulang yang ditetapkan pada tanggal <strong style={{ color: '#064e3b', fontWeight: 900 }}>{tanggalDaftarUlang}</strong> (Apabila lewat batas waktu mohon konfirmasi ke sekolah).
                   </li>
                   <li>
-                    Sisa Uang Pangkal dapat dilakukan dengan cara diangsur selama <strong style={{ color: '#0f172a', fontWeight: 800 }}>6 (enam) bulan</strong>.
+                    Sisa Uang Pangkal dapat dilakukan dengan cara diangsur selama <strong style={{ color: '#0f172a', fontWeight: 800 }}>6 (enam) bulan</strong> terhitung dari tanggal daftar ulang.
                   </li>
                   <li>
                     Bagi murid yang mengundurkan diri dikenakan biaya sebesar <strong style={{ color: '#991b1b', fontWeight: 900 }}>50% dari DP 1</strong> (berdasarkan poin No. 1).
                   </li>
                   <li>
-                    Batas konfirmasi pengunduran diri maksimal sebelum tahun ajaran baru dimulai.
+                    Batas pengunduran diri maksimal tanggal{' '}
+                    <strong style={{ color: '#064e3b', fontWeight: 900 }}>
+                      {effectiveBatasPengunduranDiri && effectiveBatasPengunduranDiri !== '-' ? effectiveBatasPengunduranDiri : '30 Juni 2027'}
+                    </strong>.
                   </li>
                 </ol>
               </div>

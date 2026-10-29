@@ -223,8 +223,9 @@ export interface ObservasiSiswaData {
   rekomendasi: 'Diterima' | 'Cadangan' | 'Tidak Diterima';
   catatanPenguji: string;
 
-  // Integrasi Batas Maksimal Tanggal Daftar Ulang ke Lembar Hasil Kelulusan Murid
+  // Integrasi Batas Maksimal Tanggal Daftar Ulang & Pengunduran Diri ke Lembar Hasil Kelulusan Murid
   tanggalMaksimalDaftarUlang?: string;
+  tanggalBatasPengunduranDiri?: string;
   nisn?: string;
   asalSekolah?: string;
 
@@ -290,6 +291,7 @@ export interface StatusKelulusanInfo {
   status: 'LULUS' | 'CADANGAN' | 'TIDAK_LULUS' | 'PROSES_SELEKSI';
   pesanPengumuman: string;
   jadwalDaftarUlang?: string;
+  tanggalBatasPengunduranDiri?: string;
   skorAkhir?: number;
   kategoriPembiayaan?: string;
   rincianBiaya?: PembiayaanCategory;

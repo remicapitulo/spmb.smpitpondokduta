@@ -555,7 +555,7 @@ export const MobileBottomNav: React.FC<Props> = ({
                         <ShieldCheck className="w-4 h-4" />
                       </div>
                       <div className="text-left">
-                        <div className="font-bold text-xs text-slate-800">Menu Tim Pewawancara</div>
+                        <div className="font-bold text-xs text-slate-800">Menu Pewawancara</div>
                         <div className="text-[10px] text-slate-500 font-normal">Evaluasi OTM &amp; Observasi Murid</div>
                       </div>
                     </div>

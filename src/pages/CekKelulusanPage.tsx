@@ -231,6 +231,25 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
     return '20 - 25 Januari 2027';
   }, [result]);
 
+  const effectiveBatasPengunduranDiri = useMemo(() => {
+    if (!result) return gasService.getDefaultBatasPengunduranDiri();
+    if (result.status !== 'LULUS') return '-';
+    if (result.tanggalBatasPengunduranDiri && result.tanggalBatasPengunduranDiri !== '-' && result.tanggalBatasPengunduranDiri.trim()) {
+      return result.tanggalBatasPengunduranDiri.trim();
+    }
+    if (result.noPendaftaran) {
+      const obs = gasService.getObservasiSiswa(result.noPendaftaran);
+      if (obs?.tanggalBatasPengunduranDiri && obs.tanggalBatasPengunduranDiri !== '-' && obs.tanggalBatasPengunduranDiri.trim()) {
+        return obs.tanggalBatasPengunduranDiri.trim();
+      }
+      const stKel = gasService.getStatusKelulusan(result.noPendaftaran);
+      if (stKel?.tanggalBatasPengunduranDiri && stKel.tanggalBatasPengunduranDiri !== '-' && stKel.tanggalBatasPengunduranDiri.trim()) {
+        return stKel.tanggalBatasPengunduranDiri.trim();
+      }
+    }
+    return gasService.getDefaultBatasPengunduranDiri();
+  }, [result]);
+
   // Preload logo sekolah untuk render HTML2Canvas & cetak dokumen
   useEffect(() => {
     const rawLogo = gasService.getAppSettings().logoUrl || '/logo-smpit-pondok-duta.png';
@@ -629,6 +648,7 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
             jalur: result.jalur,
             status: result.status,
             jadwalDaftarUlang: effectiveJadwalDaftarUlang,
+            tanggalBatasPengunduranDiri: effectiveBatasPengunduranDiri,
             kategoriPembiayaan: result.status === 'TIDAK_LULUS' ? '' : result.kategoriPembiayaan,
             pesanPengumuman: result.pesanPengumuman
           }}

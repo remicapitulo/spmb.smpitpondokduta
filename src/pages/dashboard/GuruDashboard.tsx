@@ -21,6 +21,8 @@ import { SklKelulusanPrintModal } from './SklKelulusanPrintModal';
 import { formatRupiah } from '../../services/pembiayaanData';
 import { DataIndukSekolahTab } from './DataIndukSekolahTab';
 import { WhatsappKelulusanTab } from './WhatsappKelulusanTab';
+import { StudentSearchCombobox } from '../../components/StudentSearchCombobox';
+import { showAppAlert, showAppConfirm } from '../../components/AppDialogModal';
 import { 
   Users, 
   UserCheck, 
@@ -132,6 +134,7 @@ export const GuruDashboard: React.FC<Props> = ({
   const [rekomendasiSiswa, setRekomendasiSiswa] = useState<'Diterima' | 'Cadangan' | 'Tidak Diterima' | ''>('');
   const [catatanPengujiSiswa, setCatatanPengujiSiswa] = useState('');
   const [tanggalMaksimalDaftarUlang, setTanggalMaksimalDaftarUlang] = useState<string>('');
+  const [tanggalBatasPengunduranDiri, setTanggalBatasPengunduranDiri] = useState<string>(() => gasService.getDefaultBatasPengunduranDiri());
   const [pembiayaanCategories, setPembiayaanCategories] = useState<PembiayaanCategory[]>(() => gasService.getPembiayaanList());
   const [kategoriPembiayaanSiswa, setKategoriPembiayaanSiswa] = useState<string>('');
   const [isRefreshingKategori, setIsRefreshingKategori] = useState<boolean>(false);
@@ -333,6 +336,11 @@ export const GuruDashboard: React.FC<Props> = ({
       setRekomendasiSiswa(existing.rekomendasi || '');
       setCatatanPengujiSiswa(existing.catatanPenguji || '');
       setTanggalMaksimalDaftarUlang(existing.tanggalMaksimalDaftarUlang || '');
+      setTanggalBatasPengunduranDiri(
+        existing.tanggalBatasPengunduranDiri && existing.tanggalBatasPengunduranDiri !== '-'
+          ? existing.tanggalBatasPengunduranDiri
+          : gasService.getDefaultBatasPengunduranDiri()
+      );
       setKategoriPembiayaanSiswa(existing.kategoriPembiayaan || '');
     } else if (existingLulus && ['LULUS', 'CADANGAN', 'TIDAK_LULUS'].includes(existingLulus.status) && Number(existingLulus.skorAkhir) > 0) {
       // Jika data sudah tersimpan dalam sheet kelulusan (dan sudah dievaluasi oleh guru), website membaca data dari sheet kelulusan
@@ -355,6 +363,11 @@ export const GuruDashboard: React.FC<Props> = ({
       setRekomendasiSiswa(mappedRek);
       setCatatanPengujiSiswa(existingLulus.pesanPengumuman || '');
       setTanggalMaksimalDaftarUlang(existingLulus.jadwalDaftarUlang && existingLulus.jadwalDaftarUlang !== '-' ? existingLulus.jadwalDaftarUlang : '');
+      setTanggalBatasPengunduranDiri(
+        existingLulus.tanggalBatasPengunduranDiri && existingLulus.tanggalBatasPengunduranDiri !== '-'
+          ? existingLulus.tanggalBatasPengunduranDiri
+          : gasService.getDefaultBatasPengunduranDiri()
+      );
       setKategoriPembiayaanSiswa(existingLulus.kategoriPembiayaan && existingLulus.kategoriPembiayaan !== '-' ? existingLulus.kategoriPembiayaan : '');
     } else {
       // Benar-benar kosong di awal jika belum diisi dan belum ada di sheet observasi murid
@@ -372,6 +385,7 @@ export const GuruDashboard: React.FC<Props> = ({
       setRekomendasiSiswa('');
       setCatatanPengujiSiswa('');
       setTanggalMaksimalDaftarUlang('');
+      setTanggalBatasPengunduranDiri(gasService.getDefaultBatasPengunduranDiri());
       setKategoriPembiayaanSiswa('');
     }
   };
@@ -435,11 +449,19 @@ export const GuruDashboard: React.FC<Props> = ({
   const handleOpenPreSaveReview = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentStudentOrtu) { 
-      alert("Silakan pilih calon siswa terlebih dahulu."); 
+      showAppAlert({
+        title: 'Pilih Calon Murid Terlebih Dahulu',
+        message: 'Silakan pilih calon murid yang akan diwawancarai pada kolom pencarian murid di atas.',
+        variant: 'warning',
+      });
       return; 
     }
     if (!activePewawancaraName.trim()) { 
-      alert("Silakan pilih atau isi nama pewawancara terlebih dahulu."); 
+      showAppAlert({
+        title: 'Nama Pewawancara Belum Diisi',
+        message: 'Silakan pilih atau isi nama pewawancara terlebih dahulu sebelum melanjutkan.',
+        variant: 'warning',
+      });
       return; 
     }
 
@@ -495,7 +517,13 @@ export const GuruDashboard: React.FC<Props> = ({
     setSaving(false);
     setPreSaveReviewModal(null);
     setSavedOrtuResult(res.data);
-    alert('Alhamdulillah! Hasil wawancara dan tanda tangan digital berhasil disahkan & disimpan resmi.');
+    showAppAlert({
+      title: 'Wawancara Berhasil Disahkan',
+      message: 'Alhamdulillah! Hasil wawancara dan tanda tangan digital berhasil disahkan & disimpan resmi.',
+      subMessage: `Data hasil wawancara Orang Tua untuk ${currentStudentOrtu.nama} (${currentStudentOrtu.id}) telah tersimpan ke database.`,
+      variant: 'success',
+      confirmText: 'Selesai',
+    });
 
     // Refresh list agar status selesai terupdate
     await loadStudentList();
@@ -524,7 +552,13 @@ export const GuruDashboard: React.FC<Props> = ({
     const res = gasService.saveDraftWawancaraOrtu(formData);
     setSaving(false);
     setSavedOrtuResult(res.data);
-    alert('Alhamdulillah! Draft wawancara berhasil disimpan.\n\nDokumen ini sekarang muncul di menu Wawancara Orang Tua pada akun siswa/ortu agar dapat direview dan ditandatangani langsung di HP mereka.');
+    showAppAlert({
+      title: 'Draft Wawancara Berhasil Disimpan',
+      message: 'Alhamdulillah! Draft wawancara berhasil disimpan.',
+      subMessage: 'Dokumen ini sekarang muncul di menu Observasi Ortu pada akun Portal Calon Murid agar dapat direview dan ditandatangani langsung oleh Ayah/Bunda di HP mereka.',
+      variant: 'success',
+      confirmText: 'Mengerti',
+    });
     await loadStudentList();
   };
 
@@ -539,9 +573,32 @@ export const GuruDashboard: React.FC<Props> = ({
 
   const handleSubmitObservasiSiswa = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentStudentSiswa) { alert("Pilih siswa yang diuji!"); return; }
-    if (!activePengujiName.trim()) { alert("Pilih atau isi nama penguji siswa!"); return; }
-    if (!rekomendasiSiswa) { alert("Pilih keputusan rekomendasi hasil evaluasi siswa terlebih dahulu!"); return; }
+    if (!currentStudentSiswa) {
+      showAppAlert({
+        title: 'Pilih Calon Murid Terlebih Dahulu',
+        message: 'Silakan pilih calon murid yang diuji terlebih dahulu!',
+        variant: 'warning',
+      });
+      return;
+    }
+    if (!activePengujiName.trim()) {
+      showAppAlert({
+        title: 'Nama Penguji Belum Diisi',
+        message: 'Silakan pilih atau isi nama penguji observasi murid terlebih dahulu!',
+        variant: 'warning',
+      });
+      return;
+    }
+    if (!rekomendasiSiswa) {
+      showAppAlert({
+        title: 'Keputusan Rekomendasi Belum Dipilih',
+        message: 'Pilih keputusan rekomendasi hasil evaluasi murid (Diterima / Cadangan / Tidak Diterima) terlebih dahulu!',
+        subMessage: 'Keputusan rekomendasi diperlukan untuk menetapkan status seleksi di Sheet Kelulusan.',
+        variant: 'warning',
+        confirmText: 'Pilih Sekarang',
+      });
+      return;
+    }
 
     setSaving(true);
     const existingSiswa = gasService.getSiswaByNo(currentStudentSiswa.id);
@@ -579,6 +636,7 @@ export const GuruDashboard: React.FC<Props> = ({
       rekomendasi: rekomendasiSiswa as 'Diterima' | 'Cadangan' | 'Tidak Diterima',
       catatanPenguji: catatanPengujiSiswa,
       tanggalMaksimalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalMaksimalDaftarUlang.trim() || '-'),
+      tanggalBatasPengunduranDiri: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalBatasPengunduranDiri.trim() || '-'),
       kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaanSiswa,
       rincianBiaya: (rekomendasiSiswa === 'Tidak Diterima' || !kategoriPembiayaanSiswa) ? undefined : gasService.getPembiayaanByCategory(kategoriPembiayaanSiswa),
       createdAt: new Date().toISOString()
@@ -587,103 +645,293 @@ export const GuruDashboard: React.FC<Props> = ({
     const res = await gasService.saveObservasiSiswa(payload);
     setSaving(false);
     setSavedSiswaResult(res.data);
-    alert(res.message);
+    showAppAlert({
+      title: 'Lembar Observasi Murid Tersimpan',
+      message: res.message,
+      subMessage: `Status evaluasi dan rincian pembiayaan untuk ${currentStudentSiswa.nama} (${currentStudentSiswa.id}) telah disinkronkan ke Sheet Observasi & Sheet Kelulusan.`,
+      variant: 'success',
+      confirmText: 'Selesai',
+    });
     await loadStudentList();
   };
 
-  const handleApplyTanggalToAllLulus = (dateStr: string) => {
-    const trimmed = (dateStr || '').trim();
-    if (!trimmed) {
-      alert('Silakan tentukan atau pilih tanggal daftar ulang terlebih dahulu.');
+  const handleApplyTanggalToAllLulus = async () => {
+    const trimmedDaftarUlang = (tanggalMaksimalDaftarUlang || '').trim();
+    const trimmedUndurDiri = (tanggalBatasPengunduranDiri || '').trim();
+    if (!trimmedDaftarUlang && !trimmedUndurDiri) {
+      showAppAlert({
+        title: 'Tanggal Belum Diisi',
+        message: 'Silakan isi Tanggal Daftar Ulang atau Tanggal Batas Pengunduran Diri terlebih dahulu.',
+        variant: 'warning',
+      });
       return;
     }
-    const res = gasService.applyJadwalDaftarUlangToAllLulus(trimmed);
-    alert(`Alhamdulillah! Tanggal daftar ulang "${trimmed}" berhasil diterapkan ke ${res.count} calon murid berstatus Diterima / Lulus.`);
+
+    const confirmed = await showAppConfirm({
+      title: 'Terapkan Tanggal ke Semua Murid Diterima?',
+      message: 'Apakah Anda yakin ingin menyeragamkan Tanggal Daftar Ulang & Batas Pengunduran Diri ini ke seluruh calon murid berstatus Diterima?',
+      subMessage: `Rentang Daftar Ulang: ${trimmedDaftarUlang || '-'} • Batas Pengunduran Diri: ${trimmedUndurDiri || '-'}`,
+      variant: 'info',
+      confirmText: 'Ya, Terapkan ke Semua',
+      cancelText: 'Batal',
+    });
+    if (!confirmed) return;
+
+    let count = 0;
+    if (trimmedDaftarUlang) {
+      const res1 = gasService.applyJadwalDaftarUlangToAllLulus(trimmedDaftarUlang);
+      count = Math.max(count, res1.count);
+    }
+    if (trimmedUndurDiri) {
+      const res2 = gasService.applyBatasPengunduranDiriToAllLulus(trimmedUndurDiri);
+      count = Math.max(count, res2.count);
+    }
+    showAppAlert({
+      title: 'Tanggal Berhasil Diseragamkan',
+      message: `Alhamdulillah! Tanggal Daftar Ulang & Batas Pengunduran Diri berhasil diterapkan ke ${count} calon murid berstatus Diterima.`,
+      variant: 'success',
+    });
   };
 
   return (
     <div className="space-y-8">
       
       {/* ===================================================================== */}
-      {/* TOP BANNER & INDEPENDENT TEAM SELECTOR (TIM 1 VS TIM 2 BERDIRI SENDIRI) */}
+      {/* TOP BANNER & MODERN 4-CARD MENU NAVIGATION                            */}
       {/* ===================================================================== */}
-      <div className="p-6 sm:p-7 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-emerald-950 text-white shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-5 border border-slate-800">
-        <div>
-          <div className="flex flex-wrap items-center gap-2 mb-2.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-emerald-300 text-xs font-semibold border border-white/15">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>Menu Evaluasi SPMB SMPIT Pondok Duta</span>
+      <div className="p-5 sm:p-7 rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-emerald-950 text-white shadow-xl border border-slate-800/90 space-y-6 relative overflow-hidden">
+        {/* Subtle ambient glow */}
+        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+
+        {/* Header Row */}
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-emerald-300 text-xs font-bold border border-white/15 shadow-2xs">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Menu Pewawancara &amp; Evaluasi SPMB</span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-200 text-[11px] font-semibold border border-indigo-400/25">
+                <Sparkles className="w-3 h-3 text-amber-300" />
+                <span>SMPIT Pondok Duta</span>
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              Evaluasi Seleksi Penerimaan Murid Baru
+            </h1>
+            <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
+              Panel instrumen evaluasi seleksi murid baru. Silakan pilih salah satu menu kerja di bawah ini untuk mengelola Wawancara OTM, Observasi Murid, Data Induk, atau Pengumuman.
+            </p>
+          </div>
+
+          {/* Quick Counter Pill */}
+          <div className="flex items-center gap-3 self-start md:self-center bg-white/5 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 font-black text-sm">
+              {students.length}
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Data Pendaftar</div>
+              <div className="text-xs font-extrabold text-white">Calon Murid Terdaftar</div>
             </div>
           </div>
-          <h1 className="text-xl sm:text-2xl font-black text-white">
-            Evaluasi Seleksi Penerimaan Murid Baru
-          </h1>
-          <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-            Panel instrumen evaluasi seleksi murid baru. Penilaian wawancara orang tua murid dan lembar observasi murid diuji secara mandiri oleh masing-masing tim penguji untuk penetapan kelulusan.
-          </p>
         </div>
 
-        {/* TEAM SELECTOR BUTTONS (Responsive Grid on Mobile & Tablet) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-1.5 bg-slate-800/90 p-1.5 rounded-2xl border border-slate-700 shadow-lg w-full lg:w-auto">
-          <button
-            onClick={() => setActiveTeam('ortu')}
-            className={`px-3 sm:px-3.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition cursor-pointer ${
-              activeTeam === 'ortu'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Users className="w-4 h-4 text-emerald-200 shrink-0" />
-            <div className="text-left min-w-0">
-              <span className="block leading-tight truncate">1. Wawancara OTM</span>
-              <span className="text-[10px] opacity-80 font-normal truncate">Orang Tua Murid</span>
-            </div>
-          </button>
+        {/* 4 MENU CARDS — FULL WIDTH, NO TRUNCATION, ATTRACTIVE VISUAL CARDS */}
+        <div className="relative pt-2 border-t border-white/10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* MENU 1: WAWANCARA OTM */}
+            <button
+              type="button"
+              onClick={() => setActiveTeam('ortu')}
+              className={`group relative p-3.5 sm:p-4 rounded-2xl text-left transition-all duration-200 flex items-center gap-3.5 cursor-pointer border ${
+                activeTeam === 'ortu'
+                  ? 'bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 text-white border-emerald-400/60 shadow-lg shadow-emerald-950/50 ring-2 ring-emerald-400/30 -translate-y-0.5'
+                  : 'bg-slate-800/75 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:border-emerald-500/40'
+              }`}
+            >
+              <div
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                  activeTeam === 'ortu'
+                    ? 'bg-white/20 text-white border border-white/30 shadow-inner'
+                    : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+                }`}
+              >
+                <Users className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                      activeTeam === 'ortu'
+                        ? 'bg-black/20 text-emerald-100'
+                        : 'bg-emerald-500/15 text-emerald-300'
+                    }`}
+                  >
+                    Menu 01
+                  </span>
+                  {activeTeam === 'ortu' && (
+                    <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
+                  )}
+                </div>
+                <div className="text-sm font-black text-white mt-1 leading-snug">
+                  1. Wawancara OTM
+                </div>
+                <div
+                  className={`text-[11px] mt-0.5 leading-tight ${
+                    activeTeam === 'ortu' ? 'text-emerald-100 font-medium' : 'text-slate-400'
+                  }`}
+                >
+                  Wawancara Orang Tua Murid
+                </div>
+              </div>
+            </button>
 
-          <button
-            onClick={() => setActiveTeam('siswa')}
-            className={`px-3 sm:px-3.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition cursor-pointer ${
-              activeTeam === 'siswa'
-                ? 'bg-indigo-600 text-white shadow-md'
-                : 'text-slate-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <BookOpen className="w-4 h-4 text-indigo-200 shrink-0" />
-            <div className="text-left min-w-0">
-              <span className="block leading-tight truncate">2. Observasi Murid</span>
-              <span className="text-[10px] opacity-80 font-normal truncate">Tahsin, Adab, Akademik</span>
-            </div>
-          </button>
+            {/* MENU 2: OBSERVASI MURID */}
+            <button
+              type="button"
+              onClick={() => setActiveTeam('siswa')}
+              className={`group relative p-3.5 sm:p-4 rounded-2xl text-left transition-all duration-200 flex items-center gap-3.5 cursor-pointer border ${
+                activeTeam === 'siswa'
+                  ? 'bg-gradient-to-br from-indigo-600 via-indigo-600 to-blue-700 text-white border-indigo-400/60 shadow-lg shadow-indigo-950/50 ring-2 ring-indigo-400/30 -translate-y-0.5'
+                  : 'bg-slate-800/75 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:border-indigo-500/40'
+              }`}
+            >
+              <div
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                  activeTeam === 'siswa'
+                    ? 'bg-white/20 text-white border border-white/30 shadow-inner'
+                    : 'bg-indigo-500/15 text-indigo-300 border border-indigo-500/25'
+                }`}
+              >
+                <BookOpen className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                      activeTeam === 'siswa'
+                        ? 'bg-black/20 text-indigo-100'
+                        : 'bg-indigo-500/15 text-indigo-300'
+                    }`}
+                  >
+                    Menu 02
+                  </span>
+                  {activeTeam === 'siswa' && (
+                    <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
+                  )}
+                </div>
+                <div className="text-sm font-black text-white mt-1 leading-snug">
+                  2. Observasi Murid
+                </div>
+                <div
+                  className={`text-[11px] mt-0.5 leading-tight ${
+                    activeTeam === 'siswa' ? 'text-indigo-100 font-medium' : 'text-slate-400'
+                  }`}
+                >
+                  Tahsin, Adab &amp; Akademik
+                </div>
+              </div>
+            </button>
 
-          <button
-            onClick={() => setActiveTeam('data-induk')}
-            className={`px-3 sm:px-3.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition cursor-pointer ${
-              activeTeam === 'data-induk'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                : 'text-slate-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Award className="w-4 h-4 text-amber-300 shrink-0" />
-            <div className="text-left min-w-0">
-              <span className="block leading-tight truncate">3. Data Induk</span>
-              <span className="text-[10px] opacity-80 font-normal truncate">Buku Induk &amp; NIS</span>
-            </div>
-          </button>
+            {/* MENU 3: DATA INDUK */}
+            <button
+              type="button"
+              onClick={() => setActiveTeam('data-induk')}
+              className={`group relative p-3.5 sm:p-4 rounded-2xl text-left transition-all duration-200 flex items-center gap-3.5 cursor-pointer border ${
+                activeTeam === 'data-induk'
+                  ? 'bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 text-slate-950 border-amber-300 shadow-lg shadow-amber-950/40 ring-2 ring-amber-300/40 -translate-y-0.5'
+                  : 'bg-slate-800/75 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:border-amber-500/40'
+              }`}
+            >
+              <div
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                  activeTeam === 'data-induk'
+                    ? 'bg-slate-950/15 text-slate-950 border border-slate-950/20 shadow-inner'
+                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
+                }`}
+              >
+                <Award className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                      activeTeam === 'data-induk'
+                        ? 'bg-slate-950/15 text-slate-950'
+                        : 'bg-amber-500/15 text-amber-300'
+                    }`}
+                  >
+                    Menu 03
+                  </span>
+                  {activeTeam === 'data-induk' && (
+                    <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse shrink-0" />
+                  )}
+                </div>
+                <div
+                  className={`text-sm font-black mt-1 leading-snug ${
+                    activeTeam === 'data-induk' ? 'text-slate-950' : 'text-white'
+                  }`}
+                >
+                  3. Data Induk
+                </div>
+                <div
+                  className={`text-[11px] mt-0.5 leading-tight ${
+                    activeTeam === 'data-induk' ? 'text-slate-900 font-semibold' : 'text-slate-400'
+                  }`}
+                >
+                  Buku Induk Sekolah &amp; NIS
+                </div>
+              </div>
+            </button>
 
-          <button
-            onClick={() => setActiveTeam('whatsapp')}
-            className={`px-3 sm:px-3.5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 transition cursor-pointer ${
-              activeTeam === 'whatsapp'
-                ? 'bg-teal-600 text-white shadow-md'
-                : 'text-slate-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <MessageCircle className="w-4 h-4 text-teal-200 shrink-0" />
-            <div className="text-left min-w-0">
-              <span className="block leading-tight truncate">4. Pengumuman</span>
-              <span className="text-[10px] opacity-80 font-normal truncate">Kirim Pengumuman</span>
-            </div>
-          </button>
+            {/* MENU 4: PENGUMUMAN */}
+            <button
+              type="button"
+              onClick={() => setActiveTeam('whatsapp')}
+              className={`group relative p-3.5 sm:p-4 rounded-2xl text-left transition-all duration-200 flex items-center gap-3.5 cursor-pointer border ${
+                activeTeam === 'whatsapp'
+                  ? 'bg-gradient-to-br from-teal-600 via-teal-600 to-emerald-700 text-white border-teal-400/60 shadow-lg shadow-teal-950/50 ring-2 ring-teal-400/30 -translate-y-0.5'
+                  : 'bg-slate-800/75 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:border-teal-500/40'
+              }`}
+            >
+              <div
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                  activeTeam === 'whatsapp'
+                    ? 'bg-white/20 text-white border border-white/30 shadow-inner'
+                    : 'bg-teal-500/15 text-teal-300 border border-teal-500/25'
+                }`}
+              >
+                <MessageCircle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1.5">
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                      activeTeam === 'whatsapp'
+                        ? 'bg-black/20 text-teal-100'
+                        : 'bg-teal-500/15 text-teal-300'
+                    }`}
+                  >
+                    Menu 04
+                  </span>
+                  {activeTeam === 'whatsapp' && (
+                    <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
+                  )}
+                </div>
+                <div className="text-sm font-black text-white mt-1 leading-snug">
+                  4. Pengumuman
+                </div>
+                <div
+                  className={`text-[11px] mt-0.5 leading-tight ${
+                    activeTeam === 'whatsapp' ? 'text-teal-100 font-medium' : 'text-slate-400'
+                  }`}
+                >
+                  Kirim WA &amp; Pantau Seleksi
+                </div>
+              </div>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -695,88 +943,20 @@ export const GuruDashboard: React.FC<Props> = ({
           {/* CONTROL PANEL 1: PENCARIAN KATA KUNCI + PILIH NAMA PEWAWANCARA DARI LIST */}
           <div className="p-6 rounded-3xl bg-[#dceefc] border border-[#b6d4fe] text-xs space-y-5 shadow-xs">
             
-            {/* ROW 1: PENCARIAN SISWA DENGAN KATA KUNCI (KEYWORD SEARCH) */}
+            {/* ROW 1: PENCARIAN & PILIHAN MURID TERGABUNG (COMBOBOX) */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                  <Search className="w-4 h-4 text-blue-700" />
-                  <span>Pencarian Kata Kunci Calon Murid (Nama / No. Reg / Asal Sekolah / Orang Tua):</span>
-                </label>
-                <span className="text-[11px] font-medium text-slate-600">
-                  Menampilkan <strong>{filteredStudentsOrtu.length}</strong> dari {students.length} siswa
-                </span>
-              </div>
-
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchKeywordOrtu}
-                  onChange={(e) => setSearchKeywordOrtu(e.target.value)}
-                  placeholder="Ketik kata kunci untuk mencari: misal 'Fatih', '001', 'SDIT', 'Aisyah'..."
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 bg-white font-medium text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-xs"
-                />
-                {searchKeywordOrtu && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchKeywordOrtu('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Quick Select Chips jika ada filter */}
-              {searchKeywordOrtu && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {filteredStudentsOrtu.map((st, i) => {
-                    const origIndex = students.findIndex(s => s.id === st.id);
-                    const isSelected = selectedOrtuIndex === origIndex;
-                    return (
-                      <button
-                        key={`chip-ortu-${st.id}-${origIndex >= 0 ? origIndex : i}`}
-                        type="button"
-                        onClick={() => handleSelectStudentOrtu(origIndex)}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                          isSelected
-                            ? 'bg-blue-700 text-white shadow-xs'
-                            : 'bg-white/90 text-slate-700 hover:bg-white border border-slate-200'
-                        }`}
-                      >
-                        <span>{st.nama}</span>
-                        <span className="opacity-75 font-mono text-[10px]">[{st.id}]</span>
-                        {st.existingPdf ? (
-                          <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 rounded">✓ Selesai</span>
-                        ) : (
-                          <span className="text-[9px] bg-amber-100 text-amber-800 px-1 rounded">⏳ Siap</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Dropdown Selector Siswa Terfilter */}
-              <div className="pt-1">
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Pilih Murid Aktif:
-                </label>
-                <select
-                  value={selectedOrtuIndex}
-                  onChange={(e) => handleSelectStudentOrtu(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-blue-500 shadow-xs"
-                >
-                  {filteredStudentsOrtu.map((st, i) => {
-                    const origIndex = students.findIndex(s => s.id === st.id);
-                    return (
-                      <option key={`opt-ortu-${st.id}-${origIndex >= 0 ? origIndex : i}`} value={origIndex}>
-                        {st.nama} {st.sekolah ? `(${st.sekolah})` : ''} — [{st.id}] {st.existingPdf ? '✓ Sudah Wawancara' : '⏳ Siap Diwawancara'}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
+              <StudentSearchCombobox
+                students={students}
+                selectedStudentId={currentStudentOrtu?.id || ''}
+                onSelectStudent={(id) => {
+                  const origIndex = students.findIndex(s => s.id === id);
+                  if (origIndex >= 0) handleSelectStudentOrtu(origIndex);
+                }}
+                label="Cari & Pilih Calon Murid (Nama / No. Reg / Asal Sekolah / Orang Tua):"
+                placeholder="Ketik kata kunci nama murid, nomor registrasi, asal sekolah, atau orang tua..."
+                theme="blue"
+                statusMode="wawancara"
+              />
 
               {/* Alert Status Tanda Tangan Orang Tua dari HP */}
               {(() => {
@@ -1260,84 +1440,19 @@ export const GuruDashboard: React.FC<Props> = ({
           {/* CONTROL PANEL 2: PENCARIAN KATA KUNCI SISWA & PILIH PENGUJI DARI LIST */}
           <div className="p-6 rounded-3xl bg-indigo-50/50 border border-indigo-200/80 text-xs space-y-5 shadow-xs">
             
-            {/* PENCARIAN SISWA OBSERVASI */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                  <Search className="w-4 h-4 text-indigo-700" />
-                  <span>Pencarian Kata Kunci Murid Diuji (Nama / No. Reg / Asal Sekolah):</span>
-                </label>
-                <span className="text-[11px] font-medium text-slate-600">
-                  Menampilkan <strong>{filteredStudentsSiswa.length}</strong> dari {students.length} siswa
-                </span>
-              </div>
-
-              <div className="relative">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchKeywordSiswa}
-                  onChange={(e) => setSearchKeywordSiswa(e.target.value)}
-                  placeholder="Ketik nama murid atau nomor registrasi..."
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-300 bg-white font-medium text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-xs"
-                />
-                {searchKeywordSiswa && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchKeywordSiswa('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Quick Select Chips */}
-              {searchKeywordSiswa && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {filteredStudentsSiswa.map((st, i) => {
-                    const origIndex = students.findIndex(s => s.id === st.id);
-                    const isSelected = selectedSiswaIndex === origIndex;
-                    return (
-                      <button
-                        key={`chip-siswa-${st.id}-${origIndex >= 0 ? origIndex : i}`}
-                        type="button"
-                        onClick={() => handleSelectStudentSiswa(origIndex)}
-                        className={`px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer ${
-                          isSelected
-                            ? 'bg-indigo-700 text-white shadow-xs'
-                            : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                        }`}
-                      >
-                        <span>{st.nama}</span>
-                        <span className="opacity-75 font-mono text-[10px]">[{st.id}]</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Dropdown Selector Siswa Terfilter */}
-              <div className="pt-1">
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Murid yang Sedang Diuji:
-                </label>
-                <select
-                  value={selectedSiswaIndex}
-                  onChange={(e) => handleSelectStudentSiswa(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-bold text-xs focus:ring-2 focus:ring-indigo-500 shadow-xs"
-                >
-                  {filteredStudentsSiswa.map((st, i) => {
-                    const origIndex = students.findIndex(s => s.id === st.id);
-                    return (
-                      <option key={`opt-siswa-${st.id}-${origIndex >= 0 ? origIndex : i}`} value={origIndex}>
-                        {st.nama} ({st.sekolah || '-'}) — [{st.id}]
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            </div>
+            {/* PENCARIAN & PILIHAN MURID OBSERVASI TERGABUNG (COMBOBOX) */}
+            <StudentSearchCombobox
+              students={students}
+              selectedStudentId={currentStudentSiswa?.id || ''}
+              onSelectStudent={(id) => {
+                const origIndex = students.findIndex(s => s.id === id);
+                if (origIndex >= 0) handleSelectStudentSiswa(origIndex);
+              }}
+              label="Cari & Pilih Murid yang Sedang Diuji (Nama / No. Reg / Asal Sekolah):"
+              placeholder="Ketik nama murid, nomor registrasi, atau asal sekolah..."
+              theme="indigo"
+              statusMode="observasi"
+            />
 
             {/* BARIS PENGUJI OBSERVASI SISWA (DIKUNCI SESUAI LOGIN USER) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-indigo-200/60">
@@ -1605,7 +1720,7 @@ export const GuruDashboard: React.FC<Props> = ({
                 />
               </div>
 
-              {/* Menu Input Tanggal Daftar Ulang (Tunggal di Bawah Form) - Terkunci jika Tidak Diterima */}
+              {/* Menu Input Tanggal Daftar Ulang dan Batas Pengunduran Diri (Berdampingan dalam 1 Kotak) */}
               <div className={`p-4 sm:p-5 rounded-2xl border-2 space-y-3 shadow-xs transition ${
                 rekomendasiSiswa === 'Tidak Diterima'
                   ? 'bg-slate-100 border-slate-300 opacity-75'
@@ -1620,7 +1735,7 @@ export const GuruDashboard: React.FC<Props> = ({
                     </div>
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-emerald-950 flex items-center gap-1.5 flex-wrap">
-                        <span>Tanggal Batas Daftar Ulang Murid (Tercetak di Surat Keterangan Hasil Seleksi)</span>
+                        <span>Tanggal Daftar Ulang dan Batas Pengunduran Diri</span>
                         {rekomendasiSiswa === 'Tidak Diterima' ? (
                           <span className="text-[10px] font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-300 inline-flex items-center gap-1">
                             <Lock className="w-3 h-3" />
@@ -1634,8 +1749,8 @@ export const GuruDashboard: React.FC<Props> = ({
                       </h4>
                       <p className="text-[11px] text-slate-600 leading-snug">
                         {rekomendasiSiswa === 'Tidak Diterima'
-                          ? 'Kolom tanggal daftar ulang dikunci otomatis karena murid berstatus "Tidak Diterima".'
-                          : 'Jadwal ini otomatis tersimpan ke data hasil seleksi murid dan tercetak resmi di dokumen Surat Keterangan Hasil Seleksi serta Portal Cek Hasil Seleksi.'}
+                          ? 'Kolom tanggal daftar ulang dan batas pengunduran diri dikunci otomatis karena murid berstatus "Tidak Diterima".'
+                          : 'Jadwal daftar ulang (Poin 2) dan batas pengunduran diri (Poin 5) otomatis tercetak resmi di dokumen PDF Surat Keterangan Hasil Seleksi.'}
                       </p>
                     </div>
                   </div>
@@ -1643,53 +1758,64 @@ export const GuruDashboard: React.FC<Props> = ({
                   <button
                     type="button"
                     disabled={rekomendasiSiswa === 'Tidak Diterima'}
-                    onClick={() => handleApplyTanggalToAllLulus(tanggalMaksimalDaftarUlang)}
+                    onClick={handleApplyTanggalToAllLulus}
                     className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer self-start sm:self-auto"
-                    title="Terapkan jadwal daftar ulang ini untuk semua calon murid berstatus Diterima/Lulus"
+                    title="Terapkan tanggal daftar ulang & batas pengunduran diri ini untuk semua calon murid berstatus Diterima/Lulus"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
                     <span>Terapkan ke Semua Murid Lulus</span>
                   </button>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      disabled={rekomendasiSiswa === 'Tidak Diterima'}
-                      value={rekomendasiSiswa === 'Tidak Diterima' ? '- (Tidak Diterima - Terkunci)' : tanggalMaksimalDaftarUlang}
-                      onChange={(e) => setTanggalMaksimalDaftarUlang(e.target.value)}
-                      placeholder="Contoh: 20 - 25 Januari 2027 atau 30 Januari 2027"
-                      className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-emerald-400 disabled:border-slate-300 bg-white disabled:bg-slate-200/80 font-bold text-xs text-emerald-950 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-emerald-500 shadow-2xs"
-                    />
-                    {rekomendasiSiswa === 'Tidak Diterima' ? (
-                      <Lock className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    ) : (
-                      <Calendar className="w-4 h-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-emerald-950 mb-1">
+                      Tanggal Daftar Ulang:
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        disabled={rekomendasiSiswa === 'Tidak Diterima'}
+                        value={rekomendasiSiswa === 'Tidak Diterima' ? '- (Tidak Diterima - Terkunci)' : tanggalMaksimalDaftarUlang}
+                        onChange={(e) => setTanggalMaksimalDaftarUlang(e.target.value)}
+                        placeholder="Contoh: 29 Oktober - 12 November 2026"
+                        className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-emerald-400 disabled:border-slate-300 bg-white disabled:bg-slate-200/80 font-bold text-xs text-emerald-950 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                      />
+                      {rekomendasiSiswa === 'Tidak Diterima' ? (
+                        <Lock className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      ) : (
+                        <Calendar className="w-4 h-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      )}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {['20 - 25 Januari 2027', '26 - 31 Januari 2027', '1 - 7 Februari 2027', '10 - 15 Februari 2027'].map((chip) => (
-                      <button
-                        key={chip}
-                        type="button"
+                  <div>
+                    <label className="block text-[11px] font-bold text-emerald-950 mb-1">
+                      Tanggal Batas Pengunduran Diri:
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
                         disabled={rekomendasiSiswa === 'Tidak Diterima'}
-                        onClick={() => setTanggalMaksimalDaftarUlang(chip)}
-                        className={`text-[10.5px] font-semibold px-2.5 py-1.5 rounded-lg border transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                          rekomendasiSiswa !== 'Tidak Diterima' && tanggalMaksimalDaftarUlang === chip
-                            ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs cursor-pointer'
-                            : 'bg-white hover:bg-emerald-100/60 text-slate-700 border-emerald-200 cursor-pointer'
-                        }`}
-                      >
-                        {chip}
-                      </button>
-                    ))}
+                        value={rekomendasiSiswa === 'Tidak Diterima' ? '- (Tidak Diterima - Terkunci)' : tanggalBatasPengunduranDiri}
+                        onChange={(e) => {
+                          setTanggalBatasPengunduranDiri(e.target.value);
+                          gasService.setDefaultBatasPengunduranDiri(e.target.value);
+                        }}
+                        placeholder="Contoh: 30 Juni 2027"
+                        className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-emerald-400 disabled:border-slate-300 bg-white disabled:bg-slate-200/80 font-bold text-xs text-emerald-950 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                      />
+                      {rekomendasiSiswa === 'Tidak Diterima' ? (
+                        <Lock className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      ) : (
+                        <Calendar className="w-4 h-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori Pembiayaan) - Terkunci jika Tidak Diterima */}
+              {/* Pilihan Rincian Daftar Ulang - Terkunci jika Tidak Diterima */}
               <div className={`p-5 rounded-2xl border-2 space-y-3.5 shadow-xs transition ${
                 rekomendasiSiswa === 'Tidak Diterima'
                   ? 'bg-slate-100 border-slate-300 opacity-75'
@@ -1704,23 +1830,14 @@ export const GuruDashboard: React.FC<Props> = ({
                     </div>
                     <div>
                       <h4 className="text-xs sm:text-sm font-extrabold text-indigo-950 flex items-center gap-1.5 flex-wrap">
-                        <span>Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori)</span>
-                        {rekomendasiSiswa === 'Tidak Diterima' ? (
+                        <span>Pilihan Rincian Daftar Ulang</span>
+                        {rekomendasiSiswa === 'Tidak Diterima' && (
                           <span className="text-[10px] font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-300 inline-flex items-center gap-1">
                             <Lock className="w-3 h-3" />
                             <span>Terkunci &amp; Tanpa Lampiran PDF</span>
                           </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded-md border border-indigo-300">
-                            Database Sheet: Pembiayaan
-                          </span>
                         )}
                       </h4>
-                      <p className="text-[11px] text-slate-600 leading-snug">
-                        {rekomendasiSiswa === 'Tidak Diterima'
-                          ? 'Pilihan rincian pembiayaan dikunci. Bagi murid yang "Tidak Diterima", tidak ada Lampiran Pembiayaan saat di-download PDF-nya.'
-                          : 'Pilih rujukan kategori biaya SPMB murid. Klik tombol untuk memunculkan rincian pembiayaan modern yang dilampirkan pada PDF Surat Keterangan Hasil Seleksi lembar ke-2.'}
-                      </p>
                     </div>
                   </div>
 
@@ -1735,27 +1852,6 @@ export const GuruDashboard: React.FC<Props> = ({
                       <RefreshCw className={`w-4 h-4 text-slate-900 ${isRefreshingKategori ? 'animate-spin' : ''}`} />
                       <span>{isRefreshingKategori ? 'Sedang Menarik Kategori...' : 'Tarik Kategori dari Sheet'}</span>
                     </button>
-
-                    <button
-                      type="button"
-                      disabled={rekomendasiSiswa === 'Tidak Diterima'}
-                      onClick={() => setShowRincianPembiayaanModal(true)}
-                      className="px-3.5 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                      title="Klik untuk membuka rincian pembiayaan yang akan dilampirkan di PDF Surat Keterangan Hasil Seleksi lembar ke-2"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-indigo-200" />
-                      <span>Rincian Daftar Ulang (Lembar 2)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowSklKelulusanModal(true)}
-                      className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                      title="Klik untuk melihat pratinjau Surat Keterangan Hasil Seleksi"
-                    >
-                      <GraduationCap className="w-3.5 h-3.5 text-emerald-200" />
-                      <span>Pratinjau Surat Keterangan Hasil Seleksi</span>
-                    </button>
                   </div>
                 </div>
 
@@ -1765,17 +1861,6 @@ export const GuruDashboard: React.FC<Props> = ({
                     <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
                       <Tag className="w-3.5 h-3.5 text-indigo-600" />
                       <span>Pilih Kategori Rujukan Pembiayaan Murid:</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                        rekomendasiSiswa === 'Tidak Diterima'
-                          ? 'bg-rose-100 text-rose-800 border-rose-300'
-                          : pembiayaanCategories.length > 0 
-                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
-                          : 'bg-amber-100 text-amber-800 border-amber-300'
-                      }`}>
-                        {rekomendasiSiswa === 'Tidak Diterima'
-                          ? 'Terkunci — Tidak Ada Lampiran Pembiayaan'
-                          : (pembiayaanCategories.length > 0 ? `${pembiayaanCategories.length} Kategori Murni dari Sheet` : 'Belum Ada Kategori — Klik Tarik Kategori dari Sheet')}
-                      </span>
                     </label>
                   </div>
 
@@ -1803,11 +1888,14 @@ export const GuruDashboard: React.FC<Props> = ({
                     ) : (
                       <>
                         <option value="">-- Belum Dipilih / Pilih Kategori Pembiayaan Murid --</option>
-                        {pembiayaanCategories.map((c, i) => (
-                          <option key={i} value={c.kategori}>
-                            {c.kategori}{c.catatan ? ` — ${c.catatan}` : ''}
-                          </option>
-                        ))}
+                        {pembiayaanCategories.map((c, i) => {
+                          const numberedLabel = /^\d+\./.test(c.kategori.trim()) ? c.kategori : `${i + 1}. ${c.kategori}`;
+                          return (
+                            <option key={i} value={c.kategori}>
+                              {numberedLabel}
+                            </option>
+                          );
+                        })}
                       </>
                     )}
                   </select>
@@ -1922,6 +2010,7 @@ export const GuruDashboard: React.FC<Props> = ({
                           rekomendasi: (rekomendasiSiswa || 'Cadangan') as any,
                           catatanPenguji: catatanPengujiSiswa,
                           tanggalMaksimalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalMaksimalDaftarUlang.trim() || '-'),
+                          tanggalBatasPengunduranDiri: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalBatasPengunduranDiri.trim() || '-'),
                           kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaanSiswa,
                           rincianBiaya: (rekomendasiSiswa === 'Tidak Diterima' || !kategoriPembiayaanSiswa) ? undefined : gasService.getPembiayaanByCategory(kategoriPembiayaanSiswa),
                           createdAt: new Date().toISOString()
@@ -2013,6 +2102,7 @@ export const GuruDashboard: React.FC<Props> = ({
             setShowSklKelulusanModal(true);
           }}
           tanggalDaftarUlang={tanggalMaksimalDaftarUlang}
+          tanggalBatasPengunduranDiri={tanggalBatasPengunduranDiri}
         />
       )}
 
@@ -2027,6 +2117,7 @@ export const GuruDashboard: React.FC<Props> = ({
             asalSekolah: currentStudentSiswa.sekolah,
             status: rekomendasiSiswa === 'Diterima' ? 'LULUS' : (rekomendasiSiswa === 'Cadangan' ? 'CADANGAN' : 'TIDAK_LULUS'),
             jadwalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : tanggalMaksimalDaftarUlang,
+            tanggalBatasPengunduranDiri: rekomendasiSiswa === 'Tidak Diterima' ? '-' : tanggalBatasPengunduranDiri,
             kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaanSiswa
           }}
           onClose={() => setShowSklKelulusanModal(false)}

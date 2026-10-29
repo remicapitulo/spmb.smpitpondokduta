@@ -4,6 +4,7 @@ import { HasilObservasiOrtuData, WawancaraOrtuAnswerItem } from '../../types';
 import { QUESTIONS_CONFIG, DAFTAR_PEWAWANCARA_LIST } from '../../services/questionsConfig';
 import { StudentSearchCombobox } from '../../components/StudentSearchCombobox';
 import { HasilWawancaraOrtuPrintView } from './HasilWawancaraOrtuPrintView';
+import { showAppAlert } from '../../components/AppDialogModal';
 import { 
   Users, 
   UserCheck, 
@@ -112,8 +113,22 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
   // Siapkan Data untuk Review & Tanda Tangan sebelum Simpan
   const handleOpenReview = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentStudent) { alert("Pilih siswa terlebih dahulu!"); return; }
-    if (!effectivePewawancaraName) { alert("Pilih atau isi nama pewawancara terlebih dahulu!"); return; }
+    if (!currentStudent) {
+      showAppAlert({
+        title: 'Pilih Calon Murid Terlebih Dahulu',
+        message: 'Silakan pilih calon murid terlebih dahulu!',
+        variant: 'warning',
+      });
+      return;
+    }
+    if (!effectivePewawancaraName) {
+      showAppAlert({
+        title: 'Nama Pewawancara Belum Diisi',
+        message: 'Silakan pilih atau isi nama pewawancara terlebih dahulu!',
+        variant: 'warning',
+      });
+      return;
+    }
 
     const collectedAnswers: WawancaraOrtuAnswerItem[] = [];
 
@@ -182,7 +197,11 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
     setIsPreSaveReview(false);
     setReviewModalData(res.data); // Tetap buka pratinjau hasil final
     await loadStudentList(reviewModalData.idSiswa);
-    alert('✓ ' + res.message);
+    showAppAlert({
+      title: 'Wawancara Berhasil Disimpan',
+      message: res.message,
+      variant: 'success',
+    });
   };
 
   return (

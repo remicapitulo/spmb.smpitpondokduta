@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { gasService, formatPhoneNumberForWa } from '../../services/gasService';
 import { MuridLulusWaItem, UserAccount } from '../../types';
+import { showAppAlert, showAppConfirm } from '../../components/AppDialogModal';
 import { 
   MessageCircle, 
   Send, 
@@ -152,7 +153,12 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
   const handleSendWa = (item: MuridLulusWaItem, customText?: string) => {
     const cleanPhone = formatPhoneNumberForWa(item.nomorHpAkun);
     if (!cleanPhone) {
-      alert(`Nomor WhatsApp untuk ${item.namaLengkap} belum tersedia atau belum valid. Silakan klik ikon pensil untuk memasukkan nomor WhatsApp akun pendaftaran.`);
+      showAppAlert({
+        title: 'Nomor WhatsApp Belum Valid',
+        message: `Nomor WhatsApp untuk ${item.namaLengkap} belum tersedia atau belum valid.\nSilakan klik ikon pensil untuk memasukkan nomor WhatsApp akun pendaftaran.`,
+        variant: 'warning',
+        confirmText: 'Oke, Mengerti',
+      });
       return;
     }
 
@@ -178,9 +184,17 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
   };
 
   // Handler Toggle Status Terkirim
-  const handleToggleSent = (item: MuridLulusWaItem) => {
+  const handleToggleSent = async (item: MuridLulusWaItem) => {
     if (item.isWaSent) {
-      if (confirm(`Batalkan status Kirim Pesan untuk ${item.namaLengkap}?`)) {
+      const confirmed = await showAppConfirm({
+        title: 'Batalkan Status Kirim Pesan?',
+        message: `Apakah Anda yakin ingin membatalkan status Kirim Pesan untuk ${item.namaLengkap} (${item.noPendaftaran})?`,
+        subMessage: 'Status indikator Kirim Pesan pada baris murid ini di Sheet Kelulusan akan dikembalikan menjadi Belum Terkirim.',
+        variant: 'warning',
+        confirmText: 'Ya, Batalkan Status',
+        cancelText: 'Tidak Jadi',
+      });
+      if (confirmed) {
         gasService.unmarkWaSent(item.noPendaftaran);
         setMuridList(gasService.getMuridLulusWaList());
         showToast(`Status Kirim Pesan untuk ${item.namaLengkap} diubah menjadi BELUM di Sheet Kelulusan.`);
@@ -193,9 +207,17 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
   };
 
   // Handler Toggle Status Cek Seleksi
-  const handleToggleCekSeleksi = (item: MuridLulusWaItem) => {
+  const handleToggleCekSeleksi = async (item: MuridLulusWaItem) => {
     if (item.isCekSeleksi) {
-      if (confirm(`Reset status deteksi Cek Seleksi untuk ${item.namaLengkap}?`)) {
+      const confirmed = await showAppConfirm({
+        title: 'Reset Status Cek Seleksi?',
+        message: `Apakah Anda yakin ingin mereset status deteksi Cek Seleksi untuk ${item.namaLengkap} (${item.noPendaftaran})?`,
+        subMessage: 'Indikator akan otomatis tercentang kembali apabila calon murid/orang tua membuka halaman Cek Kelulusan.',
+        variant: 'warning',
+        confirmText: 'Ya, Reset Status',
+        cancelText: 'Batal',
+      });
+      if (confirmed) {
         gasService.unmarkCekSeleksi(item.noPendaftaran);
         setMuridList(gasService.getMuridLulusWaList());
         showToast(`Status Cek Seleksi untuk ${item.namaLengkap} direset menjadi BELUM di Sheet Kelulusan.`);
@@ -208,9 +230,17 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
   };
 
   // Handler Toggle Status Unduh SKHS
-  const handleToggleUnduhSkhs = (item: MuridLulusWaItem) => {
+  const handleToggleUnduhSkhs = async (item: MuridLulusWaItem) => {
     if (item.isUnduhSkhs) {
-      if (confirm(`Reset status deteksi Unduh SKHS untuk ${item.namaLengkap}?`)) {
+      const confirmed = await showAppConfirm({
+        title: 'Reset Status Unduh SKHS?',
+        message: `Apakah Anda yakin ingin mereset status deteksi Unduh SKHS untuk ${item.namaLengkap} (${item.noPendaftaran})?`,
+        subMessage: 'Indikator akan otomatis tercentang kembali apabila calon murid/orang tua mengunduh PDF Surat Keterangan Hasil Seleksi.',
+        variant: 'warning',
+        confirmText: 'Ya, Reset Status',
+        cancelText: 'Batal',
+      });
+      if (confirmed) {
         gasService.unmarkUnduhSkhs(item.noPendaftaran);
         setMuridList(gasService.getMuridLulusWaList());
         showToast(`Status Unduh SKHS untuk ${item.namaLengkap} direset menjadi BELUM di Sheet Kelulusan.`);
@@ -255,8 +285,15 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
     showToast('Template pesan pengumuman WhatsApp berhasil disimpan!');
   };
 
-  const handleResetTemplate = () => {
-    if (confirm('Kembalikan template WhatsApp ke susunan standar resmi SMPIT Pondok Duta?')) {
+  const handleResetTemplate = async () => {
+    const confirmed = await showAppConfirm({
+      title: 'Reset Format Pesan WhatsApp?',
+      message: 'Kembalikan template pesan WhatsApp ke susunan standar resmi SMPIT Pondok Duta?',
+      variant: 'warning',
+      confirmText: 'Ya, Kembalikan Standar',
+      cancelText: 'Batal',
+    });
+    if (confirmed) {
       gasService.resetWaTemplate();
       setEditingTemplate(gasService.getWaTemplate());
       showToast('Template dikembalikan ke format standar.');
@@ -446,14 +483,6 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
             </button>
           </div>
         </div>
-
-        {/* Information Callout */}
-        <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 text-[11px] text-emerald-900">
-          <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-          <div className="leading-relaxed">
-            <strong>Terintegrasi Per Baris dengan Sheet <code>Kelulusan</code>:</strong> Menu Pengumuman ini hanya menampilkan murid yang sudah dinyatakan <strong>Diterima / Lulus</strong> oleh guru di Sheet <code>Kelulusan</code>. Ketiga indikator status (<code>Status Kirim Pesan</code>, <code>Status Cek Seleksi</code>, dan <code>Status Unduh SKHS</code>) disimpan langsung pada <strong>3 kolom terpisah mengikuti baris masing-masing murid di Sheet <code>Kelulusan</code></strong> sehingga aman dari batas karakter sel dan mudah di-backup manual kapan saja.
-          </div>
-        </div>
       </div>
 
       {/* DAFTAR DATA CALON MURID PENERIMA PENGUMUMAN SPMB */}
@@ -524,7 +553,7 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
 
                       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 font-extrabold text-[10px] shrink-0">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                        <span>LULUS</span>
+                        <span>DITERIMA</span>
                       </span>
                     </div>
 
@@ -536,7 +565,7 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
                           <span className="text-[10px] font-bold text-slate-400 uppercase block">
                             No. Pendaftaran
                           </span>
-                          <div className="inline-flex items-center gap-1.5 mt-0.5 font-mono font-extrabold text-slate-900 text-xs">
+                          <div className="inline-flex items-center gap-1.5 mt-0.5 font-mono font-extrabold text-slate-900 text-xs whitespace-nowrap">
                             <span>{item.noPendaftaran}</span>
                             <button
                               type="button"
@@ -554,7 +583,7 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
 
                         <div className="text-right">
                           <span className="text-[10px] font-bold text-slate-400 uppercase block">
-                            Jadwal Daftar Ulang
+                            Daftar Ulang
                           </span>
                           <span className="font-bold text-slate-700 text-[11px] block mt-0.5">
                             {item.jadwalDaftarUlang || '20 - 25 Januari 2027'}
@@ -726,11 +755,11 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
                   <tr>
                     <th className="py-3 px-4 w-12 text-center">No</th>
                     <th className="py-3 px-4 min-w-[200px]">Calon Murid</th>
-                    <th className="py-3 px-4 min-w-[130px]">No. Pendaftaran</th>
+                    <th className="py-3 px-4 min-w-[140px]">No. Pendaftaran</th>
                     <th className="py-3 px-4 min-w-[180px]">No. WhatsApp Acuan</th>
-                    <th className="py-3 px-4 min-w-[130px]">Informasi Seleksi</th>
+                    <th className="py-3 px-4 min-w-[150px]">Informasi Seleksi</th>
                     <th className="py-3 px-4 min-w-[165px] text-center">Status</th>
-                    <th className="py-3 px-4 min-w-[230px] text-right">Aksi Pengiriman</th>
+                    <th className="py-3 px-4 min-w-[210px] text-right">Aksi Pengiriman</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -760,7 +789,7 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
 
                         {/* No. Pendaftaran */}
                         <td className="py-3.5 px-4">
-                          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-900 font-mono text-[11px] font-extrabold">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200/90 text-slate-900 font-mono text-[11px] font-extrabold whitespace-nowrap">
                             <span>{item.noPendaftaran}</span>
                             <button
                               type="button"
@@ -769,7 +798,7 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
                                 showToast(`No. Pendaftaran ${item.noPendaftaran} disalin.`);
                               }}
                               title="Salin No. Pendaftaran"
-                              className="text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
+                              className="text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer shrink-0"
                             >
                               <Copy className="w-3 h-3" />
                             </button>
@@ -781,12 +810,12 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
                           <div className="flex items-center gap-1.5">
                             {hasValidPhone ? (
                               <div className="space-y-0.5">
-                                <div className="flex items-center gap-1 font-mono font-bold text-emerald-800 text-xs">
+                                <div className="flex items-center gap-1 font-mono font-bold text-emerald-800 text-xs whitespace-nowrap">
                                   <Smartphone className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                                   <span>{item.nomorHpAkun}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
+                                  <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded whitespace-nowrap ${
                                     item.hasUserAccount
                                       ? 'bg-emerald-100 text-emerald-900'
                                       : 'bg-amber-100 text-amber-900'
@@ -805,14 +834,14 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
                               </div>
                             ) : (
                               <div className="flex items-center gap-1.5">
-                                <span className="text-[11px] text-rose-600 font-bold flex items-center gap-1">
+                                <span className="text-[11px] text-rose-600 font-bold flex items-center gap-1 whitespace-nowrap">
                                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                                   <span>Belum ada No WA</span>
                                 </span>
                                 <button
                                   type="button"
                                   onClick={() => handleOpenEditPhone(item)}
-                                  className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[10px] hover:bg-amber-200 transition cursor-pointer"
+                                  className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-bold text-[10px] hover:bg-amber-200 transition cursor-pointer whitespace-nowrap"
                                 >
                                   + Input
                                 </button>
@@ -824,12 +853,15 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
                         {/* Informasi Seleksi / Jadwal */}
                         <td className="py-3.5 px-4">
                           <div className="space-y-1">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-extrabold text-[10px]">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              <span>DITERIMA / LULUS</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-extrabold text-[10px] whitespace-nowrap">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>DITERIMA</span>
                             </span>
-                            <div className="text-slate-600 font-semibold text-[11px]">
-                              Daftar Ulang: {item.jadwalDaftarUlang || '20 - 25 Januari 2027'}
+                            <div className="text-[11px] leading-snug">
+                              <span className="text-slate-500 font-semibold block">Daftar Ulang:</span>
+                              <span className="text-slate-800 font-bold block whitespace-nowrap">
+                                {item.jadwalDaftarUlang || '20 - 25 Januari 2027'}
+                              </span>
                             </div>
                           </div>
                         </td>
@@ -910,16 +942,16 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
 
                         {/* Aksi Pengiriman */}
                         <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                             
                             {/* Tombol Utama: Kirim WhatsApp */}
                             <button
                               type="button"
                               onClick={() => handleSendWa(item)}
                               title="Kirim pesan informasi pengumuman seleksi via WhatsApp"
-                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                              className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-extrabold text-xs shadow-xs transition inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                             >
-                              <Send className="w-3.5 h-3.5" />
+                              <Send className="w-3.5 h-3.5 shrink-0" />
                               <span>Kirim WA</span>
                             </button>
 
@@ -928,7 +960,7 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
                               type="button"
                               onClick={() => handleOpenPreview(item)}
                               title="Pratinjau pesan WhatsApp & salin teks"
-                              className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer shrink-0"
                             >
                               <FileText className="w-4 h-4" />
                             </button>
@@ -938,7 +970,7 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
                               type="button"
                               onClick={() => handleCopyMessage(item)}
                               title="Salin template pesan ke clipboard"
-                              className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer shrink-0"
                             >
                               {copiedId === item.noPendaftaran ? (
                                 <Check className="w-4 h-4 text-emerald-600" />
@@ -952,23 +984,9 @@ export const WhatsappKelulusanTab: React.FC<Props> = ({ currentUser, onOpenCekKe
                               type="button"
                               onClick={() => handleCheckWebsite(item)}
                               title="Uji langsung tautan cek kelulusan calon murid ini"
-                              className="p-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 transition cursor-pointer"
+                              className="p-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 transition cursor-pointer shrink-0"
                             >
                               <ExternalLink className="w-4 h-4" />
-                            </button>
-
-                            {/* Toggle Terkirim Manual */}
-                            <button
-                              type="button"
-                              onClick={() => handleToggleSent(item)}
-                              title={item.isWaSent ? "Ubah status ke Belum Dikirim" : "Tandai sudah dikirim"}
-                              className={`p-1.5 rounded-xl border transition cursor-pointer ${
-                                item.isWaSent
-                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
-                                  : 'bg-white border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-                              }`}
-                            >
-                              <Check className="w-4 h-4" />
                             </button>
 
                           </div>

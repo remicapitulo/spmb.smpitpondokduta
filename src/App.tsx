@@ -8,6 +8,7 @@ import { PWAInstallButton } from './components/PWAInstallButton';
 import { GasConfigModal } from './components/GasConfigModal';
 import { PanduanDeployModal } from './components/PanduanDeployModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { AppDialogHost } from './components/AppDialogModal';
 
 import { HomePage } from './pages/HomePage';
 import { SyaratPage } from './pages/SyaratPage';
@@ -302,6 +303,9 @@ export default function App() {
           onClose={() => setIsPanduanModalOpen(false)}
         />
       )}
+
+      {/* Global Aesthetic Confirmation & Alert Dialog Host */}
+      <AppDialogHost />
 
     </div>
   );

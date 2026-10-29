@@ -7,6 +7,7 @@ import { HasilObservasiSiswaPrintView } from './HasilObservasiSiswaPrintView';
 import { RincianPembiayaanModal } from './RincianPembiayaanModal';
 import { SklKelulusanPrintModal } from './SklKelulusanPrintModal';
 import { formatRupiah } from '../../services/pembiayaanData';
+import { showAppAlert } from '../../components/AppDialogModal';
 import { 
   BookOpen, 
   UserCheck, 
@@ -64,6 +65,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
   const [rekomendasiSiswa, setRekomendasiSiswa] = useState<'Diterima' | 'Cadangan' | 'Tidak Diterima' | ''>('');
   const [catatanPengujiSiswa, setCatatanPengujiSiswa] = useState<string>('');
   const [tanggalMaksimalDaftarUlang, setTanggalMaksimalDaftarUlang] = useState<string>('');
+  const [tanggalBatasPengunduranDiri, setTanggalBatasPengunduranDiri] = useState<string>(() => gasService.getDefaultBatasPengunduranDiri());
   const [pembiayaanCategories, setPembiayaanCategories] = useState<PembiayaanCategory[]>(() => gasService.getPembiayaanList());
   const [kategoriPembiayaan, setKategoriPembiayaan] = useState<string>('');
   const [isRefreshingKategori, setIsRefreshingKategori] = useState<boolean>(false);
@@ -170,6 +172,11 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       setRekomendasiSiswa(existing.rekomendasi || '');
       setCatatanPengujiSiswa(existing.catatanPenguji || '');
       setTanggalMaksimalDaftarUlang(existing.tanggalMaksimalDaftarUlang || '');
+      setTanggalBatasPengunduranDiri(
+        existing.tanggalBatasPengunduranDiri && existing.tanggalBatasPengunduranDiri !== '-'
+          ? existing.tanggalBatasPengunduranDiri
+          : gasService.getDefaultBatasPengunduranDiri()
+      );
       setKategoriPembiayaan(existing.kategoriPembiayaan || '');
     } else {
       setSavedSiswaResult(null);
@@ -187,6 +194,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       setRekomendasiSiswa('');
       setCatatanPengujiSiswa('');
       setTanggalMaksimalDaftarUlang('');
+      setTanggalBatasPengunduranDiri(gasService.getDefaultBatasPengunduranDiri());
       setKategoriPembiayaan('');
     }
   };
@@ -205,9 +213,30 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
 
   const handleSubmitObservasiSiswa = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentStudent) { alert("Pilih siswa terlebih dahulu!"); return; }
-    if (!effectivePengujiName) { alert("Pilih atau isi nama penguji terlebih dahulu!"); return; }
-    if (!rekomendasiSiswa) { alert("Pilih keputusan rekomendasi kelulusan terlebih dahulu!"); return; }
+    if (!currentStudent) {
+      showAppAlert({
+        title: 'Pilih Calon Murid Terlebih Dahulu',
+        message: 'Silakan pilih calon murid terlebih dahulu!',
+        variant: 'warning',
+      });
+      return;
+    }
+    if (!effectivePengujiName) {
+      showAppAlert({
+        title: 'Nama Penguji Belum Diisi',
+        message: 'Silakan pilih atau isi nama penguji terlebih dahulu!',
+        variant: 'warning',
+      });
+      return;
+    }
+    if (!rekomendasiSiswa) {
+      showAppAlert({
+        title: 'Keputusan Rekomendasi Belum Dipilih',
+        message: 'Pilih keputusan rekomendasi kelulusan terlebih dahulu!',
+        variant: 'warning',
+      });
+      return;
+    }
 
     setSaving(true);
     const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
@@ -251,6 +280,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       rekomendasi: rekomendasiSiswa as 'Diterima' | 'Cadangan' | 'Tidak Diterima',
       catatanPenguji: catatanPengujiSiswa,
       tanggalMaksimalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalMaksimalDaftarUlang.trim() || '-'),
+      tanggalBatasPengunduranDiri: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalBatasPengunduranDiri.trim() || '-'),
       kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaan,
       rincianBiaya: rincianBiayaData,
       createdAt: new Date().toISOString()
@@ -608,21 +638,21 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                 </div>
               </div>
 
-              {/* Menu Input Tanggal Daftar Ulang - Terkunci jika Tidak Diterima */}
+              {/* Menu Input Tanggal Daftar Ulang dan Batas Pengunduran Diri (Berdampingan dalam 1 Kotak) */}
               <div className="pt-3 border-t border-indigo-200/80">
-                <div className={`p-4 rounded-2xl border-2 space-y-2 transition ${
+                <div className={`p-4 rounded-2xl border-2 space-y-3 transition ${
                   rekomendasiSiswa === 'Tidak Diterima'
                     ? 'bg-slate-100 border-slate-300 opacity-75'
                     : 'bg-emerald-50/80 border-emerald-400'
                 }`}>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
-                    <label className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label className="text-xs sm:text-sm font-extrabold text-emerald-950 flex items-center gap-1.5">
                       {rekomendasiSiswa === 'Tidak Diterima' ? (
                         <Lock className="w-4 h-4 text-slate-500" />
                       ) : (
                         <Calendar className="w-4 h-4 text-emerald-700" />
                       )}
-                      <span>Menu Input Tanggal / Batas Daftar Ulang Murid (Tercetak di Surat Keterangan Hasil Seleksi):</span>
+                      <span>Tanggal Daftar Ulang dan Batas Pengunduran Diri</span>
                     </label>
                     {rekomendasiSiswa === 'Tidak Diterima' ? (
                       <span className="text-[10px] text-rose-800 font-bold bg-rose-100 px-2.5 py-0.5 rounded-md border border-rose-300 inline-flex items-center gap-1">
@@ -631,47 +661,61 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       </span>
                     ) : (
                       <span className="text-[10px] text-emerald-800 font-bold bg-emerald-200/80 px-2.5 py-0.5 rounded-md border border-emerald-300">
-                        Otomatis Tercetak di Surat Keterangan Hasil Seleksi
+                        Integrasi Surat Keterangan Hasil Seleksi
                       </span>
                     )}
                   </div>
-                  
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                    <input
-                      type="text"
-                      disabled={rekomendasiSiswa === 'Tidak Diterima'}
-                      value={rekomendasiSiswa === 'Tidak Diterima' ? '- (Tidak Diterima - Terkunci)' : tanggalMaksimalDaftarUlang}
-                      onChange={(e) => setTanggalMaksimalDaftarUlang(e.target.value)}
-                      placeholder="Contoh: 20 - 25 Januari 2027 atau 30 Januari 2027"
-                      className="flex-1 p-2.5 rounded-xl border border-emerald-500 disabled:border-slate-300 bg-white disabled:bg-slate-200/80 font-bold text-xs text-emerald-950 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-emerald-500 shadow-2xs"
-                    />
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {['20 - 25 Januari 2027', '26 - 31 Januari 2027', '1 - 7 Februari 2027', '10 - 15 Februari 2027'].map((chip) => (
-                        <button
-                          key={chip}
-                          type="button"
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-emerald-950 mb-1">
+                        Tanggal Daftar Ulang:
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
                           disabled={rekomendasiSiswa === 'Tidak Diterima'}
-                          onClick={() => setTanggalMaksimalDaftarUlang(chip)}
-                          className={`text-[10px] font-semibold px-2.5 py-1.5 rounded-lg border transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                            rekomendasiSiswa !== 'Tidak Diterima' && tanggalMaksimalDaftarUlang === chip
-                              ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs cursor-pointer'
-                              : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300 cursor-pointer'
-                          }`}
-                        >
-                          {chip}
-                        </button>
-                      ))}
+                          value={rekomendasiSiswa === 'Tidak Diterima' ? '- (Tidak Diterima - Terkunci)' : tanggalMaksimalDaftarUlang}
+                          onChange={(e) => setTanggalMaksimalDaftarUlang(e.target.value)}
+                          placeholder="Contoh: 29 Oktober - 12 November 2026"
+                          className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-emerald-500 disabled:border-slate-300 bg-white disabled:bg-slate-200/80 font-bold text-xs text-emerald-950 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                        />
+                        {rekomendasiSiswa === 'Tidak Diterima' ? (
+                          <Lock className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        ) : (
+                          <Calendar className="w-4 h-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-emerald-950 mb-1">
+                        Tanggal Batas Pengunduran Diri:
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          disabled={rekomendasiSiswa === 'Tidak Diterima'}
+                          value={rekomendasiSiswa === 'Tidak Diterima' ? '- (Tidak Diterima - Terkunci)' : tanggalBatasPengunduranDiri}
+                          onChange={(e) => {
+                            setTanggalBatasPengunduranDiri(e.target.value);
+                            gasService.setDefaultBatasPengunduranDiri(e.target.value);
+                          }}
+                          placeholder="Contoh: 30 Juni 2027"
+                          className="w-full pl-3 pr-8 py-2.5 rounded-xl border border-emerald-500 disabled:border-slate-300 bg-white disabled:bg-slate-200/80 font-bold text-xs text-emerald-950 disabled:text-slate-500 disabled:cursor-not-allowed focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                        />
+                        {rekomendasiSiswa === 'Tidak Diterima' ? (
+                          <Lock className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        ) : (
+                          <Calendar className="w-4 h-4 text-emerald-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <p className="text-[10.5px] text-slate-600 mt-1.5 leading-snug">
-                    {rekomendasiSiswa === 'Tidak Diterima'
-                      ? 'Kolom tanggal daftar ulang dikunci otomatis karena murid berstatus "Tidak Diterima".'
-                      : 'Batas tanggal ini akan langsung tercetak pada dokumen resmi Surat Keterangan Hasil Seleksi dan tertera pada halaman Pengumuman Hasil Seleksi calon murid bersangkutan.'}
-                  </p>
                 </div>
               </div>
 
-              {/* Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori Pembiayaan) - Terkunci jika Tidak Diterima */}
+              {/* Pilihan Rincian Daftar Ulang - Terkunci jika Tidak Diterima */}
               <div className="pt-3 border-t border-indigo-200/80">
                 <div className={`p-5 rounded-2xl border-2 space-y-3.5 shadow-xs transition ${
                   rekomendasiSiswa === 'Tidak Diterima'
@@ -687,23 +731,14 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       </div>
                       <div>
                         <h4 className="text-xs sm:text-sm font-extrabold text-indigo-950 flex items-center gap-1.5 flex-wrap">
-                          <span>Menu Pilihan Rincian Daftar Ulang (Rujukan Kategori)</span>
-                          {rekomendasiSiswa === 'Tidak Diterima' ? (
+                          <span>Pilihan Rincian Daftar Ulang</span>
+                          {rekomendasiSiswa === 'Tidak Diterima' && (
                             <span className="text-[10px] font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-300 inline-flex items-center gap-1">
                               <Lock className="w-3 h-3" />
                               <span>Terkunci &amp; Tanpa Lampiran PDF</span>
                             </span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded-md border border-indigo-300">
-                              Database Sheet: Pembiayaan
-                            </span>
                           )}
                         </h4>
-                        <p className="text-[11px] text-slate-600 leading-snug">
-                          {rekomendasiSiswa === 'Tidak Diterima'
-                            ? 'Pilihan rincian pembiayaan dikunci. Bagi murid yang "Tidak Diterima", tidak ada Lampiran Pembiayaan saat di-download PDF-nya.'
-                            : 'Pilih rujukan kategori biaya SPMB murid. Klik tombol untuk memunculkan rincian pembiayaan modern yang dilampirkan pada PDF Surat Keterangan Hasil Seleksi lembar ke-2.'}
-                        </p>
                       </div>
                     </div>
 
@@ -718,27 +753,6 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                         <RefreshCw className={`w-4 h-4 text-slate-900 ${isRefreshingKategori ? 'animate-spin' : ''}`} />
                         <span>{isRefreshingKategori ? 'Sedang Menarik Kategori...' : 'Tarik Kategori dari Sheet'}</span>
                       </button>
-
-                      <button
-                        type="button"
-                        disabled={rekomendasiSiswa === 'Tidak Diterima'}
-                        onClick={() => setShowRincianModal(true)}
-                        className="px-3.5 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                        title="Klik untuk membuka rincian pembiayaan yang akan dilampirkan di PDF Surat Keterangan Hasil Seleksi lembar ke-2"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-indigo-200" />
-                        <span>Rincian Daftar Ulang (Lembar 2)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setShowSklModal(true)}
-                        className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                        title="Klik untuk melihat pratinjau Surat Keterangan Hasil Seleksi"
-                      >
-                        <GraduationCap className="w-3.5 h-3.5 text-emerald-200" />
-                        <span>Pratinjau Surat Keterangan Hasil Seleksi</span>
-                      </button>
                     </div>
                   </div>
 
@@ -748,15 +762,6 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
                         <Tag className="w-3.5 h-3.5 text-indigo-600" />
                         <span>Pilih Kategori Rujukan Pembiayaan Murid:</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                          rekomendasiSiswa === 'Tidak Diterima'
-                            ? 'bg-rose-100 text-rose-800 border-rose-300'
-                            : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                        }`}>
-                          {rekomendasiSiswa === 'Tidak Diterima'
-                            ? 'Terkunci — Tidak Ada Lampiran Pembiayaan'
-                            : `${pembiayaanCategories.length} Kategori Murni dari Sheet`}
-                        </span>
                       </label>
                     </div>
 
@@ -778,11 +783,14 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                       ) : (
                         <>
                           <option value="">-- Belum Dipilih / Pilih Kategori Rujukan Pembiayaan --</option>
-                          {pembiayaanCategories.map((c, i) => (
-                            <option key={i} value={c.kategori}>
-                              {c.kategori}{c.catatan ? ` — ${c.catatan}` : ''}
-                            </option>
-                          ))}
+                          {pembiayaanCategories.map((c, i) => {
+                            const numberedLabel = /^\d+\./.test(c.kategori.trim()) ? c.kategori : `${i + 1}. ${c.kategori}`;
+                            return (
+                              <option key={i} value={c.kategori}>
+                                {numberedLabel}
+                              </option>
+                            );
+                          })}
                         </>
                       )}
                     </select>
@@ -887,6 +895,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
                         rekomendasi: (rekomendasiSiswa || 'Cadangan') as any,
                         catatanPenguji: catatanPengujiSiswa,
                         tanggalMaksimalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalMaksimalDaftarUlang.trim() || '-'),
+                        tanggalBatasPengunduranDiri: rekomendasiSiswa === 'Tidak Diterima' ? '-' : (tanggalBatasPengunduranDiri.trim() || '-'),
                         kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaan,
                         rincianBiaya: (rekomendasiSiswa === 'Tidak Diterima' || !selectedBiayaCategory) ? undefined : selectedBiayaCategory,
                         createdAt: new Date().toISOString()
@@ -934,6 +943,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
             setShowSklModal(true);
           }}
           tanggalDaftarUlang={tanggalMaksimalDaftarUlang}
+          tanggalBatasPengunduranDiri={tanggalBatasPengunduranDiri}
         />
       )}
 
@@ -946,6 +956,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
             asalSekolah: currentStudent.sekolah,
             status: rekomendasiSiswa === 'Diterima' ? 'LULUS' : (rekomendasiSiswa === 'Cadangan' ? 'CADANGAN' : 'TIDAK_LULUS'),
             jadwalDaftarUlang: rekomendasiSiswa === 'Tidak Diterima' ? '-' : tanggalMaksimalDaftarUlang,
+            tanggalBatasPengunduranDiri: rekomendasiSiswa === 'Tidak Diterima' ? '-' : tanggalBatasPengunduranDiri,
             kategoriPembiayaan: rekomendasiSiswa === 'Tidak Diterima' ? '' : kategoriPembiayaan
           }}
           onClose={() => setShowSklModal(false)}

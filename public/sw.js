@@ -1,5 +1,5 @@
 // Service Worker for SPMB SMPIT Pondok Duta PWA
-const CACHE_NAME = 'spmb-pondok-duta-v4';
+const CACHE_NAME = 'spmb-pondok-duta-v5';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -44,6 +44,16 @@ self.addEventListener('fetch', (event) => {
   // Ignore chrome-extension, Google Apps Script POSTs, or other origins
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
+
+  // Bypass Vite dev server virtual modules and source files
+  if (
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.search.includes('v=') && url.pathname.includes('/node_modules/')
+  ) {
+    return;
+  }
 
   // If requesting Google Apps Script or external APIs, fetch direct with fallback
   if (url.hostname.includes('script.google.com') || url.hostname.includes('googleapis.com')) {

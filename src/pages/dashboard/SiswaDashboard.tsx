@@ -11,6 +11,7 @@ import {
 import { KartuUjianPrintView } from './KartuUjianPrintView';
 import { HasilWawancaraOrtuPrintView } from './HasilWawancaraOrtuPrintView';
 import { FormBiodataSiswaLengkap } from './FormBiodataSiswaLengkap';
+import { showAppAlert } from '../../components/AppDialogModal';
 import { 
   Users, 
   FileText, 
@@ -298,6 +299,13 @@ export const SiswaDashboard: React.FC<Props> = ({
     setSaving(false);
     setSaveSuccessMsg('Biodata murid berhasil disimpan!');
     setTimeout(() => setSaveSuccessMsg(''), 3000);
+    showAppAlert({
+      title: 'Biodata Murid Berhasil Disimpan',
+      message: `Alhamdulillah! Data calon murid atas nama ${biodataForm.namaLengkap || 'Ananda'} (${biodataForm.noPendaftaran || '-'}) berhasil disimpan.`,
+      subMessage: 'Data telah tersinkronisasi dengan database pendaftaran SPMB SMPIT Pondok Duta.',
+      variant: 'success',
+      confirmText: 'Selesai',
+    });
   };
 
   // Submit Wawancara Siswa
@@ -313,6 +321,13 @@ export const SiswaDashboard: React.FC<Props> = ({
     setSaving(false);
     setSaveSuccessMsg('Formulir Asesmen Mandiri Murid berhasil disimpan!');
     setTimeout(() => setSaveSuccessMsg(''), 3000);
+    showAppAlert({
+      title: 'Asesmen Mandiri Berhasil Disimpan',
+      message: 'Alhamdulillah! Formulir Asesmen Mandiri Murid telah berhasil disimpan.',
+      subMessage: 'Isian asesmen mandiri ini akan menjadi rujukan bagi tim penguji saat sesi observasi murid.',
+      variant: 'success',
+      confirmText: 'Selesai',
+    });
   };
 
   // Submit 34 Questions Form Ortu
@@ -331,6 +346,13 @@ export const SiswaDashboard: React.FC<Props> = ({
     setSaving(false);
     setSaveSuccessMsg('Form Wawancara Orang Tua (34 butir) berhasil disimpan di Sheet OTM!');
     setTimeout(() => setSaveSuccessMsg(''), 3000);
+    showAppAlert({
+      title: 'Observasi Orang Tua Berhasil Disimpan',
+      message: 'Alhamdulillah! Formulir Observasi Orang Tua Murid (34 butir) berhasil disimpan di Sheet OTM.',
+      subMessage: 'Data ini menjadi rujukan resmi bagi Tim Pewawancara Orang Tua Murid (OTM).',
+      variant: 'success',
+      confirmText: 'Selesai',
+    });
   };
 
   return (
@@ -416,58 +438,94 @@ export const SiswaDashboard: React.FC<Props> = ({
         )}
       </div>
 
-      {/* Tab Navigation (Responsive 2x2 Grid on Mobile, 4 Cols on Desktop - Zero horizontal scroll) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 bg-white rounded-2xl p-1.5 shadow-xs gap-1.5 border border-slate-200 text-xs font-bold">
+      {/* Tab Navigation (Responsive 4-Card Grid) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 bg-white rounded-3xl p-2 shadow-sm gap-2.5 border border-slate-200/90">
         <button
           type="button"
           onClick={() => setActiveTab('biodata')}
-          className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-center ${
+          className={`p-3.5 rounded-2xl flex items-center gap-3 text-left transition-all cursor-pointer border ${
             activeTab === 'biodata'
-              ? 'bg-emerald-700 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              ? 'bg-gradient-to-br from-emerald-700 to-teal-700 text-white border-emerald-600 shadow-md shadow-emerald-900/15'
+              : 'bg-slate-50/70 hover:bg-emerald-50/60 text-slate-700 border-slate-200/80'
           }`}
         >
-          <FileText className="w-4 h-4 shrink-0" />
-          <span className="truncate">1. Data Murid</span>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            activeTab === 'biodata' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
+          }`}>
+            <FileText className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs sm:text-sm font-extrabold leading-snug">1. Data Murid</div>
+            <div className={`text-[11px] leading-tight mt-0.5 ${activeTab === 'biodata' ? 'text-emerald-100' : 'text-slate-500'}`}>
+              Biodata Lengkap 67 Kolom
+            </div>
+          </div>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('wawancara-siswa')}
-          className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-center ${
+          className={`p-3.5 rounded-2xl flex items-center gap-3 text-left transition-all cursor-pointer border ${
             activeTab === 'wawancara-siswa'
-              ? 'bg-emerald-700 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              ? 'bg-gradient-to-br from-emerald-700 to-teal-700 text-white border-emerald-600 shadow-md shadow-emerald-900/15'
+              : 'bg-slate-50/70 hover:bg-emerald-50/60 text-slate-700 border-slate-200/80'
           }`}
         >
-          <BookOpen className="w-4 h-4 shrink-0" />
-          <span className="truncate">2. Asesmen Murid</span>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            activeTab === 'wawancara-siswa' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
+          }`}>
+            <BookOpen className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs sm:text-sm font-extrabold leading-snug">2. Asesmen Murid</div>
+            <div className={`text-[11px] leading-tight mt-0.5 ${activeTab === 'wawancara-siswa' ? 'text-emerald-100' : 'text-slate-500'}`}>
+              Asesmen Mandiri Anak
+            </div>
+          </div>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('wawancara-ortu')}
-          className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-center ${
+          className={`p-3.5 rounded-2xl flex items-center gap-3 text-left transition-all cursor-pointer border ${
             activeTab === 'wawancara-ortu'
-              ? 'bg-emerald-700 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              ? 'bg-gradient-to-br from-emerald-700 to-teal-700 text-white border-emerald-600 shadow-md shadow-emerald-900/15'
+              : 'bg-slate-50/70 hover:bg-emerald-50/60 text-slate-700 border-slate-200/80'
           }`}
         >
-          <HeartHandshake className="w-4 h-4 shrink-0" />
-          <span className="truncate">3. Observasi Ortu</span>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            activeTab === 'wawancara-ortu' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
+          }`}>
+            <HeartHandshake className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs sm:text-sm font-extrabold leading-snug">3. Observasi Ortu</div>
+            <div className={`text-[11px] leading-tight mt-0.5 ${activeTab === 'wawancara-ortu' ? 'text-emerald-100' : 'text-slate-500'}`}>
+              Isian OTM &amp; Tanda Tangan
+            </div>
+          </div>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('kartu')}
-          className={`py-2.5 px-3 rounded-xl flex items-center justify-center gap-2 transition cursor-pointer text-center ${
+          className={`p-3.5 rounded-2xl flex items-center gap-3 text-left transition-all cursor-pointer border ${
             activeTab === 'kartu'
-              ? 'bg-emerald-700 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              ? 'bg-gradient-to-br from-emerald-700 to-teal-700 text-white border-emerald-600 shadow-md shadow-emerald-900/15'
+              : 'bg-slate-50/70 hover:bg-emerald-50/60 text-slate-700 border-slate-200/80'
           }`}
         >
-          <FileText className="w-4 h-4 shrink-0" />
-          <span className="truncate">4. Kartu Peserta</span>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            activeTab === 'kartu' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-700'
+          }`}>
+            <FileText className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs sm:text-sm font-extrabold leading-snug">4. Kartu Peserta</div>
+            <div className={`text-[11px] leading-tight mt-0.5 ${activeTab === 'kartu' ? 'text-emerald-100' : 'text-slate-500'}`}>
+              Cetak Kartu Seleksi Resmi
+            </div>
+          </div>
         </button>
       </div>
 
@@ -1719,7 +1777,13 @@ export const SiswaDashboard: React.FC<Props> = ({
               setDraftWawancaraOrtu(res.data);
             }
             setReviewDraftOrtuModal(null);
-            alert('Alhamdulillah! Tanda tangan elektronik Ayah/Bunda berhasil disimpan langsung dari HP. Lembar wawancara di akun pewawancara telah terisi tanda tangan ini.');
+            showAppAlert({
+              title: 'Tanda Tangan Berhasil Disimpan',
+              message: 'Alhamdulillah! Tanda tangan elektronik Ayah/Bunda berhasil disimpan langsung dari HP.',
+              subMessage: 'Lembar wawancara di akun pewawancara telah otomatis terisi dengan tanda tangan ini.',
+              variant: 'success',
+              confirmText: 'Selesai',
+            });
             loadData(selectedNoPendaftaran);
           }}
         />
