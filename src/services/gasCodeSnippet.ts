@@ -241,7 +241,7 @@ function extractDriveFolderId(input) {
  * Mengunggah gambar Base64 langsung ke dalam Folder Google Drive.
  */
 function uploadImageToDriveFolder(base64DataUrl, filePrefix, folderLinkOrId) {
-  if (!base64DataUrl || typeof base64DataUrl !== "string" || !base64DataUrl.startsWith("data:image/")) {
+  if (!base64DataUrl || typeof base64DataUrl !== "string" || (!base64DataUrl.startsWith("data:image/") && !base64DataUrl.startsWith("data:application/pdf"))) {
     return null;
   }
   try {
@@ -255,7 +255,10 @@ function uploadImageToDriveFolder(base64DataUrl, filePrefix, folderLinkOrId) {
 
     let mimeType = "image/jpeg";
     let ext = "jpg";
-    if (header.indexOf("image/png") !== -1) {
+    if (header.indexOf("application/pdf") !== -1) {
+      mimeType = "application/pdf";
+      ext = "pdf";
+    } else if (header.indexOf("image/png") !== -1) {
       mimeType = "image/png";
       ext = "png";
     } else if (header.indexOf("image/webp") !== -1) {
@@ -263,7 +266,11 @@ function uploadImageToDriveFolder(base64DataUrl, filePrefix, folderLinkOrId) {
       ext = "webp";
     }
 
-    const fileName = filePrefix + "_SMPIT_Pondok_Duta." + ext;
+    const fileName = filePrefix.indexOf("." + ext) !== -1
+      ? filePrefix
+      : ((filePrefix.indexOf("Hasil_Wawancara") === 0 || filePrefix.indexOf("Surat_Keterangan") === 0 || filePrefix.indexOf("Lembar_") === 0 || filePrefix.indexOf("Kartu_Peserta") === 0)
+          ? (filePrefix + "." + ext)
+          : (filePrefix + "_SMPIT_Pondok_Duta." + ext));
 
     try {
       const existingFiles = folder.getFilesByName(fileName);
@@ -275,9 +282,11 @@ function uploadImageToDriveFolder(base64DataUrl, filePrefix, folderLinkOrId) {
     const decoded = Utilities.base64Decode(base64Str);
     const blob = Utilities.newBlob(decoded, mimeType, fileName);
     const file = folder.createFile(blob);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
     const fileId = file.getId();
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (shareErr) {}
+
     return {
       fileId: fileId,
       fileName: fileName,
@@ -854,7 +863,13 @@ function doPost(e) {
       }
     } else if (action === "processForm" || action === "saveWawancaraOrtu") {
       const proc = processForm(postData);
-      result = { success: true, message: proc.message, pdfUrl: proc.pdfUrl };
+      result = {
+        success: true,
+        message: proc.message,
+        pdfUrl: proc.pdfUrl,
+        fileId: proc.fileId || "",
+        fromClientPdf: Boolean(proc.fromClientPdf)
+      };
     } else if (action === "saveDraftWawancaraOrtu" || action === "saveTtdOrtuFromHp") {
       result = saveDraftOrTtdOrtu(postData);
     } else if (action === "saveObservasiSiswa") {
@@ -1567,11 +1582,12 @@ function saveDraftOrTtdOrtu(payload) {
   setupSheets();
   const ss = getSpreadsheet();
   const sheet = ss.getSheetByName(SHEET_DB_NAME);
-  const record = payload.record || payload;
-  const idSiswa = record.idSiswa || record.noPendaftaran || payload.noPendaftaran;
+  const rawRecord = payload.record || payload.data || payload;
+  const record = (rawRecord && rawRecord.data && typeof rawRecord.data === "object") ? rawRecord.data : rawRecord;
+  const idSiswa = String(record.idSiswa || record.noPendaftaran || payload.idSiswa || payload.noPendaftaran || "").trim();
 
   const catatanKhususText = record.catatanKhusus || "-";
-  const statusStr = record.isTtdOrtuSigned ? "ttd_ortu_tersimpan" : "draft_menunggu_ttd_ortu";
+  const statusStr = record.status === "selesai" ? "selesai" : (record.isTtdOrtuSigned ? "ttd_ortu_tersimpan" : "draft_menunggu_ttd_ortu");
 
   upsertRowByKey(sheet, 1, idSiswa, [
     new Date().toISOString(),
@@ -1930,11 +1946,32 @@ function getAllDatabaseData() {
   if (hwSheet && hwSheet.getLastRow() >= 2) {
     const rows = hwSheet.getDataRange().getValues();
     for (let i = 1; i < rows.length; i++) {
-      const noPend = String(rows[i][1] || "").trim();
+      let noPend = String(rows[i][1] || "").trim();
       const jsonStr = rows[i][9];
-      if (noPend && jsonStr) {
+      if (jsonStr) {
         try {
-          result.hasilOrtuMap[noPend] = JSON.parse(jsonStr);
+          let parsed = JSON.parse(jsonStr);
+          if (parsed && parsed.data && typeof parsed.data === "object") {
+            parsed = parsed.data;
+          } else if (parsed && parsed.record && typeof parsed.record === "object") {
+            parsed = parsed.record;
+          }
+          if (!noPend && parsed) {
+            noPend = String(parsed.noPendaftaran || parsed.idSiswa || "").trim();
+            if (noPend) {
+              hwSheet.getRange(i + 1, 2, 1, 5).setValues([[
+                noPend,
+                parsed.namaSiswa || "",
+                parsed.namaPanggilan || "",
+                parsed.catatanKhusus || "-",
+                parsed.namaPewawancara || ""
+              ]]);
+              hwSheet.getRange(i + 1, 10).setValue(JSON.stringify(parsed));
+            }
+          }
+          if (noPend && parsed) {
+            result.hasilOrtuMap[noPend] = parsed;
+          }
         } catch (e) {}
       }
     }
@@ -2084,23 +2121,43 @@ function processForm(formObject) {
   const currentSettings = getSettingsFromSheet();
   const folderId = extractDriveFolderId(formObject.driveFolderUrl || currentSettings.driveFolderUrl);
 
-  let pdfUrl = formObject.pdfUrl || "";
+  let pdfUrl = (formObject.pdfUrl && formObject.pdfUrl.indexOf("/folders/") === -1 && formObject.pdfUrl.indexOf("/spreadsheets/") === -1) ? formObject.pdfUrl : "";
+  let savedFileId = "";
+  let fromClientPdf = false;
   const dateStr = Utilities.formatDate(new Date(), "Asia/Jakarta", "dd-MM-yyyy");
-  const pdfName = "Wawancara_" + (formObject.namaSiswa || "Siswa").replace(/\\s+/g, '_') + "_" + dateStr + ".pdf";
+  const pdfName = "Hasil_Wawancara_OTM_" + (formObject.idSiswa || "SPMB") + "_" + (formObject.namaSiswa || "Siswa").replace(/\\s+/g, '_') + ".pdf";
 
   try {
     const folder = DriveApp.getFolderById(folderId);
-    const htmlBody = createPDFTemplate(formObject, dateStr);
-    const blob = Utilities.newBlob(htmlBody, MimeType.HTML).setName(pdfName);
-    const pdfFile = folder.createFile(blob).getAs(MimeType.PDF);
-    const savedFile = folder.createFile(pdfFile);
-    savedFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    pdfUrl = savedFile.getUrl();
-  } catch (e) {
-    if (!pdfUrl) {
-      pdfUrl = currentSettings.driveFolderUrl || ("https://docs.google.com/spreadsheets/d/" + ss.getId() + "/edit");
+    try {
+      const existingFiles = folder.getFilesByName(pdfName);
+      while (existingFiles.hasNext()) {
+        existingFiles.next().setTrashed(true);
+      }
+    } catch (cleanErr) {}
+
+    let savedFile = null;
+    if (formObject.pdfBase64 && typeof formObject.pdfBase64 === "string" && formObject.pdfBase64.length > 100) {
+      const b64Parts = formObject.pdfBase64.split(",");
+      const rawB64 = b64Parts.length > 1 ? b64Parts[1] : b64Parts[0];
+      const pdfBytes = Utilities.base64Decode(rawB64);
+      const pdfBlob = Utilities.newBlob(pdfBytes, MimeType.PDF, pdfName);
+      savedFile = folder.createFile(pdfBlob);
+      fromClientPdf = true;
+    } else {
+      const htmlBody = createPDFTemplate(formObject, dateStr);
+      const pdfBlob = Utilities.newBlob(htmlBody, MimeType.HTML, pdfName + ".html").getAs(MimeType.PDF).setName(pdfName);
+      savedFile = folder.createFile(pdfBlob);
     }
-  }
+
+    if (savedFile) {
+      savedFileId = savedFile.getId();
+      pdfUrl = "https://drive.google.com/file/d/" + savedFileId + "/view";
+      try {
+        savedFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch (shareErr) {}
+    }
+  } catch (e) {}
 
   const recordData = {
     id: "HO-" + Date.now(),
@@ -2136,68 +2193,84 @@ function processForm(formObject) {
   ], 2);
 
   return {
-    message: "Sukses! Data tersimpan di Spreadsheet dan PDF telah dibuat di Folder Google Drive.",
-    pdfUrl: pdfUrl
+    message: "Sukses! Data tersimpan di Spreadsheet dan file PDF telah disimpan di Folder Google Drive.",
+    pdfUrl: pdfUrl,
+    fileId: savedFileId,
+    fromClientPdf: fromClientPdf
   };
 }
 
 function createPDFTemplate(data, dateStr) {
   const answers = typeof data.jsonAnswers === 'string' ? JSON.parse(data.jsonAnswers) : (data.jsonAnswers || []);
   let tableRows = "";
+  let currentSection = "";
 
   answers.forEach(function(item) {
-    if (item.question && item.question.includes("CATATAN KHUSUS")) {
+    if (item.question && item.question.toUpperCase().indexOf("CATATAN KHUSUS") !== -1) {
       return;
     }
     if (item.isHeader) {
-      tableRows += '<tr><td colspan="3" style="background-color: #065f46; color: white; font-weight: bold; text-align: center; padding: 8px;">' + item.question + '</td></tr>';
+      currentSection = String(item.question || "").toUpperCase();
+      tableRows += '<tr><td colspan="3" style="background-color: #064e3b; color: #ffffff; font-weight: bold; text-align: left; padding: 6px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;">' + item.question + '</td></tr>';
     } else {
+      const isDarkSection = currentSection.indexOf("E.") === 0 || currentSection.indexOf("F.") === 0 || currentSection.indexOf("G.") === 0;
+      const refBg = isDarkSection ? "#1e293b" : "#f8fafc";
+      const refColor = isDarkSection ? "#cbd5e1" : "#334155";
       tableRows += '<tr>' +
-        '<td style="width: 35%; padding: 6px; border: 1px solid #666; vertical-align: top;">' + (item.question || "-") + '</td>' +
-        '<td style="width: 30%; background-color: #f9f9f9; font-size: 11px; padding: 6px; border: 1px solid #666; vertical-align: top;">' + (item.refAnswer || "-") + '</td>' +
-        '<td style="width: 35%; padding: 6px; border: 1px solid #666; vertical-align: top;">' + (item.newAnswer || "-") + '</td>' +
+        '<td style="width: 34%; padding: 5px 8px; border: 1px solid #cbd5e1; vertical-align: top; font-weight: bold; color: #0f172a; font-size: 10px;">' + (item.question || "-") + '</td>' +
+        '<td style="width: 33%; background-color: ' + refBg + '; color: ' + refColor + '; font-size: 10px; padding: 5px 8px; border: 1px solid #cbd5e1; vertical-align: top;">' + (item.refAnswer || "-") + '</td>' +
+        '<td style="width: 33%; padding: 5px 8px; border: 1px solid #cbd5e1; vertical-align: top; font-weight: bold; color: #064e3b; background-color: #ecfdf5; font-size: 10px;">' + (item.newAnswer || "-") + '</td>' +
         '</tr>';
     }
   });
 
-  const ttdOrtuImg = data.ttdOrtuBase64 ? '<img src="' + data.ttdOrtuBase64 + '" style="max-height:70px; display:block; margin:0 auto;" />' : '<div class="ttd-space"></div>';
-  const ttdPewawancaraImg = data.ttdPewawancaraBase64 ? '<img src="' + data.ttdPewawancaraBase64 + '" style="max-height:70px; display:block; margin:0 auto;" />' : '<div class="ttd-space"></div>';
+  const ttdOrtuImg = data.ttdOrtuBase64 ? '<img src="' + data.ttdOrtuBase64 + '" style="max-height:65px; display:block; margin:0 auto;" />' : '<div class="ttd-space"></div>';
+  const ttdPewawancaraImg = data.ttdPewawancaraBase64 ? '<img src="' + data.ttdPewawancaraBase64 + '" style="max-height:65px; display:block; margin:0 auto;" />' : '<div class="ttd-space"></div>';
 
   return '<html><head><style>' +
-    'body { font-family: sans-serif; padding: 20px; font-size: 12px; }' +
-    '.header { text-align: center; margin-bottom: 20px; border-bottom: 3px double #333; padding-bottom: 10px; }' +
-    'h2, h3 { margin: 5px 0; }' +
-    '.biodata-box { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; background: #fdfdfd; }' +
-    '.biodata-row { display: flex; margin-bottom: 5px; }' +
-    '.label { width: 140px; font-weight: bold; }' +
-    '.val { flex: 1; }' +
-    'table { width: 100%; border-collapse: collapse; margin-top: 10px; }' +
-    'th, td { border: 1px solid #666; padding: 6px; vertical-align: top; }' +
-    'th { background-color: #ddd; text-align: center; font-weight: bold; }' +
-    '.ttd-container { margin-top: 40px; display: table; width: 100%; }' +
-    '.ttd-box { display: table-cell; text-align: center; width: 50%; vertical-align: bottom; }' +
-    '.ttd-space { height: 75px; }' +
-    '.ttd-line { border-top: 1px solid #000; width: 80%; margin: 0 auto; margin-top: 5px; }' +
+    'body { font-family: Arial, sans-serif; padding: 18px 24px; font-size: 11px; color: #0f172a; }' +
+    '.kop { text-align: center; border-bottom: 3px double #064e3b; padding-bottom: 10px; margin-bottom: 12px; }' +
+    '.kop-yayasan { font-size: 11px; font-weight: bold; color: #047857; letter-spacing: 1px; margin: 0; }' +
+    '.kop-sekolah { font-size: 18px; font-weight: 900; color: #064e3b; margin: 2px 0; }' +
+    '.kop-sub { font-size: 10px; font-weight: bold; color: #334155; margin: 2px 0; }' +
+    '.kop-alamat { font-size: 9px; color: #475569; margin: 2px 0; }' +
+    '.judul { text-align: center; margin-bottom: 12px; }' +
+    '.judul h3 { font-size: 13px; font-weight: 900; margin: 0; text-decoration: underline; color: #0f172a; }' +
+    '.judul p { font-size: 10px; color: #475569; margin: 3px 0 0 0; font-weight: bold; }' +
+    '.biodata-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; background: #f8fafc; border: 1px solid #cbd5e1; }' +
+    '.biodata-table td { padding: 4px 8px; border: none; font-size: 10px; vertical-align: middle; }' +
+    'table.main-table { width: 100%; border-collapse: collapse; margin-top: 6px; }' +
+    'table.main-table th { background-color: #0f172a; color: #ffffff; text-align: left; font-weight: bold; padding: 6px 8px; font-size: 10px; border: 1px solid #0f172a; }' +
+    'table.main-table tr { page-break-inside: avoid; break-inside: avoid; }' +
+    '.ttd-container { margin-top: 24px; display: table; width: 100%; page-break-inside: avoid; break-inside: avoid; }' +
+    '.ttd-box { display: table-cell; text-align: center; width: 50%; vertical-align: bottom; font-size: 10px; page-break-inside: avoid; break-inside: avoid; }' +
+    '.ttd-space { height: 65px; }' +
+    '.ttd-line { border-top: 1px solid #0f172a; width: 75%; margin: 4px auto 0 auto; padding-top: 3px; font-weight: bold; }' +
+    '.pdf-footnote { margin-top: 16px; border-top: 1px solid #cbd5e1; padding-top: 6px; font-size: 8.5px; color: #64748b; text-align: left; }' +
     '</style></head><body>' +
-    '<div class="header">' +
-    '<h2>HASIL WAWANCARA ORANG TUA PENERIMAAN SISWA BARU</h2>' +
-    '<h3>SMPIT PONDOK DUTA</h3>' +
-    '<p>Tanggal Wawancara: ' + dateStr + '</p>' +
+    '<div class="kop">' +
+    '<p class="kop-yayasan">YAYASAN PERGURUAN ISLAM PONDOK DUTA</p>' +
+    '<p class="kop-sekolah">SMP ISLAM TERPADU PONDOK DUTA</p>' +
+    '<p class="kop-sub">Terakreditasi "A" BAN-PDM | NPSN: 20276180</p>' +
+    '<p class="kop-alamat">Jl. Duta Plaza No. 1, Perumahan Pondok Duta, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451</p>' +
     '</div>' +
-    '<div class="biodata-box">' +
-    '<div class="biodata-row"><span class="label">Nama Siswa:</span> <span class="val">' + (data.namaSiswa || "-") + '</span></div>' +
-    '<div class="biodata-row"><span class="label">Nama Panggilan:</span> <span class="val">' + (data.namaPanggilan || "-") + '</span></div>' +
-    '<div class="biodata-row"><span class="label">Asal Sekolah:</span> <span class="val">' + (data.sekolahAsal || "-") + '</span></div>' +
-    '<div class="biodata-row"><span class="label">Nama Ayah:</span> <span class="val">' + (data.namaAyah || "-") + '</span></div>' +
-    '<div class="biodata-row"><span class="label">Nama Ibu:</span> <span class="val">' + (data.namaIbu || "-") + '</span></div>' +
-    '<div class="biodata-row"><span class="label">Pewawancara:</span> <span class="val">' + (data.namaPewawancara || "-") + '</span></div>' +
+    '<div class="judul">' +
+    '<h3>LEMBAR HASIL OBSERVASI &amp; WAWANCARA ORANG TUA CALON MURID</h3>' +
+    '<p>Nomor Dokumen: ' + (data.idSiswa || "-") + '/HW-OTM/SPMB-SMPIT/2027 &bull; Tanggal: ' + dateStr + '</p>' +
     '</div>' +
-    '<table><thead><tr><th>Pertanyaan / Topik</th><th>Data Awal / Jawaban Ortu (Ref)</th><th>Hasil Wawancara / Catatan</th></tr></thead>' +
+    '<table class="biodata-table">' +
+    '<tr><td style="width:18%;font-weight:bold;">No. Pendaftaran</td><td style="width:32%;">: ' + (data.idSiswa || "-") + '</td><td style="width:18%;font-weight:bold;">Nama Ayah</td><td style="width:32%;">: ' + (data.namaAyah || "-") + '</td></tr>' +
+    '<tr><td style="font-weight:bold;">Nama Calon Murid</td><td>: <b>' + (data.namaSiswa || "-") + '</b> (' + (data.namaPanggilan || "-") + ')</td><td style="font-weight:bold;">Nama Ibu</td><td>: ' + (data.namaIbu || "-") + '</td></tr>' +
+    '<tr><td style="font-weight:bold;">Asal Sekolah</td><td>: ' + (data.sekolahAsal || "-") + '</td><td style="font-weight:bold;">Pewawancara</td><td>: <b>' + (data.namaPewawancara || "-") + '</b></td></tr>' +
+    '</table>' +
+    '<table class="main-table"><thead><tr><th style="width:34%;">Topik / Pertanyaan Evaluasi</th><th style="width:33%;">Isian Kuesioner OTM (Ref)</th><th style="width:33%;">Hasil Wawancara / Konfirmasi</th></tr></thead>' +
     '<tbody>' + tableRows + '</tbody></table>' +
     '<div class="ttd-container">' +
-    '<div class="ttd-box">' + ttdOrtuImg + '<div class="ttd-line"></div><p>( Orang Tua / Wali )</p></div>' +
-    '<div class="ttd-box">' + ttdPewawancaraImg + '<div class="ttd-line"></div><p>( ' + (data.namaPewawancara || "Pewawancara") + ' )</p></div>' +
-    '</div></body></html>';
+    '<div class="ttd-box"><p style="margin:0 0 4px 0;">Mengetahui &amp; Menyetujui,<br/><b>Orang Tua / Wali Calon Murid</b></p>' + ttdOrtuImg + '<div class="ttd-line">' + (data.namaAyah || data.namaIbu || "Orang Tua / Wali") + '</div></div>' +
+    '<div class="ttd-box"><p style="margin:0 0 4px 0;">Depok, ' + dateStr + '<br/><b>Pewawancara SPMB</b></p>' + ttdPewawancaraImg + '<div class="ttd-line">' + (data.namaPewawancara || "Pewawancara") + '</div></div>' +
+    '</div>' +
+    '<div class="pdf-footnote">Hasil Wawancara OTM SPMB SMPIT Pondok Duta TP 2027/2028 &bull; ' + (data.namaSiswa || "-") + ' (' + (data.idSiswa || "-") + ') &bull; Sah terverifikasi digital.</div>' +
+    '</body></html>';
 }
 
 function processObservasiSiswa(data) {

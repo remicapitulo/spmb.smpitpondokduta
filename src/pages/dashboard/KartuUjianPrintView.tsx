@@ -142,8 +142,8 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
       await downloadElementAsPdf({
         element: cardElement,
         fileName,
-        pdfTitle: `Kartu Peserta SPMB - ${siswa.namaLengkap}`,
-        footerText: `Dokumen resmi SPMB SMPIT Pondok Duta · TP ${getAcademicYear()} · Diterbitkan digital & sah terverifikasi via QR Code.`,
+        pdfTitle: `Kartu Peserta SPMB - ${siswa.namaLengkap} (${siswa.noPendaftaran || '-'})`,
+        footerText: `Kartu Peserta SPMB SMPIT Pondok Duta TP ${getAcademicYear()} · ${siswa.namaLengkap || '-'} (${siswa.noPendaftaran || '-'}) · Sah terverifikasi via QR Code.`,
         margin: 10
       });
 
@@ -182,6 +182,9 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
         scrollY: 0,
         onclone: (clonedDoc) => {
           sanitizeDocumentForCanvas(clonedDoc);
+          const inlineStyle = clonedDoc.createElement('style');
+          inlineStyle.textContent = 'img { display: inline-block !important; }';
+          (clonedDoc.head || clonedDoc.documentElement).appendChild(inlineStyle);
           const clonedCard = clonedDoc.getElementById('printable-kartu-peserta');
           if (clonedCard) {
             clonedCard.style.width = '760px';
@@ -292,7 +295,7 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
                       SMPIT PONDOK DUTA
                     </div>
                     <div className="text-[9px] sm:text-[9.5px] text-slate-600 leading-snug">
-                      <span className="font-bold text-emerald-800">Terakreditasi "A" BAN-PDM</span> | NPSN: 20276180 | NSS: 202026601007
+                      <span className="font-bold text-emerald-800">Terakreditasi "A" BAN-PDM</span> | NPSN: 20276180
                     </div>
                     <div className="text-[8.5px] sm:text-[9px] text-slate-500 leading-snug">
                       Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok 16451 | Telp: (021) 29378301
@@ -437,13 +440,13 @@ export const KartuUjianPrintView: React.FC<Props> = ({ siswa: rawSiswaProp, onCl
                 {/* Jadwal & Lokasi Ujian / Observasi Resmi */}
                 <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div className="border-l-3 border-emerald-600 pl-2.5">
-                    <span className="text-slate-500 block font-semibold text-[10px] uppercase">Jadwal Pelaksanaan:</span>
-                    <span className="font-bold text-slate-900 block text-xs">Sabtu, 17 Januari 2026</span>
-                    <span className="block text-emerald-900 font-semibold text-[11px]">Pukul 08.00 - 11.30 WIB</span>
+                    <span className="text-slate-500 block font-semibold text-[10px] uppercase">Jadwal Observasi:</span>
+                    <span className="font-bold text-slate-900 block text-xs">Akan diinformasikan oleh Tata Usaha</span>
+                    <span className="block text-emerald-900 font-semibold text-[11px]">Menunggu konfirmasi jadwal dari TU</span>
                   </div>
                   <div className="border-l-3 border-emerald-600 pl-2.5">
-                    <span className="text-slate-500 block font-semibold text-[10px] uppercase">Ruang &amp; Agenda:</span>
-                    <span className="font-bold text-slate-900 block text-xs">Ruang Aula - Gedung SMPIT Lt. 1</span>
+                    <span className="text-slate-500 block font-semibold text-[10px] uppercase">Ruang &amp; Lokasi:</span>
+                    <span className="font-bold text-slate-900 block text-xs">Gedung SMPIT Pondok Duta Lt. 1</span>
                     <span className="block text-slate-600 font-medium text-[11px]">Observasi Murid &amp; Wawancara OTM</span>
                   </div>
                 </div>

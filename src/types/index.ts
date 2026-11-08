@@ -184,8 +184,9 @@ export interface HasilObservasiOrtuData {
   ttdOrtuBase64?: string;
   ttdPewawancaraBase64?: string;
   pdfUrl?: string;
-  status?: 'draft' | 'menunggu_ttd_ortu' | 'selesai';
+  status?: 'draft' | 'menunggu_ttd_ortu' | 'ttd_ortu_tersimpan' | 'selesai';
   isTtdOrtuSigned?: boolean;
+  signedFromHpAt?: string;
   createdAt: string;
   updatedAt?: string;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { gasService } from '../../services/gasService';
 import { HasilObservasiOrtuData, WawancaraOrtuAnswerItem } from '../../types';
 import { QUESTIONS_CONFIG, DAFTAR_PEWAWANCARA_LIST } from '../../services/questionsConfig';
@@ -28,6 +28,7 @@ interface Props {
 export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPanduan }) => {
   const [students, setStudents] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const selectedStudentIdRef = useRef<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -51,7 +52,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
   }, []);
 
   const loadStudentList = async (targetId?: string) => {
-    setLoading(true);
+    setLoading(prev => students.length === 0);
     const list = await gasService.getStudentList();
     const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
     setDbGuruNames(gurus);
@@ -60,7 +61,8 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
     }
     setStudents(list);
 
-    const activeId = targetId || selectedStudentId || (list[0] ? list[0].id : '');
+    const activeId = targetId || selectedStudentIdRef.current || selectedStudentId || (list[0] ? list[0].id : '');
+    selectedStudentIdRef.current = activeId;
     setSelectedStudentId(activeId);
 
     // Check if student already has saved interview
@@ -84,14 +86,39 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
   };
 
   const handleSelectStudent = (id: string) => {
+    selectedStudentIdRef.current = id;
     setSelectedStudentId(id);
-    setOrtuAnswers({});
     const existing = gasService.getHasilWawancaraOrtu(id);
     setSavedOrtuResult(existing || null);
+    if (existing) {
+      const map: { [qIdx: number]: string } = {};
+      if (existing.jsonAnswers) {
+        existing.jsonAnswers.forEach((item, idx) => {
+          if (item.newAnswer) map[idx] = item.newAnswer;
+        });
+      }
+      setOrtuAnswers(map);
+      if (existing.namaPewawancara && existing.namaPewawancara.trim() !== '-') {
+        if (dbGuruNames.includes(existing.namaPewawancara)) {
+          setNamaPewawancaraOrtu(existing.namaPewawancara);
+          setIsCustomPewawancara(false);
+        } else {
+          setIsCustomPewawancara(true);
+          setCustomPewawancara(existing.namaPewawancara);
+        }
+      }
+    } else {
+      setOrtuAnswers({});
+    }
   };
 
   const currentStudent = students.find(s => s.id === selectedStudentId) || students[0] || null;
   const isGasLive = gasService.isLiveGasConfigured();
+  const isOrtuDraftLocked = Boolean(savedOrtuResult);
+  const lockedPewawancara =
+    savedOrtuResult?.namaPewawancara && savedOrtuResult.namaPewawancara.trim() !== '-'
+      ? savedOrtuResult.namaPewawancara.trim()
+      : '';
 
   // Helper untuk mendapatkan nilai referensi dari rawData OTM
   const getRefValue = (refId: number | null): string => {
@@ -108,7 +135,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
     return '-';
   };
 
-  const effectivePewawancaraName = isCustomPewawancara ? customPewawancara.trim() : namaPewawancaraOrtu;
+  const effectivePewawancaraName = lockedPewawancara || (isCustomPewawancara ? customPewawancara.trim() : namaPewawancaraOrtu);
 
   // Siapkan Data untuk Review & Tanda Tangan sebelum Simpan
   const handleOpenReview = (e: React.FormEvent) => {
@@ -137,7 +164,10 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
         collectedAnswers.push({ isHeader: true, question: q.text, newAnswer: '' });
       } else {
         const refVal = getRefValue(q.refId);
-        const ansVal = ortuAnswers[index] || '';
+        const isCatatanKhusus = q.id === 'catatan' || q.text.includes('CATATAN KHUSUS');
+        const ansVal = (!isCatatanKhusus && isOrtuDraftLocked && savedOrtuResult?.jsonAnswers?.[index]?.newAnswer !== undefined)
+          ? savedOrtuResult.jsonAnswers[index].newAnswer
+          : (ortuAnswers[index] || '');
         collectedAnswers.push({
           isHeader: false,
           question: q.text,
@@ -147,12 +177,12 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
       }
     });
 
-    const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const dateStr = savedOrtuResult?.tanggalWawancara || new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
     const catatanItem = collectedAnswers.find(item => item.question && item.question.includes("CATATAN KHUSUS"));
     const catatanKhususText = catatanItem ? (catatanItem.newAnswer || "-") : "-";
 
     const draftData: HasilObservasiOrtuData = {
-      id: 'HO-' + Date.now(),
+      id: savedOrtuResult?.id || ('HO-' + Date.now()),
       idSiswa: currentStudent.id,
       noPendaftaran: currentStudent.id,
       namaSiswa: currentStudent.nama,
@@ -166,7 +196,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
       catatanKhusus: catatanKhususText,
       ttdOrtuBase64: savedOrtuResult?.ttdOrtuBase64 || '',
       ttdPewawancaraBase64: savedOrtuResult?.ttdPewawancaraBase64 || '',
-      createdAt: new Date().toISOString()
+      createdAt: savedOrtuResult?.createdAt || new Date().toISOString()
     };
 
     setReviewModalData(draftData);
@@ -174,7 +204,12 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
   };
 
   // Simpan final hasil wawancara beserta tanda tangan elektronik
-  const handleConfirmSave = async (ttdOrtu: string, ttdPewawancara: string) => {
+  const handleConfirmSave = async (
+    ttdOrtu: string,
+    ttdPewawancara: string,
+    pdfBase64?: string,
+    imgBase64?: string
+  ) => {
     if (!reviewModalData) return;
     setSaving(true);
 
@@ -188,7 +223,9 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
       namaPewawancara: reviewModalData.namaPewawancara,
       jsonAnswers: reviewModalData.jsonAnswers,
       ttdOrtuBase64: ttdOrtu,
-      ttdPewawancaraBase64: ttdPewawancara
+      ttdPewawancaraBase64: ttdPewawancara,
+      pdfBase64,
+      imgBase64
     };
 
     const res = await gasService.processWawancaraOrtu(payload);
@@ -243,12 +280,18 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
               <UserCheck className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Nama Pewawancara (Pilih Dari Daftar Guru/Penguji):</span>
+              <span>
+                {isOrtuDraftLocked
+                  ? 'Nama Pewawancara Awal:'
+                  : 'Nama Pewawancara (Pilih Dari Daftar Guru/Penguji):'}
+              </span>
             </label>
             <div className="space-y-2">
               <select
+                disabled={isOrtuDraftLocked}
                 value={isCustomPewawancara ? '__custom__' : namaPewawancaraOrtu}
                 onChange={(e) => {
+                  if (isOrtuDraftLocked) return;
                   if (e.target.value === '__custom__') {
                     setIsCustomPewawancara(true);
                   } else {
@@ -256,7 +299,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
                     setNamaPewawancaraOrtu(e.target.value);
                   }
                 }}
-                className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 shadow-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 shadow-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:bg-slate-200 disabled:cursor-not-allowed"
               >
                 {dbGuruNames.map((name) => (
                   <option key={name} value={name}>
@@ -270,15 +313,22 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
                 <input
                   type="text"
                   autoFocus
+                  readOnly={isOrtuDraftLocked}
+                  disabled={isOrtuDraftLocked}
                   placeholder="Ketik nama lengkap pewawancara..."
                   value={customPewawancara}
-                  onChange={(e) => setCustomPewawancara(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-emerald-300 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-500"
+                  onChange={(e) => {
+                    if (isOrtuDraftLocked) return;
+                    setCustomPewawancara(e.target.value);
+                  }}
+                  className="w-full p-2.5 rounded-xl border border-emerald-300 bg-white text-xs font-medium focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-200 disabled:cursor-not-allowed"
                 />
               )}
             </div>
             <p className="text-[10px] text-slate-400">
-              Nama ini akan tertera resmi pada tanda tangan dokumen hasil wawancara.
+              {isOrtuDraftLocked
+                ? 'Nama pewawancara awal telah melekat permanen pada murid ini. Hanya bagian Catatan Khusus yang dapat diedit.'
+                : 'Nama ini akan tertera resmi pada tanda tangan dokumen hasil wawancara.'}
             </p>
           </div>
 
@@ -397,28 +447,35 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
                                 <div className="space-y-1.5">
                                   <textarea
                                     rows={2}
+                                    readOnly={isOrtuDraftLocked}
+                                    disabled={isOrtuDraftLocked}
                                     value={ortuAnswers[index] || ''}
-                                    onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
+                                    onChange={(e) => {
+                                      if (isOrtuDraftLocked) return;
+                                      setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value });
+                                    }}
                                     placeholder="Input hasil wawancara / catatan respon orang tua..."
-                                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white shadow-2xs"
+                                    className="w-full p-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white shadow-2xs disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
                                   />
-                                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                    <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
-                                    {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
-                                      <button
-                                        type="button"
-                                        key={quickOption}
-                                        onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
-                                        className={`px-2.5 py-1 text-[11px] rounded-lg font-medium border transition cursor-pointer ${
-                                          ortuAnswers[index] === quickOption
-                                            ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                            : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
-                                        }`}
-                                      >
-                                        + {quickOption}
-                                      </button>
-                                    ))}
-                                  </div>
+                                  {!isOrtuDraftLocked && (
+                                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                      <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                                      {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                                        <button
+                                          type="button"
+                                          key={quickOption}
+                                          onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                          className={`px-2.5 py-1 text-[11px] rounded-lg font-medium border transition cursor-pointer ${
+                                            ortuAnswers[index] === quickOption
+                                              ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                              : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                          }`}
+                                        >
+                                          + {quickOption}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -444,7 +501,7 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
                           );
                         }
 
-                        // Catatan Khusus Pewawancara (Pindahkan isian ke bawah, hilangkan kolom kosong)
+                        // Catatan Khusus Pewawancara (Pindahkan isian ke bawah, hilangkan kolom kosong - TETAP DAPAT DIEDIT)
                         if (isCatatanKhusus) {
                           return (
                             <tr key={q.id} className="hover:bg-amber-50/50 bg-amber-50/30 border-y-2 border-amber-300">
@@ -483,28 +540,35 @@ export const WawancaraOrtuPage: React.FC<Props> = ({ onOpenGasConfig, onOpenPand
                             <td className="p-2.5 align-top space-y-1.5">
                               <input
                                 type="text"
+                                readOnly={isOrtuDraftLocked}
+                                disabled={isOrtuDraftLocked}
                                 value={ortuAnswers[index] || ''}
-                                onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
+                                onChange={(e) => {
+                                  if (isOrtuDraftLocked) return;
+                                  setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value });
+                                }}
                                 placeholder={`Konfirmasi / catatan topik... (Ref: ${refVal !== '-' ? refVal.substring(0, 15) : '-'})`}
-                                className="w-full p-2 rounded-xl border border-slate-300 bg-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-2xs"
+                                className="w-full p-2 rounded-xl border border-slate-300 bg-white text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none shadow-2xs disabled:bg-slate-100 disabled:text-slate-600 disabled:cursor-not-allowed"
                               />
-                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
-                                {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
-                                  <button
-                                    type="button"
-                                    key={quickOption}
-                                    onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
-                                    className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
-                                      ortuAnswers[index] === quickOption
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                        : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
-                                    }`}
-                                  >
-                                    + {quickOption}
-                                  </button>
-                                ))}
-                              </div>
+                              {!isOrtuDraftLocked && (
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                  <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                                  {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                                    <button
+                                      type="button"
+                                      key={quickOption}
+                                      onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                      className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
+                                        ortuAnswers[index] === quickOption
+                                          ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                          : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                      }`}
+                                    >
+                                      + {quickOption}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );

@@ -28,8 +28,8 @@ export const AlurPage: React.FC<Props> = ({ onGoToRegister, onGoToCheckResult })
       title: '1. PENDAFTARAN',
       subtitle: 'Pendaftaran dan Pengambilan / Pengembalian Formulir',
       items: [
-        '1) Pendaftaran online melalui CS SMPIT (WA: 0822-2500-2011) atau melalui Portal Aplikasi SPMB ini.',
-        '2) Pendaftaran offline di ruang pendaftaran SMPIT Pondok Duta.',
+        '1) Pendaftaran online melalui CS SMP (WA: 0822-2500-2011) / Pendaftaran offline di ruang Tata Usaha.',
+        '2) Mengisi seluruh rangkaian data Calon Murid di Portal Aplikasi SPMB ini.',
         '3) Mengembalikan formulir pendaftaran (atau melengkapi biodata online di Portal Murid).'
       ]
     },
@@ -39,9 +39,10 @@ export const AlurPage: React.FC<Props> = ({ onGoToRegister, onGoToCheckResult })
       title: '2. TES KEMATANGAN MURID (TKM)',
       subtitle: 'Pelaksanaan Tes Kematangan Murid (TKM) & Observasi',
       items: [
-        '1. Wawancara Orang Tua Murid (SMP)',
-        '2. Observasi Murid & Tes Agama (SMP)',
-        '3. Test Potensi Akademik (SMP)'
+        '1. Wawancara Orang Tua Murid',
+        '2. Observasi Murid & Tes Agama',
+        '3. Tes Potensi Akademik (IPA, Matematika, Bahasa Indonesia)',
+        '4. Tes Psikotes'
       ]
     },
     {
@@ -50,8 +51,7 @@ export const AlurPage: React.FC<Props> = ({ onGoToRegister, onGoToCheckResult })
       title: '3. PENGUMUMAN HASIL TES',
       subtitle: 'Pengumuman Hasil Tes Kematangan Murid (TKM)',
       items: [
-        '• Hasil Tes dapat diambil di Ruang Tata Usaha unit SMPIT Pondok Duta.',
-        '• Calon murid SMPIT juga dapat mengecek status kelulusan secara online melalui menu Cek Kelulusan.'
+        '• Calon murid dapat mengecek status kelulusan secara online melalui menu Cek Kelulusan.'
       ]
     },
     {
@@ -75,10 +75,10 @@ export const AlurPage: React.FC<Props> = ({ onGoToRegister, onGoToCheckResult })
     {
       num: '6',
       icon: GraduationCap,
-      title: 'MASA PENGENALAN LINGKUNGAN SEKOLAH (MPLS)',
+      title: '6. MASA PENGENALAN LINGKUNGAN SEKOLAH (MPLS)',
       subtitle: 'Tahap Akhir Penyambutan Murid Baru SMPIT Pondok Duta',
       items: [
-        '• Mengikuti kegiatan Masa Pengenalan Lingkungan Sekolah (MPLS) Tahun Ajaran ' + tahunPelajaran + ' di kampus SMPIT Pondok Duta.'
+        '• Mengikuti kegiatan Masa Pengenalan Lingkungan Sekolah (MPLS) Tahun Ajaran ' + tahunPelajaran + '.'
       ]
     }
   ];

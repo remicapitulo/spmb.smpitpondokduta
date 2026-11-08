@@ -50,16 +50,31 @@ export const SyaratPage: React.FC<Props> = ({ onGoToRegister }) => {
     {
       id: 'nisn',
       title: '6. Fotokopi NISN Sebanyak 1 Lembar (Legalisir)',
-      desc: 'Melampirkan 1 lembar bukti Nomor Induk Siswa Nasional (NISN Murid) (NISN) yang telah dilegalisir.'
+      desc: 'Melampirkan 1 lembar bukti Nomor Induk Siswa Nasional (NISN Murid) yang telah dilegalisir.'
+    },
+    {
+      id: 'bpjs-anak',
+      title: '7. Fotokopi Kartu BPJS Anak sebanyak 1 lembar',
+      desc: 'Melampirkan 1 lembar fotokopi Kartu BPJS Kesehatan atas nama calon murid.'
+    },
+    {
+      id: 'ktp-ortu',
+      title: '8. Fotokopi KTP kedua orang tua sebanyak 1 lembar',
+      desc: 'Melampirkan masing-masing 1 lembar fotokopi KTP Ayah dan Ibu / Wali yang masih berlaku.'
+    },
+    {
+      id: 'kia',
+      title: '9. Fotokopi KIA (Kartu Identitas Anak) sebanyak 1 lembar',
+      desc: 'Melampirkan 1 lembar fotokopi KIA (Kartu Identitas Anak) calon murid.'
     },
     {
       id: 'surat-pindah',
-      title: '7. Surat Pindah dari Sekolah Asal (Khusus Murid Pindahan)',
+      title: '10. Surat Pindah dari Sekolah Asal (Khusus Murid Pindahan)',
       desc: 'Bagi calon murid pindahan, wajib melampirkan surat keterangan pindah resmi dari sekolah asal.'
     },
     {
       id: 'skkb',
-      title: '8. Surat Keterangan Kelakuan Baik dari Sekolah Asal (Khusus Murid Pindahan)',
+      title: '11. Surat Keterangan Kelakuan Baik dari Sekolah Asal (Khusus Murid Pindahan)',
       desc: 'Bagi calon murid pindahan, wajib melampirkan Surat Keterangan Kelakuan Baik dari sekolah asal.'
     },
   ];
@@ -134,6 +149,18 @@ export const SyaratPage: React.FC<Props> = ({ onGoToRegister }) => {
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <span>Fotokopi <strong>NISN</strong> sebanyak <strong>1 lembar (legalisir)</strong>.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>Fotokopi <strong>Kartu BPJS Anak</strong> sebanyak <strong>1 lembar</strong>.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>Fotokopi <strong>KTP kedua orang tua</strong> sebanyak <strong>1 lembar</strong>.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <span>Fotokopi <strong>KIA (Kartu Identitas Anak)</strong> sebanyak <strong>1 lembar</strong>.</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />

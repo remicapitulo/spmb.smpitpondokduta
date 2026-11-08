@@ -152,8 +152,8 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
           namaOrtu: ortu || studentRecord?.namaAyah || studentRecord?.namaIbu || studentRecord?.namaWali || '-',
           noHp: hp || studentRecord?.noHpAyah || studentRecord?.nomorTelepon || studentRecord?.noHpIbu || '-',
           isVerified: true,
-          jadwal: jadwal || 'Sabtu, 17 Januari 2026 · Pukul 08.00 - 11.30 WIB',
-          lokasi: ruang || 'Ruang Aula - Gedung SMPIT Lt. 1'
+          jadwal: jadwal || 'Akan diinformasikan oleh Tata Usaha',
+          lokasi: ruang || 'Gedung SMPIT Pondok Duta Lt. 1'
         };
       };
 
@@ -319,8 +319,8 @@ export const CekKelulusanPage: React.FC<Props> = ({ onGoToRegister }) => {
       await downloadElementAsPdf({
         element: docElement,
         fileName,
-        pdfTitle: `Surat Keterangan Hasil Seleksi SPMB - ${result?.namaLengkap || ''}`,
-        footerText: `Surat Keterangan Hasil Seleksi Resmi SPMB SMPIT Pondok Duta · TP ${tahunPelajaran} · Sah terverifikasi via QR Code.`,
+        pdfTitle: `Surat Keterangan Hasil Seleksi SPMB - ${result?.namaLengkap || ''} (${result?.noPendaftaran || '-'})`,
+        footerText: `Surat Keterangan Hasil Seleksi Resmi SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · ${result?.namaLengkap || '-'} (${result?.noPendaftaran || '-'}) · Sah terverifikasi via QR Code.`,
         margin: 12
       });
       if (result?.noPendaftaran) {

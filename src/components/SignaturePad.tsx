@@ -19,6 +19,7 @@ export const SignaturePad: React.FC<Props> = ({
   height = 160,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lastValueRef = useRef<string>('');
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
 
@@ -28,8 +29,15 @@ export const SignaturePad: React.FC<Props> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Handle initial value if present
-    if (value && !hasDrawn) {
+    if (!value) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      lastValueRef.current = '';
+      setHasDrawn(false);
+      return;
+    }
+
+    if (value !== lastValueRef.current) {
+      lastValueRef.current = value;
       const img = new Image();
       img.onload = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -37,9 +45,6 @@ export const SignaturePad: React.FC<Props> = ({
         setHasDrawn(true);
       };
       img.src = value;
-    } else if (!value && !hasDrawn) {
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
   }, [value]);
 
@@ -103,6 +108,7 @@ export const SignaturePad: React.FC<Props> = ({
 
     // Export to base64 DataURL
     const dataUrl = canvas.toDataURL('image/png');
+    lastValueRef.current = dataUrl;
     onChange(dataUrl);
   };
 
@@ -113,6 +119,7 @@ export const SignaturePad: React.FC<Props> = ({
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    lastValueRef.current = '';
     setHasDrawn(false);
     onChange('');
   };

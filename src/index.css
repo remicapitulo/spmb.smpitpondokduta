@@ -98,6 +98,19 @@
   }
 }
 
+/* KRITIS: Memperbaiki kalkulasi baseline huruf html2canvas (FontMetrics) di window.document utama
+   yang terganggu oleh aturan Tailwind Preflight (img { display: block }). */
+body > div[style*="visibility: hidden"] > img,
+img[width="1"][height="1"] {
+  display: inline !important;
+  vertical-align: baseline !important;
+  max-width: none !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 /* Custom Print Styles for Kartu Ujian, Lembar Observasi & PDF Wawancara */
 @media print {
   @page {

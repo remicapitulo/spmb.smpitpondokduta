@@ -30,8 +30,8 @@ export const HasilWawancaraPrintView: React.FC<Props> = ({ observasi, onClose })
       await downloadElementAsPdf({
         element: docElement,
         fileName,
-        pdfTitle: `Lembar Evaluasi Wawancara - ${observasi.namaSiswa}`,
-        footerText: `Lembar Observasi & Hasil Wawancara Resmi SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · Sah terverifikasi digital.`,
+        pdfTitle: `Lembar Evaluasi Wawancara - ${observasi.namaSiswa} (${observasi.noPendaftaran || '-'})`,
+        footerText: `Lembar Observasi & Hasil Wawancara SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · ${observasi.namaSiswa || '-'} (${observasi.noPendaftaran || '-'}) · Sah terverifikasi digital.`,
         margin: 10
       });
     } catch (err) {
@@ -123,7 +123,7 @@ export const HasilWawancaraPrintView: React.FC<Props> = ({ observasi, onClose })
                 title="Buka sertifikat resmi akreditasi BAN-PDM"
               >
                 Terakreditasi "A" (BAN-PDM)
-              </a> | NPSN: 20276180 | NSS: 202026601007
+              </a> | NPSN: 20276180
             </p>
             <p className="text-[10px] text-slate-500">
               Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok 16451 | Telp: (021) 29378301 | Email: info@smpitpondokduta.sch.id

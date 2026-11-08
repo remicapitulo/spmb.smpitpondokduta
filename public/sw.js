@@ -1,5 +1,5 @@
 // Service Worker for SPMB SMPIT Pondok Duta PWA
-const CACHE_NAME = 'spmb-pondok-duta-v5';
+const CACHE_NAME = 'spmb-pondok-duta-v6';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',

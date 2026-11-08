@@ -103,11 +103,11 @@ export const MobileBottomNav: React.FC<Props> = ({
   return (
     <>
       {/* ========================================================================= */}
-      {/* 1. FIXED BOTTOM NAVIGATION BAR (< lg)                                     */}
+      {/* 1. FIXED BOTTOM NAVIGATION BAR (< md / Khusus HP)                         */}
       {/* ========================================================================= */}
       <nav 
         aria-label="Navigasi Bawah Mobile"
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] no-print pb-[calc(env(safe-area-inset-bottom,0px))]"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] no-print pb-[calc(env(safe-area-inset-bottom,0px))]"
       >
         <div className="grid grid-cols-5 h-16 max-w-md mx-auto items-stretch">
           
@@ -227,7 +227,25 @@ export const MobileBottomNav: React.FC<Props> = ({
                 <span className="text-[10px] leading-tight truncate mt-0.5">Observasi</span>
               </button>
 
-              {/* 3. Data Induk */}
+              {/* 3. Pengumuman */}
+              <button
+                type="button"
+                onClick={() => handleGuruNav('whatsapp')}
+                className={`flex flex-col items-center justify-center py-1.5 px-0.5 transition cursor-pointer select-none ${
+                  currentTab === 'dashboard-guru' && guruSubTeam === 'whatsapp'
+                    ? 'text-teal-700 font-extrabold'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <div className={`p-1 rounded-xl transition ${
+                  currentTab === 'dashboard-guru' && guruSubTeam === 'whatsapp' ? 'bg-teal-100 text-teal-800' : ''
+                }`}>
+                  <MessageCircle className="w-5 h-5 shrink-0" />
+                </div>
+                <span className="text-[10px] leading-tight truncate mt-0.5">Pengumuman</span>
+              </button>
+
+              {/* 4. Data Induk */}
               <button
                 type="button"
                 onClick={() => handleGuruNav('data-induk')}
@@ -243,27 +261,6 @@ export const MobileBottomNav: React.FC<Props> = ({
                   <Award className="w-5 h-5 shrink-0" />
                 </div>
                 <span className="text-[10px] leading-tight truncate mt-0.5">Data Induk</span>
-              </button>
-
-              {/* 4. Cek Kelulusan */}
-              <button
-                type="button"
-                onClick={() => {
-                  onSelectTab('cek-kelulusan');
-                  setDrawerOpen(false);
-                }}
-                className={`flex flex-col items-center justify-center py-1.5 px-0.5 transition cursor-pointer select-none ${
-                  currentTab === 'cek-kelulusan'
-                    ? 'text-emerald-700 font-extrabold'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <div className={`p-1 rounded-xl transition ${
-                  currentTab === 'cek-kelulusan' ? 'bg-emerald-100 text-emerald-800' : ''
-                }`}>
-                  <Search className="w-5 h-5 shrink-0" />
-                </div>
-                <span className="text-[10px] leading-tight truncate mt-0.5">Kelulusan</span>
               </button>
             </>
           )}
@@ -371,11 +368,11 @@ export const MobileBottomNav: React.FC<Props> = ({
       </nav>
 
       {/* ========================================================================= */}
-      {/* 2. BOTTOM SHEET DRAWER "MENU LAIN" (< lg)                                 */}
+      {/* 2. BOTTOM SHEET DRAWER "MENU LAIN" (< md / Khusus HP)                     */}
       {/* ========================================================================= */}
       {drawerOpen && (
         <div 
-          className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+          className="md:hidden fixed inset-0 z-50 flex flex-col justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
           onClick={() => setDrawerOpen(false)}
         >
           <div 

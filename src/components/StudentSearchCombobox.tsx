@@ -68,7 +68,7 @@ export const StudentSearchCombobox: React.FC<Props> = ({
     if (!s) return false;
     if (statusMode === 'observasi') {
       const obs = gasService.getObservasiSiswa(s.id);
-      return Boolean(obs && (obs.rekomendasi || obs.skorTotal > 0));
+      return Boolean(obs && (obs.rekomendasi || (obs.totalSkor && obs.totalSkor > 0) || ((obs as any).skorTotal && (obs as any).skorTotal > 0)));
     }
     return Boolean(s.existingPdf || gasService.getHasilWawancaraOrtu(s.id));
   };

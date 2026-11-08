@@ -24,4 +24,13 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   }
 }
 
+// Pastikan orientasi layar tidak terkunci ke portrait pada Tablet / perangkat rotasi
+if (typeof window !== 'undefined' && 'screen' in window && window.screen?.orientation && 'unlock' in window.screen.orientation) {
+  try {
+    window.screen.orientation.unlock();
+  } catch {
+    // Ignore if not supported by browser context
+  }
+}
+
 createRoot(document.getElementById('root')!).render(<App />);

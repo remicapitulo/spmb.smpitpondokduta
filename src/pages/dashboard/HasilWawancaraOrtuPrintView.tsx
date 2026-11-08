@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { HasilObservasiOrtuData, getAcademicYear } from '../../types';
 import { gasService } from '../../services/gasService';
 import { SignaturePad } from '../../components/SignaturePad';
-import { Download, X, FileText, CheckCircle2, PenTool, Save, Check, Smartphone, Loader2 } from 'lucide-react';
-import { downloadElementAsPdf } from '../../utils/downloadPdfDocument';
+import { Download, X, FileText, CheckCircle2, PenTool, Save, Check, Smartphone, Loader2, Lock } from 'lucide-react';
+import { downloadElementAsPdf, generateElementPdfBase64 } from '../../utils/downloadPdfDocument';
 import { LOGO_PONDOK_DUTA_BASE64 } from '../../assets/logoBase64';
 
 interface Props {
   data: HasilObservasiOrtuData;
   onClose: () => void;
-  onConfirmSave?: (ttdOrtu: string, ttdPewawancara: string) => void;
+  onConfirmSave?: (ttdOrtu: string, ttdPewawancara: string, pdfBase64?: string, imgBase64?: string) => void;
   isPreSaveReview?: boolean;
   signingRole?: 'pewawancara' | 'ortu';
   hideDownload?: boolean;
@@ -23,11 +23,30 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
   signingRole = 'pewawancara',
   hideDownload = false
 }) => {
-  const [ttdOrtu, setTtdOrtu] = useState<string>(data.ttdOrtuBase64 || '');
+  const isOrtuRole = signingRole === 'ortu' || hideDownload;
+  const hasGenuineOrtuSignature = Boolean(
+    data.ttdOrtuBase64 &&
+    data.ttdOrtuBase64.startsWith('data:image/') &&
+    data.ttdOrtuBase64.length >= 300 &&
+    data.isTtdOrtuSigned !== false
+  );
+  const [ttdOrtu, setTtdOrtu] = useState<string>(hasGenuineOrtuSignature ? (data.ttdOrtuBase64 || '') : '');
   const [ttdPewawancara, setTtdPewawancara] = useState<string>(data.ttdPewawancaraBase64 || '');
   const [logoBase64, setLogoBase64] = useState<string>(LOGO_PONDOK_DUTA_BASE64);
   const [downloadFeedback, setDownloadFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const tahunPelajaran = getAcademicYear();
+
+  // Sinkronkan tanda tangan apabila data siswa yang dibuka berubah
+  React.useEffect(() => {
+    const validOrtu = Boolean(
+      data.ttdOrtuBase64 &&
+      data.ttdOrtuBase64.startsWith('data:image/') &&
+      data.ttdOrtuBase64.length >= 300 &&
+      data.isTtdOrtuSigned !== false
+    );
+    setTtdOrtu(validOrtu ? (data.ttdOrtuBase64 || '') : '');
+    setTtdPewawancara(data.ttdPewawancaraBase64 || '');
+  }, [data.idSiswa, data.noPendaftaran, data.ttdOrtuBase64, data.ttdPewawancaraBase64, data.isTtdOrtuSigned]);
 
   // Preload logo kustom dari pengaturan jika ada, fallback ke logo lokal resmi Base64 (100% aman CORS)
   React.useEffect(() => {
@@ -74,14 +93,15 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
       }
 
       const safeName = (data.namaSiswa || 'Murid').replace(/\s+/g, '_');
-      const safeId = (data.idSiswa || 'PD').replace(/\s+/g, '_');
+      const safeId = (data.noPendaftaran || data.idSiswa || 'PD').replace(/\s+/g, '_');
       const fileName = `Hasil_Wawancara_OTM_${safeId}_${safeName}.pdf`;
+      const studentIdentityFooter = `${data.namaSiswa || '-'} (${data.noPendaftaran || data.idSiswa || '-'})`;
 
       await downloadElementAsPdf({
         element: docElement,
         fileName,
-        pdfTitle: `Hasil Wawancara OTM - ${data.namaSiswa}`,
-        footerText: `Hasil Wawancara Orang Tua Murid SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · Sah terverifikasi digital.`,
+        pdfTitle: `Hasil Wawancara OTM - ${data.namaSiswa} (${data.noPendaftaran || data.idSiswa || '-'})`,
+        footerText: `Hasil Wawancara OTM SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · ${studentIdentityFooter} · Sah terverifikasi digital.`,
         margin: 10
       });
 
@@ -110,13 +130,42 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const handleSaveWithSignature = () => {
-    if (onConfirmSave) {
+  const [isSavingFinal, setIsSavingFinal] = useState<boolean>(false);
+
+  const handleSaveWithSignature = async () => {
+    if (!onConfirmSave || isSavingFinal) return;
+    if (isOrtuRole) {
       onConfirmSave(ttdOrtu, ttdPewawancara);
+      return;
+    }
+
+    setIsSavingFinal(true);
+    try {
+      let pdfBase64 = '';
+      let imgBase64 = '';
+      if (docRef.current) {
+        try {
+          const safeName = (data.namaSiswa || 'Murid').replace(/\s+/g, '_');
+          const safeId = (data.noPendaftaran || data.idSiswa || 'PD').replace(/\s+/g, '_');
+          const studentIdentityFooter = `${data.namaSiswa || '-'} (${data.noPendaftaran || data.idSiswa || '-'})`;
+          const generated = await generateElementPdfBase64({
+            element: docRef.current,
+            fileName: `Hasil_Wawancara_OTM_${safeId}_${safeName}.pdf`,
+            pdfTitle: `Hasil Wawancara OTM - ${data.namaSiswa} (${data.noPendaftaran || data.idSiswa || '-'})`,
+            footerText: `Hasil Wawancara OTM SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · ${studentIdentityFooter} · Sah terverifikasi digital.`,
+            margin: 10
+          });
+          pdfBase64 = generated.pdfBase64;
+          imgBase64 = generated.imgBase64;
+        } catch (genErr) {
+          console.warn('Gagal membuat PDF pratinjau untuk arsip Drive:', genErr);
+        }
+      }
+      await onConfirmSave(ttdOrtu, ttdPewawancara, pdfBase64, imgBase64);
+    } finally {
+      setIsSavingFinal(false);
     }
   };
-
-  const isOrtuRole = signingRole === 'ortu' || hideDownload;
 
   return (
     <div 
@@ -193,7 +242,7 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                   SMPIT PONDOK DUTA
                 </div>
                 <p className="text-[10px] text-slate-600 font-medium">
-                  <span className="font-bold text-emerald-800">Terakreditasi "A" (BAN-PDM)</span> | NPSN: 20276180 | NSS: 202026601007
+                  <span className="font-bold text-emerald-800">Terakreditasi "A" (BAN-PDM)</span> | NPSN: 20276180
                 </p>
                 <p className="text-[9.5px] text-slate-500 leading-snug">
                   Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451
@@ -484,8 +533,15 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
 
             {/* Tampilan Tanda Tangan Resmi di Lembar Dokumen (Hanya Tampil di Pratinjau Pewawancara / Cetak PDF, Ditutup di Akun Siswa/Ortu) */}
             {!isOrtuRole && (
-              <div className="pt-8 grid grid-cols-2 gap-4 sm:gap-8 text-center text-xs">
-                <div className="flex flex-col items-center justify-between min-h-[145px]">
+              <div
+                data-pdf-keep-together="true"
+                className="pdf-signature-block pt-6 grid grid-cols-2 gap-4 sm:gap-8 text-center text-xs break-inside-avoid"
+                style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}
+              >
+                <div className="flex flex-col items-center justify-between min-h-[140px]">
+                  <div className="text-[11px] font-medium text-slate-600 mb-1">
+                    Mengetahui &amp; Menyetujui,
+                  </div>
                   <div className="h-20 w-full flex items-center justify-center">
                     {ttdOrtu ? (
                       <img 
@@ -507,7 +563,10 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
                   </div>
                 </div>
 
-                <div className="flex flex-col items-center justify-between min-h-[145px]">
+                <div className="flex flex-col items-center justify-between min-h-[140px]">
+                  <div className="text-[11px] font-medium text-slate-600 mb-1">
+                    Depok, {data.tanggalWawancara || '-'}
+                  </div>
                   <div className="h-20 w-full flex items-center justify-center">
                     {ttdPewawancara ? (
                       <img 
@@ -534,27 +593,45 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
 
           {/* AREA TANDA TANGAN ELEKTRONIK: Di Akun Murid/Ortu CUKUP GORESAN TANDATANGAN ORANG TUA SAJA */}
           {isOrtuRole ? (
-            <div className="no-print max-w-3xl mx-auto bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3">
-              <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100">
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
-                  <PenTool className="w-4 h-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs sm:text-sm font-bold text-slate-900">
-                    Tanda Tangan Orang Tua / Wali Murid
-                  </h4>
-                  <p className="text-[11px] text-slate-500 leading-snug">
-                    Sentuh dan bubuhkan tanda tangan Ayah/Bunda langsung menggunakan jari atau stylus di layar HP
-                  </p>
+            data.status === 'selesai' || !onConfirmSave ? (
+              <div className="no-print max-w-3xl mx-auto bg-amber-50/90 rounded-2xl p-4 sm:p-5 border border-amber-300 shadow-sm space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs sm:text-sm font-bold text-amber-950">
+                      Lembar Hasil Wawancara Telah Disahkan &amp; Dikunci Permanen
+                    </h4>
+                    <p className="text-[11px] text-amber-800 leading-snug">
+                      Pewawancara telah menekan tombol &ldquo;Sahkan &amp; Simpan Hasil&rdquo;. Seluruh isian dan tanda tangan pada dokumen ini telah dikunci permanen dan hanya dapat dilihat.
+                    </p>
+                  </div>
                 </div>
               </div>
-              <SignaturePad
-                label=""
-                value={ttdOrtu}
-                onChange={(val) => setTtdOrtu(val)}
-                height={160}
-              />
-            </div>
+            ) : (
+              <div className="no-print max-w-3xl mx-auto bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm space-y-3">
+                <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-100">
+                  <div className="p-2 rounded-xl bg-emerald-50 text-emerald-700 shrink-0">
+                    <PenTool className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                      Tanda Tangan Orang Tua / Wali Murid
+                    </h4>
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      Sentuh dan bubuhkan tanda tangan Ayah/Bunda langsung menggunakan jari atau stylus di layar HP
+                    </p>
+                  </div>
+                </div>
+                <SignaturePad
+                  label=""
+                  value={ttdOrtu}
+                  onChange={(val) => setTtdOrtu(val)}
+                  height={160}
+                />
+              </div>
+            )
           ) : (
             /* JIKA DIAKSES OLEH PEWAWANCARA: BISA TANDATANGAN KEDUANYA ATAU MELIHAT TTD ORTU DARI HP */
             <div className="no-print max-w-3xl mx-auto rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-sm space-y-4">
@@ -632,15 +709,24 @@ export const HasilWawancaraOrtuPrintView: React.FC<Props> = ({
             {onConfirmSave && (
               <button
                 onClick={handleSaveWithSignature}
-                disabled={isOrtuRole && !ttdOrtu}
+                disabled={(isOrtuRole && !ttdOrtu) || isSavingFinal}
                 className="flex-1 sm:flex-initial px-4 sm:px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md cursor-pointer active:scale-95"
               >
-                <Save className="w-4 h-4 shrink-0" />
-                <span className="truncate">
-                  {isOrtuRole 
-                    ? 'Setujui & Simpan TTD' 
-                    : 'Sahkan & Simpan Hasil'}
-                </span>
+                {isSavingFinal ? (
+                  <>
+                    <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                    <span className="truncate">Menyimpan &amp; Mengarsipkan PDF...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 shrink-0" />
+                    <span className="truncate">
+                      {isOrtuRole 
+                        ? 'Setujui & Simpan TTD' 
+                        : 'Sahkan & Simpan Hasil'}
+                    </span>
+                  </>
+                )}
               </button>
             )}
 

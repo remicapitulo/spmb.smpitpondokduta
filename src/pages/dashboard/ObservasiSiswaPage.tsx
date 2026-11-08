@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { gasService } from '../../services/gasService';
 import { ObservasiSiswaData, PembiayaanCategory } from '../../types';
 import { DAFTAR_PEWAWANCARA_LIST } from '../../services/questionsConfig';
@@ -37,6 +37,7 @@ interface Props {
 export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
   const [students, setStudents] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const selectedStudentIdRef = useRef<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
@@ -124,7 +125,7 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
   };
 
   const loadStudentList = async (targetId?: string) => {
-    setLoading(true);
+    setLoading(prev => students.length === 0);
     const list = await gasService.getStudentList();
     const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
     setDbGuruNames(gurus);
@@ -133,13 +134,15 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
     }
     setStudents(list);
 
-    const activeId = targetId || selectedStudentId || (list[0] ? list[0].id : '');
+    const activeId = targetId || selectedStudentIdRef.current || selectedStudentId || (list[0] ? list[0].id : '');
+    selectedStudentIdRef.current = activeId;
     setSelectedStudentId(activeId);
     loadExistingObservasiSiswa(activeId);
     setLoading(false);
   };
 
   const handleSelectStudent = (id: string) => {
+    selectedStudentIdRef.current = id;
     setSelectedStudentId(id);
     loadExistingObservasiSiswa(id);
   };
@@ -286,10 +289,15 @@ export const ObservasiSiswaPage: React.FC<Props> = ({ onOpenGasConfig }) => {
       createdAt: new Date().toISOString()
     };
 
+    const savedId = currentStudent.id;
+    selectedStudentIdRef.current = savedId;
+    setSelectedStudentId(savedId);
+
     const res = await gasService.saveObservasiSiswa(dataPayload);
     setSaving(false);
     setSavedSiswaResult(res.data);
-    setSaveSuccessMsg(`Hasil observasi siswa ${currentStudent.nama} (${currentStudent.id}) beserta rincian pembiayaan berhasil disimpan!`);
+    await loadStudentList(savedId);
+    setSaveSuccessMsg(`Hasil observasi siswa ${currentStudent.nama} (${savedId}) beserta rincian pembiayaan berhasil disimpan!`);
     setTimeout(() => setSaveSuccessMsg(''), 4000);
   };
 

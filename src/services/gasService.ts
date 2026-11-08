@@ -779,6 +779,152 @@ async function postToGas(gasUrl: string, payload: Record<string, any>): Promise<
   }
 }
 
+function unwrapHasilOrtuRecord(rawObj: any, fallbackKey?: string): HasilObservasiOrtuData | null {
+  if (!rawObj || typeof rawObj !== 'object') return null;
+  let inner: any = rawObj;
+  if (rawObj.data && typeof rawObj.data === 'object' && (rawObj.data.idSiswa || rawObj.data.noPendaftaran || rawObj.data.jsonAnswers)) {
+    inner = rawObj.data;
+  } else if (rawObj.record && typeof rawObj.record === 'object' && (rawObj.record.idSiswa || rawObj.record.noPendaftaran || rawObj.record.jsonAnswers)) {
+    inner = rawObj.record;
+  }
+
+  const rawInnerId = String(inner.id || '');
+  const rawInnerIdSiswa = String(inner.idSiswa || '');
+  const resolvedId = String(
+    inner.noPendaftaran ||
+    (!rawInnerIdSiswa.startsWith('USR-') ? rawInnerIdSiswa : '') ||
+    rawObj.noPendaftaran ||
+    fallbackKey ||
+    rawInnerIdSiswa ||
+    ''
+  ).trim();
+  if (!resolvedId) return null;
+
+  let parsedAnswers: any[] = [];
+  if (Array.isArray(inner.jsonAnswers)) {
+    parsedAnswers = inner.jsonAnswers;
+  } else if (typeof inner.jsonAnswers === 'string' && inner.jsonAnswers.trim()) {
+    try {
+      const p = JSON.parse(inner.jsonAnswers);
+      if (Array.isArray(p)) parsedAnswers = p;
+    } catch {}
+  }
+
+  // Deteksi apakah baris berasal dari data dummy lama (HO-179246959100... / USR-00...)
+  const isLegacySeedRecord =
+    rawInnerId.startsWith('HO-179246959100') ||
+    rawInnerId.startsWith('HO-1792309000') ||
+    rawInnerIdSiswa.startsWith('USR-');
+  const rawStatus = String(inner.status || '').trim();
+  const rawTtdOrtu = String(inner.ttdOrtuBase64 || '').trim();
+  const rawTtdPewawancara = String(inner.ttdPewawancaraBase64 || '').trim();
+  // Cegah tanda tangan PD27-8PMR29 (panjang 10954 karakter) terbawa ke cache lokal PD27-26G4RC
+  const isMismatchedRakaSigOnKayyisha =
+    resolvedId.toUpperCase() === 'PD27-26G4RC' && rawTtdOrtu.length === 10954;
+  // Tanda tangan asli dari kanvas selalu berupa PNG data URL berukuran >= 300 karakter (sedangkan piksel dummy 1x1 hanya ~118 karakter)
+  const hasValidTtdImage =
+    !isMismatchedRakaSigOnKayyisha &&
+    rawTtdOrtu.startsWith('data:image/') &&
+    rawTtdOrtu.length >= 300 &&
+    inner.isTtdOrtuSigned !== false;
+
+  const cleanTtdOrtu = (!isLegacySeedRecord && hasValidTtdImage) ? rawTtdOrtu : '';
+  const cleanTtdPewawancara = (isLegacySeedRecord || (resolvedId.toUpperCase() === 'PD27-26G4RC' && rawTtdPewawancara.length === 10954))
+    ? ''
+    : rawTtdPewawancara;
+  const hasTtd = Boolean(!isLegacySeedRecord && cleanTtdOrtu);
+
+  let finalStatus: 'draft' | 'menunggu_ttd_ortu' | 'ttd_ortu_tersimpan' | 'selesai' = 'draft';
+  if (rawStatus === 'selesai') {
+    finalStatus = 'selesai';
+  } else if (hasTtd) {
+    finalStatus = 'ttd_ortu_tersimpan';
+  } else {
+    finalStatus = 'draft';
+  }
+
+  let resolvedTanggal = inner.tanggalWawancara || '';
+  if (!resolvedTanggal && (inner.createdAt || inner.updatedAt)) {
+    const d = new Date(inner.createdAt || inner.updatedAt);
+    if (!isNaN(d.getTime())) {
+      resolvedTanggal = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+  }
+
+  return {
+    ...inner,
+    id: inner.id || ('HO-' + Date.now()),
+    idSiswa: resolvedId,
+    noPendaftaran: resolvedId,
+    namaSiswa: inner.namaSiswa || '',
+    namaPanggilan: inner.namaPanggilan || '',
+    sekolahAsal: inner.sekolahAsal || '',
+    namaAyah: inner.namaAyah || '',
+    namaIbu: inner.namaIbu || '',
+    namaPewawancara: inner.namaPewawancara || '-',
+    tanggalWawancara: resolvedTanggal,
+    jsonAnswers: parsedAnswers,
+    catatanKhusus: inner.catatanKhusus || '-',
+    ttdOrtuBase64: cleanTtdOrtu,
+    ttdPewawancaraBase64: cleanTtdPewawancara,
+    status: finalStatus,
+    isTtdOrtuSigned: hasTtd,
+    signedFromHpAt: hasTtd ? (inner.signedFromHpAt || inner.updatedAt || inner.createdAt) : undefined
+  };
+}
+
+async function fetchHasilWawancaraDirectGviz(sheetId: string): Promise<Record<string, HasilObservasiOrtuData>> {
+  const result: Record<string, HasilObservasiOrtuData> = {};
+  if (!sheetId || typeof navigator === 'undefined' || !navigator.onLine) return result;
+  try {
+    const gvizUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=Hasil_Wawancara&_t=${Date.now()}`;
+    const res = await fetch(gvizUrl, { method: 'GET', mode: 'cors' });
+    const text = await res.text();
+    if (!text.includes('google.visualization.Query.setResponse')) return result;
+    const jsonStart = text.indexOf('{');
+    const jsonEnd = text.lastIndexOf('}');
+    if (jsonStart === -1 || jsonEnd === -1) return result;
+    const parsed = JSON.parse(text.substring(jsonStart, jsonEnd + 1));
+    const rows = parsed?.table?.rows || [];
+    for (const r of rows) {
+      const cells = r?.c || [];
+      const colA = cells[0]?.f ? String(cells[0].f).trim() : (cells[0]?.v ? String(cells[0].v).trim() : '');
+      const colB = cells[1]?.v ? String(cells[1].v).trim() : '';
+      const colF = cells[5]?.v ? String(cells[5].v).trim() : '';
+      const colG = cells[6]?.v ? String(cells[6].v).trim() : '';
+      const colH = cells[7]?.v ? String(cells[7].v).trim() : '';
+      const colI = cells[8]?.v ? String(cells[8].v).trim().toUpperCase() : '';
+      const colJ = cells[9]?.v ? String(cells[9].v).trim() : '';
+      if (!colJ || !colJ.includes('{')) continue;
+      try {
+        const rawJson = JSON.parse(colJ);
+        const unwrapped = unwrapHasilOrtuRecord(rawJson, colB);
+        if (unwrapped && unwrapped.noPendaftaran) {
+          if (colF && (!unwrapped.namaPewawancara || unwrapped.namaPewawancara === '-')) {
+            unwrapped.namaPewawancara = colF;
+          }
+          if (colA && !unwrapped.tanggalWawancara) {
+            unwrapped.tanggalWawancara = colA.split(' ')[0] || colA;
+          }
+          if (colG && !unwrapped.pdfUrl) {
+            unwrapped.pdfUrl = colG;
+          }
+          if (colH.toLowerCase() === 'selesai') {
+            unwrapped.status = 'selesai';
+          } else if (!unwrapped.isTtdOrtuSigned && !unwrapped.ttdOrtuBase64 && (colI === 'BELUM' || colH === 'draft_menunggu_ttd_ortu')) {
+            unwrapped.ttdOrtuBase64 = '';
+            unwrapped.isTtdOrtuSigned = false;
+            unwrapped.signedFromHpAt = undefined;
+            unwrapped.status = 'draft';
+          }
+          result[unwrapped.noPendaftaran] = unwrapped;
+        }
+      } catch {}
+    }
+  } catch {}
+  return result;
+}
+
 export const gasService = {
   getSpreadsheetId(): string {
     return localStorage.getItem(SPREADSHEET_ID_KEY) || DEFAULT_SPREADSHEET_ID;
@@ -1542,7 +1688,113 @@ export const gasService = {
             localStorage.setItem(LOCAL_DATA_INDUK_KEY, JSON.stringify(cleanIndukList));
           }
           localStorage.setItem(LOCAL_OTM_RAW_KEY, JSON.stringify(db.otmMap && typeof db.otmMap === 'object' ? db.otmMap : {}));
-          localStorage.setItem(LOCAL_HASIL_ORTU_KEY, JSON.stringify(db.hasilOrtuMap && typeof db.hasilOrtuMap === 'object' ? db.hasilOrtuMap : {}));
+
+          // Normalisasi & gabungkan hasilOrtuMap (termasuk memulihkan baris yang terbungkus data/record atau memiliki kolom B kosong di Sheet Hasil_Wawancara)
+          const prevRawHasil = localStorage.getItem(LOCAL_HASIL_ORTU_KEY);
+          const prevHasilMap: Record<string, HasilObservasiOrtuData> = prevRawHasil ? JSON.parse(prevRawHasil) : {};
+          const mergedHasilOrtuMap: Record<string, HasilObservasiOrtuData> = {};
+
+          // 1. Masukkan data lokal yang sudah ada terlebih dahulu (dinormalisasi)
+          Object.keys(prevHasilMap).forEach((k) => {
+            const unwrapped = unwrapHasilOrtuRecord(prevHasilMap[k], k);
+            if (unwrapped && unwrapped.noPendaftaran) {
+              mergedHasilOrtuMap[unwrapped.noPendaftaran] = unwrapped;
+            }
+          });
+
+          // 2. Gabungkan dari db.hasilOrtuMap (GAS getAllData)
+          if (db.hasilOrtuMap && typeof db.hasilOrtuMap === 'object') {
+            Object.keys(db.hasilOrtuMap).forEach((k) => {
+              const unwrapped = unwrapHasilOrtuRecord(db.hasilOrtuMap[k], k);
+              if (unwrapped && unwrapped.noPendaftaran) {
+                const existingKey = Object.keys(mergedHasilOrtuMap).find(
+                  ek => ek.trim().toUpperCase() === unwrapped.noPendaftaran.trim().toUpperCase()
+                ) || unwrapped.noPendaftaran;
+                const localItem = mergedHasilOrtuMap[existingKey];
+                if (localItem) {
+                  // Hanya pertahankan TTD lokal jika tanda tangan lokal di HP dibuat LEBIH BARU dari waktu update draft remote
+                  const localSignTime = localItem.signedFromHpAt ? new Date(localItem.signedFromHpAt).getTime() : 0;
+                  const remoteUpdateTime = unwrapped.updatedAt ? new Date(unwrapped.updatedAt).getTime() : 0;
+                  const keepLocalSignature = Boolean(
+                    localItem.isTtdOrtuSigned &&
+                    localItem.ttdOrtuBase64 &&
+                    localSignTime > 0 &&
+                    (remoteUpdateTime === 0 || localSignTime > remoteUpdateTime)
+                  );
+                  const finalTtdOrtu = unwrapped.ttdOrtuBase64 || (keepLocalSignature ? localItem.ttdOrtuBase64 : '') || '';
+                  const finalSigned = Boolean(unwrapped.isTtdOrtuSigned || (keepLocalSignature && finalTtdOrtu));
+                  const preservedPewawancara =
+                    (localItem.namaPewawancara && localItem.namaPewawancara.trim() !== '-')
+                      ? localItem.namaPewawancara.trim()
+                      : (unwrapped.namaPewawancara || '-');
+                  const preservedStatus =
+                    (localItem.status === 'selesai' || unwrapped.status === 'selesai')
+                      ? 'selesai'
+                      : unwrapped.status;
+                  mergedHasilOrtuMap[existingKey] = {
+                    ...localItem,
+                    ...unwrapped,
+                    noPendaftaran: existingKey,
+                    idSiswa: existingKey,
+                    namaPewawancara: preservedPewawancara,
+                    status: preservedStatus,
+                    ttdOrtuBase64: finalTtdOrtu,
+                    isTtdOrtuSigned: finalSigned,
+                    signedFromHpAt: finalSigned ? (unwrapped.signedFromHpAt || localItem.signedFromHpAt) : undefined
+                  };
+                } else {
+                  mergedHasilOrtuMap[existingKey] = unwrapped;
+                }
+              }
+            });
+          }
+
+          // 3. Fallback tambahan via GVIZ langsung ke Sheet Hasil_Wawancara untuk menangkap baris draft terbaru
+          try {
+            const gvizHasilMap = await fetchHasilWawancaraDirectGviz(this.getSpreadsheetId());
+            Object.keys(gvizHasilMap).forEach((k) => {
+              const item = gvizHasilMap[k];
+              const existingKey = Object.keys(mergedHasilOrtuMap).find(
+                ek => ek.trim().toUpperCase() === k.trim().toUpperCase()
+              ) || k;
+              const prevItem = mergedHasilOrtuMap[existingKey];
+              if (!prevItem) {
+                mergedHasilOrtuMap[existingKey] = item;
+              } else {
+                const localSignTime = prevItem.signedFromHpAt ? new Date(prevItem.signedFromHpAt).getTime() : 0;
+                const gvizUpdateTime = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+                const keepLocalSignature = Boolean(
+                  prevItem.isTtdOrtuSigned &&
+                  prevItem.ttdOrtuBase64 &&
+                  localSignTime > 0 &&
+                  (gvizUpdateTime === 0 || localSignTime > gvizUpdateTime)
+                );
+                const finalTtdOrtu = item.ttdOrtuBase64 || (keepLocalSignature ? prevItem.ttdOrtuBase64 : '') || '';
+                const finalSigned = Boolean(item.isTtdOrtuSigned || (keepLocalSignature && finalTtdOrtu));
+                const preservedPewawancara =
+                  (prevItem.namaPewawancara && prevItem.namaPewawancara.trim() !== '-')
+                    ? prevItem.namaPewawancara.trim()
+                    : (item.namaPewawancara || '-');
+                const preservedStatus =
+                  (prevItem.status === 'selesai' || item.status === 'selesai')
+                    ? 'selesai'
+                    : item.status;
+                mergedHasilOrtuMap[existingKey] = {
+                  ...prevItem,
+                  ...item,
+                  noPendaftaran: existingKey,
+                  idSiswa: existingKey,
+                  namaPewawancara: preservedPewawancara,
+                  status: preservedStatus,
+                  ttdOrtuBase64: finalTtdOrtu,
+                  isTtdOrtuSigned: finalSigned,
+                  signedFromHpAt: finalSigned ? (item.signedFromHpAt || prevItem.signedFromHpAt) : undefined
+                };
+              }
+            });
+          } catch {}
+
+          localStorage.setItem(LOCAL_HASIL_ORTU_KEY, JSON.stringify(mergedHasilOrtuMap));
           localStorage.setItem(LOCAL_OBS_SISWA_KEY, JSON.stringify(Array.isArray(db.observasiList) ? db.observasiList : []));
           if (Array.isArray(db.wawancaraSiswaList)) {
             const filteredWs = db.wawancaraSiswaList.filter(
@@ -1717,7 +1969,7 @@ export const gasService = {
     const otmMap = rawOtm ? JSON.parse(rawOtm) : {};
 
     return currentList.map((s, idx) => {
-      const hasil = hasilMap[s.noPendaftaran];
+      const hasil = this.getHasilWawancaraOrtu(s.noPendaftaran);
       const hasSignature = Boolean(hasil?.isTtdOrtuSigned || hasil?.ttdOrtuBase64);
       return {
         rowIndex: idx + 2,
@@ -1742,19 +1994,47 @@ export const gasService = {
     if (!noPendaftaran) return {};
     const raw = localStorage.getItem(LOCAL_OTM_RAW_KEY);
     const map = raw ? JSON.parse(raw) : {};
-    return map[noPendaftaran] || {};
+    if (map[noPendaftaran]) return map[noPendaftaran];
+    const targetUpper = noPendaftaran.trim().toUpperCase();
+    const matchKey = Object.keys(map).find(k => k.trim().toUpperCase() === targetUpper);
+    return matchKey ? map[matchKey] : {};
   },
 
-  // Mengambil hasil observasi ortu jika sudah pernah diwawancara / draft
+  // Mengambil hasil observasi ortu jika sudah pernah diwawancara / draft (case-insensitive & otomatis mengurai wrapper data/record)
   getHasilWawancaraOrtu(noPendaftaran: string): HasilObservasiOrtuData | null {
     if (!noPendaftaran) return null;
     const raw = localStorage.getItem(LOCAL_HASIL_ORTU_KEY);
-    const map: { [noPend: string]: HasilObservasiOrtuData } = raw ? JSON.parse(raw) : {};
-    return map[noPendaftaran] || null;
+    if (!raw) return null;
+    try {
+      const map: { [noPend: string]: any } = JSON.parse(raw);
+      const cleanTarget = noPendaftaran.trim().toUpperCase();
+
+      if (map[noPendaftaran]) {
+        return unwrapHasilOrtuRecord(map[noPendaftaran], noPendaftaran);
+      }
+
+      const matchingKey = Object.keys(map).find(k => k.trim().toUpperCase() === cleanTarget);
+      if (matchingKey) {
+        return unwrapHasilOrtuRecord(map[matchingKey], matchingKey);
+      }
+
+      // Fallback: cari di dalam objek jika tersimpan dengan key lain
+      for (const k of Object.keys(map)) {
+        const unwrapped = unwrapHasilOrtuRecord(map[k], k);
+        if (
+          unwrapped &&
+          (unwrapped.noPendaftaran.trim().toUpperCase() === cleanTarget ||
+            unwrapped.idSiswa.trim().toUpperCase() === cleanTarget)
+        ) {
+          return unwrapped;
+        }
+      }
+    } catch {}
+    return null;
   },
 
   // Simpan Draft Hasil Wawancara OTM (Bisa diakses dan ditandatangani ortu langsung di HP mereka)
-  saveDraftWawancaraOrtu(formObject: {
+  async saveDraftWawancaraOrtu(formObject: {
     idSiswa: string;
     namaSiswa: string;
     sekolahAsal: string;
@@ -1766,70 +2046,133 @@ export const gasService = {
     catatanKhusus?: string;
     ttdOrtuBase64?: string;
     ttdPewawancaraBase64?: string;
-  }): { success: boolean; data: HasilObservasiOrtuData; message: string } {
+  }): Promise<{ success: boolean; data: HasilObservasiOrtuData; message: string }> {
     const rawHasil = localStorage.getItem(LOCAL_HASIL_ORTU_KEY);
     const map: { [noPend: string]: HasilObservasiOrtuData } = rawHasil ? JSON.parse(rawHasil) : {};
 
-    const existing = map[formObject.idSiswa];
+    const cleanId = String(formObject.idSiswa || '').trim();
+    const existing = this.getHasilWawancaraOrtu(cleanId);
     const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-    const hasTtdOrtu = Boolean(formObject.ttdOrtuBase64 || existing?.ttdOrtuBase64);
+    const nowIso = new Date().toISOString();
+
+    // ATURAN 1: Jika draft/wawancara sudah pernah disimpan, nama pewawancara awal melekat selamanya
+    // dan seluruh isi wawancara dikunci kecuali bagian Catatan Khusus!
+    const existingPewawancara = (existing?.namaPewawancara && existing.namaPewawancara.trim() !== '-')
+      ? existing.namaPewawancara.trim()
+      : '';
+    const lockedPewawancara = existingPewawancara || String(formObject.namaPewawancara || '').trim() || '-';
+
+    const latestCatatan = formObject.catatanKhusus !== undefined
+      ? formObject.catatanKhusus
+      : (formObject.jsonAnswers?.find((it: any) => it.question && String(it.question).toUpperCase().includes('CATATAN KHUSUS'))?.newAnswer || existing?.catatanKhusus || '-');
+
+    const lockedAnswers = (existing && Array.isArray(existing.jsonAnswers) && existing.jsonAnswers.length > 0)
+      ? existing.jsonAnswers.map((item: any) => {
+          if (item.question && String(item.question).toUpperCase().includes('CATATAN KHUSUS')) {
+            return {
+              ...item,
+              newAnswer: latestCatatan && latestCatatan !== '-' ? latestCatatan : (item.newAnswer || '')
+            };
+          }
+          return item;
+        })
+      : formObject.jsonAnswers;
+
+    // Jika orang tua sudah tanda tangan asli dari HP sebelumnya, pertahankan tanda tangan tersebut saat pewawancara mengupdate Catatan
+    const existingGenuineTtd = Boolean(
+      existing?.ttdOrtuBase64 &&
+      existing.ttdOrtuBase64.startsWith('data:image/') &&
+      existing.ttdOrtuBase64.length >= 300 &&
+      existing.isTtdOrtuSigned !== false
+    );
+    const explicitTtd = String(formObject.ttdOrtuBase64 || '').trim() || (existingGenuineTtd ? (existing?.ttdOrtuBase64 || '') : '');
+    const hasTtdOrtu = Boolean(explicitTtd);
+    const resolvedStatus: 'draft' | 'ttd_ortu_tersimpan' | 'selesai' =
+      existing?.status === 'selesai'
+        ? 'selesai'
+        : (hasTtdOrtu ? 'ttd_ortu_tersimpan' : 'draft');
 
     const draftData: HasilObservasiOrtuData = {
       id: existing?.id || ('HO-DRAFT-' + Date.now()),
-      idSiswa: formObject.idSiswa,
-      noPendaftaran: formObject.idSiswa,
-      namaSiswa: formObject.namaSiswa,
-      namaPanggilan: formObject.namaPanggilan,
-      sekolahAsal: formObject.sekolahAsal,
-      namaAyah: formObject.namaAyah,
-      namaIbu: formObject.namaIbu,
-      namaPewawancara: formObject.namaPewawancara,
+      idSiswa: cleanId,
+      noPendaftaran: cleanId,
+      namaSiswa: formObject.namaSiswa || existing?.namaSiswa || '',
+      namaPanggilan: formObject.namaPanggilan || existing?.namaPanggilan || '',
+      sekolahAsal: formObject.sekolahAsal || existing?.sekolahAsal || '',
+      namaAyah: formObject.namaAyah || existing?.namaAyah || '',
+      namaIbu: formObject.namaIbu || existing?.namaIbu || '',
+      namaPewawancara: lockedPewawancara,
       tanggalWawancara: existing?.tanggalWawancara || dateStr,
-      jsonAnswers: formObject.jsonAnswers,
-      catatanKhusus: formObject.catatanKhusus || existing?.catatanKhusus || '-',
-      ttdOrtuBase64: formObject.ttdOrtuBase64 || existing?.ttdOrtuBase64 || '',
+      jsonAnswers: lockedAnswers,
+      catatanKhusus: latestCatatan || '-',
+      ttdOrtuBase64: explicitTtd,
       ttdPewawancaraBase64: formObject.ttdPewawancaraBase64 || existing?.ttdPewawancaraBase64 || '',
-      status: hasTtdOrtu ? 'menunggu_ttd_ortu' : 'draft',
+      pdfUrl: existing?.pdfUrl,
+      status: resolvedStatus,
       isTtdOrtuSigned: hasTtdOrtu,
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      signedFromHpAt: hasTtdOrtu ? (existing?.signedFromHpAt || nowIso) : undefined,
+      createdAt: existing?.createdAt || nowIso,
+      updatedAt: nowIso
     };
 
-    map[formObject.idSiswa] = draftData;
+    map[cleanId] = draftData;
     localStorage.setItem(LOCAL_HASIL_ORTU_KEY, JSON.stringify(map));
 
     const gasUrl = this.getGasUrl();
-    if (gasUrl) {
-      postToGas(gasUrl, {
+    if (gasUrl && typeof navigator !== 'undefined' && navigator.onLine) {
+      // Kirim baik di dalam properti `record` (yang dibaca oleh saveDraftOrTtdOrtu di Code.gs),
+      // `data`, maupun atribut level atas agar Kolom B (ID Siswa) s/d Kolom J di Sheet Hasil_Wawancara terisi lengkap!
+      await postToGas(gasUrl, {
         action: 'saveDraftWawancaraOrtu',
+        ...draftData,
+        record: draftData,
         data: draftData
       });
+      _lastSyncTimeMs = Date.now();
+      this.setLastSyncTime();
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('spmb_db_updated'));
     }
 
     return {
       success: true,
       data: draftData,
-      message: 'Draft wawancara berhasil disimpan. Orang tua kini dapat mereview dan menandatangani langsung di HP mereka melalui menu Wawancara Orang Tua.'
+      message: existing
+        ? 'Catatan Khusus pewawancara berhasil diperbarui. Isi wawancara awal dan nama pewawancara pertama tetap terkunci permanen.'
+        : 'Draft wawancara berhasil disimpan dan dikirim ke Cloud. Orang tua kini dapat mereview dan menandatangani langsung di HP mereka melalui menu Observasi Ortu.'
     };
   },
 
   // Simpan Tanda Tangan Orang Tua dari HP (Portal Calon Siswa / Ortu)
-  saveTtdOrtuFromHp(noPendaftaran: string, ttdOrtuBase64: string): { success: boolean; data?: HasilObservasiOrtuData; message: string } {
+  async saveTtdOrtuFromHp(noPendaftaran: string, ttdOrtuBase64: string): Promise<{ success: boolean; data?: HasilObservasiOrtuData; message: string }> {
+    const cleanNo = String(noPendaftaran || '').trim();
     const rawHasil = localStorage.getItem(LOCAL_HASIL_ORTU_KEY);
     const map: { [noPend: string]: HasilObservasiOrtuData } = rawHasil ? JSON.parse(rawHasil) : {};
 
-    if (!map[noPendaftaran]) {
-      const rawSiswa = localStorage.getItem(LOCAL_SISWA_KEY);
-      const siswaList: DataSiswa[] = rawSiswa ? JSON.parse(rawSiswa) : [];
-      const st = siswaList.find(s => s.noPendaftaran === noPendaftaran);
+    const existing = this.getHasilWawancaraOrtu(cleanNo);
+    if (existing?.status === 'selesai') {
+      return {
+        success: false,
+        data: existing,
+        message: 'Hasil wawancara orang tua telah disahkan oleh pewawancara dan dikunci permanen, sehingga tidak dapat diubah lagi.'
+      };
+    }
+
+    const nowIso = new Date().toISOString();
+    let updatedRecord: HasilObservasiOrtuData;
+
+    if (!existing) {
+      const st = this.getSiswaByNo(cleanNo);
       if (!st) {
         return { success: false, message: 'Data siswa tidak ditemukan di database.' };
       }
       const defaultPewawancara = this.getPewawancaraAccounts()[0]?.namaSiswa || '-';
-      map[noPendaftaran] = {
+      updatedRecord = {
         id: 'HO-HP-' + Date.now(),
-        idSiswa: noPendaftaran,
-        noPendaftaran: noPendaftaran,
+        idSiswa: cleanNo,
+        noPendaftaran: cleanNo,
         namaSiswa: st.namaLengkap,
         namaPanggilan: st.namaPanggilan || (st.namaLengkap ? st.namaLengkap.split(' ')[0] : ''),
         sekolahAsal: st.asalSekolah,
@@ -1840,34 +2183,47 @@ export const gasService = {
         jsonAnswers: [],
         catatanKhusus: '-',
         ttdOrtuBase64: ttdOrtuBase64,
-        status: 'menunggu_ttd_ortu',
+        status: 'ttd_ortu_tersimpan',
         isTtdOrtuSigned: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        signedFromHpAt: nowIso,
+        createdAt: nowIso,
+        updatedAt: nowIso
       };
     } else {
-      map[noPendaftaran] = {
-        ...map[noPendaftaran],
+      updatedRecord = {
+        ...existing,
+        idSiswa: cleanNo,
+        noPendaftaran: cleanNo,
         ttdOrtuBase64: ttdOrtuBase64,
         isTtdOrtuSigned: true,
-        status: 'menunggu_ttd_ortu',
-        updatedAt: new Date().toISOString()
+        signedFromHpAt: nowIso,
+        status: 'ttd_ortu_tersimpan',
+        updatedAt: nowIso
       };
     }
 
+    map[cleanNo] = updatedRecord;
     localStorage.setItem(LOCAL_HASIL_ORTU_KEY, JSON.stringify(map));
 
     const gasUrl = this.getGasUrl();
-    if (gasUrl) {
-      postToGas(gasUrl, {
+    if (gasUrl && typeof navigator !== 'undefined' && navigator.onLine) {
+      await postToGas(gasUrl, {
         action: 'saveTtdOrtuFromHp',
-        data: map[noPendaftaran]
+        ...updatedRecord,
+        record: updatedRecord,
+        data: updatedRecord
       });
+      _lastSyncTimeMs = Date.now();
+      this.setLastSyncTime();
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('spmb_db_updated'));
     }
 
     return {
       success: true,
-      data: map[noPendaftaran],
+      data: updatedRecord,
       message: 'Tanda tangan elektronik Ayah/Bunda berhasil disimpan! Lembar wawancara di akun pewawancara telah diperbarui dengan tanda tangan ini.'
     };
   },
@@ -1882,63 +2238,160 @@ export const gasService = {
     namaIbu: string;
     namaPewawancara: string;
     jsonAnswers: any[];
+    catatanKhusus?: string;
     ttdOrtuBase64?: string;
     ttdPewawancaraBase64?: string;
-  }): Promise<{ success: boolean; pdfUrl: string; message: string; data: HasilObservasiOrtuData }> {
-    const dateStr = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    pdfBase64?: string;
+    imgBase64?: string;
+  }): Promise<{ success: boolean; pdfUrl: string; fromClientPdf?: boolean; message: string; data: HasilObservasiOrtuData }> {
+    const cleanId = String(formObject.idSiswa || '').trim();
+    const existing = this.getHasilWawancaraOrtu(cleanId);
+    const dateStr = existing?.tanggalWawancara || new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
     const appSettings = this.getAppSettings();
-    let pdfUrl = appSettings.driveFolderUrl || `https://docs.google.com/spreadsheets/d/${this.getSpreadsheetId()}/edit`;
 
-    const answers = formObject.jsonAnswers;
-    const catatanItem = answers.find(item => item.question && item.question.includes("CATATAN KHUSUS"));
-    const catatanKhususText = catatanItem ? (catatanItem.newAnswer || "-") : "-";
+    // Deteksi apakah URL adalah link file langsung di Google Drive (/file/d/.../view)
+    const isDirectFileUrl = (url?: string) =>
+      Boolean(url && url.includes('drive.google.com') && !url.includes('/folders/') && !url.includes('/spreadsheets/'));
+    let pdfUrl = isDirectFileUrl(existing?.pdfUrl) ? existing!.pdfUrl! : '';
+    let fromClientPdf = false;
 
-    // Kirim ke GAS terlebih dahulu jika online agar mendapatkan URL PDF Google Drive asli
+    // ATURAN 1: Pertahankan nama pewawancara awal secara permanen dan kunci jawaban wawancara selain Catatan Khusus
+    const existingPewawancara = (existing?.namaPewawancara && existing.namaPewawancara.trim() !== '-')
+      ? existing.namaPewawancara.trim()
+      : '';
+    const lockedPewawancara = existingPewawancara || String(formObject.namaPewawancara || '').trim() || '-';
+
+    const rawAnswers = formObject.jsonAnswers || [];
+    const rawCatatanItem = rawAnswers.find(item => item.question && String(item.question).toUpperCase().includes('CATATAN KHUSUS'));
+    const catatanKhususText = formObject.catatanKhusus !== undefined && formObject.catatanKhusus.trim() !== ''
+      ? formObject.catatanKhusus
+      : (rawCatatanItem ? (rawCatatanItem.newAnswer || existing?.catatanKhusus || '-') : (existing?.catatanKhusus || '-'));
+
+    const lockedAnswers = (existing && Array.isArray(existing.jsonAnswers) && existing.jsonAnswers.length > 0)
+      ? existing.jsonAnswers.map((item: any) => {
+          if (item.question && String(item.question).toUpperCase().includes('CATATAN KHUSUS')) {
+            return {
+              ...item,
+              newAnswer: catatanKhususText && catatanKhususText !== '-' ? catatanKhususText : (item.newAnswer || '')
+            };
+          }
+          return item;
+        })
+      : rawAnswers;
+
+    const nowIso = new Date().toISOString();
+    const finalTtdOrtu = formObject.ttdOrtuBase64 || existing?.ttdOrtuBase64 || '';
+    const finalTtdPewawancara = formObject.ttdPewawancaraBase64 || existing?.ttdPewawancaraBase64 || '';
+
+    const savedData: HasilObservasiOrtuData = {
+      id: existing?.id && !existing.id.startsWith('HO-DRAFT-') ? existing.id : ('HO-' + Date.now()),
+      idSiswa: cleanId,
+      noPendaftaran: cleanId,
+      namaSiswa: formObject.namaSiswa || existing?.namaSiswa || '',
+      namaPanggilan: formObject.namaPanggilan || existing?.namaPanggilan || '',
+      sekolahAsal: formObject.sekolahAsal || existing?.sekolahAsal || '',
+      namaAyah: formObject.namaAyah || existing?.namaAyah || '',
+      namaIbu: formObject.namaIbu || existing?.namaIbu || '',
+      namaPewawancara: lockedPewawancara,
+      tanggalWawancara: dateStr,
+      jsonAnswers: lockedAnswers,
+      catatanKhusus: catatanKhususText,
+      ttdOrtuBase64: finalTtdOrtu,
+      ttdPewawancaraBase64: finalTtdPewawancara,
+      pdfUrl: pdfUrl,
+      status: 'selesai',
+      isTtdOrtuSigned: Boolean(finalTtdOrtu),
+      signedFromHpAt: finalTtdOrtu ? (existing?.signedFromHpAt || nowIso) : undefined,
+      createdAt: existing?.createdAt || nowIso,
+      updatedAt: nowIso
+    };
+
+    // Kirim ke GAS terlebih dahulu jika online agar mengunggah file PDF persis pratinjau ke Folder Google Drive dan mengunci status = 'selesai'
     const gasUrl = this.getGasUrl();
     if (gasUrl && navigator.onLine) {
+      const cleanNama = (savedData.namaSiswa || 'Siswa').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const filePrefix = `Hasil_Wawancara_OTM_${cleanId}_${cleanNama}`;
+
       const gasRes = await postToGas(gasUrl, {
         action: 'processForm',
         driveFolderUrl: appSettings.driveFolderUrl,
-        ...formObject,
-        jsonAnswers: JSON.stringify(formObject.jsonAnswers)
+        idSiswa: cleanId,
+        noPendaftaran: cleanId,
+        namaSiswa: savedData.namaSiswa,
+        namaPanggilan: savedData.namaPanggilan,
+        sekolahAsal: savedData.sekolahAsal,
+        namaAyah: savedData.namaAyah,
+        namaIbu: savedData.namaIbu,
+        namaPewawancara: lockedPewawancara,
+        catatanKhusus: catatanKhususText,
+        ttdOrtuBase64: finalTtdOrtu,
+        ttdPewawancaraBase64: finalTtdPewawancara,
+        status: 'selesai',
+        jsonAnswers: JSON.stringify(lockedAnswers),
+        pdfUrl: pdfUrl,
+        pdfBase64: formObject.pdfBase64 || ''
       });
-      if (gasRes && gasRes.pdfUrl) {
+
+      if (gasRes && isDirectFileUrl(gasRes.pdfUrl)) {
         pdfUrl = gasRes.pdfUrl;
+        savedData.pdfUrl = pdfUrl;
+        fromClientPdf = Boolean(gasRes.fromClientPdf);
+      } else if (gasRes && gasRes.fileId) {
+        pdfUrl = `https://drive.google.com/file/d/${gasRes.fileId}/view`;
+        savedData.pdfUrl = pdfUrl;
+        fromClientPdf = Boolean(gasRes.fromClientPdf);
       }
+
+      // Jika processForm belum mengembalikan link file langsung dari PDF pratinjau, unggah via uploadAssetToDrive
+      if ((!isDirectFileUrl(pdfUrl) || !fromClientPdf) && (formObject.pdfBase64 || formObject.imgBase64)) {
+        let uploadRes = formObject.pdfBase64
+          ? await postToGas(gasUrl, {
+              action: 'uploadAssetToDrive',
+              base64Data: formObject.pdfBase64,
+              filePrefix,
+              driveFolderUrl: appSettings.driveFolderUrl
+            })
+          : null;
+        if ((!uploadRes || !uploadRes.driveViewUrl) && formObject.imgBase64) {
+          uploadRes = await postToGas(gasUrl, {
+            action: 'uploadAssetToDrive',
+            base64Data: formObject.imgBase64,
+            filePrefix,
+            driveFolderUrl: appSettings.driveFolderUrl
+          });
+        }
+        if (uploadRes && isDirectFileUrl(uploadRes.driveViewUrl)) {
+          pdfUrl = uploadRes.driveViewUrl;
+          savedData.pdfUrl = pdfUrl;
+          fromClientPdf = true;
+        }
+      }
+
+      // Sinkronkan baris di Sheet Hasil_Wawancara via syncAllToSheet (mempertahankan status = 'selesai' dan menulis link file PDF di Kolom G & J)
+      await postToGas(gasUrl, {
+        action: 'syncAllToSheet',
+        hasilOrtuMap: {
+          [cleanId]: savedData
+        }
+      });
+      _lastSyncTimeMs = Date.now();
       this.setLastSyncTime();
     }
 
-    const savedData: HasilObservasiOrtuData = {
-      id: 'HO-' + Date.now(),
-      idSiswa: formObject.idSiswa,
-      noPendaftaran: formObject.idSiswa,
-      namaSiswa: formObject.namaSiswa,
-      namaPanggilan: formObject.namaPanggilan,
-      sekolahAsal: formObject.sekolahAsal,
-      namaAyah: formObject.namaAyah,
-      namaIbu: formObject.namaIbu,
-      namaPewawancara: formObject.namaPewawancara,
-      tanggalWawancara: dateStr,
-      jsonAnswers: answers,
-      catatanKhusus: catatanKhususText,
-      ttdOrtuBase64: formObject.ttdOrtuBase64,
-      ttdPewawancaraBase64: formObject.ttdPewawancaraBase64,
-      pdfUrl: pdfUrl,
-      status: 'selesai',
-      isTtdOrtuSigned: Boolean(formObject.ttdOrtuBase64),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
     const rawHasil = localStorage.getItem(LOCAL_HASIL_ORTU_KEY);
     const map: { [noPend: string]: HasilObservasiOrtuData } = rawHasil ? JSON.parse(rawHasil) : {};
-    map[formObject.idSiswa] = savedData;
+    map[cleanId] = savedData;
     localStorage.setItem(LOCAL_HASIL_ORTU_KEY, JSON.stringify(map));
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('spmb_db_updated'));
+    }
 
     return {
       success: true,
       pdfUrl: pdfUrl,
-      message: 'Sukses! Data observasi orang tua tersimpan ke Spreadsheet dan PDF telah dibuat.',
+      fromClientPdf,
+      message: 'Sukses! Data observasi orang tua telah disahkan, dikunci, dan disimpan ke Spreadsheet & Google Drive.',
       data: savedData
     };
   },
@@ -2194,6 +2647,14 @@ export const gasService = {
 
   // Simpan Form Isian 34 Pertanyaan Orang Tua (PDF Form)
   async saveFormIsianOrtu(data: FormWawancaraOrtuPDF): Promise<{ success: boolean; message: string }> {
+    const existingHasil = this.getHasilWawancaraOrtu(data.noPendaftaran);
+    if (existingHasil?.status === 'selesai') {
+      return {
+        success: false,
+        message: 'Isian wawancara orang tua telah disahkan dan dikunci oleh pewawancara, sehingga tidak dapat diubah lagi.'
+      };
+    }
+
     const raw = localStorage.getItem(LOCAL_OTM_RAW_KEY);
     const map = raw ? JSON.parse(raw) : {};
 

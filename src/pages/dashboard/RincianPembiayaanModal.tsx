@@ -240,9 +240,9 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
             className="a4-page-slice print-container bg-white rounded-2xl border border-slate-200 text-slate-900"
             style={{
               width: '794px',
-              minHeight: '1218px',
+              minHeight: '1160px',
               boxSizing: 'border-box',
-              padding: '34px 40px',
+              padding: '28px 36px',
               margin: '0 auto',
               backgroundColor: '#ffffff',
               display: 'flex',
@@ -251,7 +251,7 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
               fontFamily: "'Plus Jakarta Sans', Arial, Helvetica, sans-serif"
             }}
           >
-            <div className="space-y-3.5">
+            <div className="space-y-3">
               {/* Kop Resmi Sekolah */}
               <div className="border-b-4 border-double border-emerald-900 pb-2.5 flex items-center gap-3.5 text-left">
                 <div className="w-18 h-18 shrink-0 p-1 bg-white border border-emerald-200 rounded-xl flex items-center justify-center">
@@ -269,7 +269,7 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
                     SMP ISLAM TERPADU PONDOK DUTA
                   </div>
                   <p className="text-[10px] text-slate-600 font-medium">
-                    <span className="font-bold text-emerald-800">Terakreditasi "A" BAN-PDM</span> | NPSN: 20276180 | NSS: 202026601007
+                    <span className="font-bold text-emerald-800">Terakreditasi "A" BAN-PDM</span> | NPSN: 20276180
                   </p>
                   <p className="text-[9.5px] text-slate-500 leading-snug">
                     Jl. Duta Plaza No. 1, Perumahan Pondok Duta, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451
@@ -280,204 +280,303 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Document Title Badge */}
-              <div className="text-center space-y-1">
-                <span 
+              {/* Document Title Badge (Table-based agar tidak keluar kotak saat diunduh PDF) */}
+              <div style={{ textAlign: 'center' }}>
+                <table
+                  role="presentation"
+                  align="center"
                   style={{
-                    display: 'inline-block',
-                    padding: '3px 14px',
-                    borderRadius: '9999px',
+                    margin: '0 auto 4px auto',
+                    borderCollapse: 'separate',
+                    borderSpacing: 0,
                     backgroundColor: '#ecfdf5',
-                    color: '#065f46',
-                    border: '1px solid #a7f3d0',
-                    fontSize: '10.5px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em'
+                    border: '1px solid #6ee7b7',
+                    borderRadius: '9999px'
                   }}
                 >
-                  LAMPIRAN PENGUMUMAN KELULUSAN SPMB · LEMBAR KE-2
-                </span>
-                <h2 className="text-[15.5px] font-black text-slate-900 uppercase tracking-wide">
+                  <tbody>
+                    <tr>
+                      <td
+                        style={{
+                          padding: '4px 16px',
+                          fontSize: '10px',
+                          fontWeight: 800,
+                          color: '#065f46',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          lineHeight: '1.2',
+                          textAlign: 'center',
+                          verticalAlign: 'middle'
+                        }}
+                      >
+                        LAMPIRAN PENGUMUMAN KELULUSAN SPMB · LEMBAR KE-2
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style={{ fontSize: '15px', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.02em', lineHeight: '1.3' }}>
                   RINCIAN BIAYA DAFTAR ULANG SISTEM PENERIMAAN MURID BARU (SPMB)
-                </h2>
-                <div className="text-[12px] font-bold text-slate-700">
+                </div>
+                <div style={{ fontSize: '12px', fontWeight: 800, color: '#334155', marginTop: '2px', lineHeight: '1.3' }}>
                   TAHUN PELAJARAN {tahunPelajaran}
                 </div>
               </div>
 
-              {/* Identitas Calon Murid (Tanpa Kategori & Ring) */}
-              <div 
+              {/* Identitas Calon Murid (Tabel Presisi) */}
+              <table
+                role="presentation"
                 style={{
+                  width: '100%',
+                  borderCollapse: 'separate',
+                  borderSpacing: 0,
                   backgroundColor: '#f8fafc',
-                  borderRadius: '12px',
-                  padding: '10px 20px',
                   border: '1.5px solid #cbd5e1',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                  gap: '12px',
+                  borderRadius: '10px',
+                  padding: '8px 16px',
                   fontSize: '12px'
                 }}
               >
-                <div className="space-y-1">
-                  <div className="flex items-center">
-                    <span style={{ width: '135px', color: '#475569', fontWeight: 600 }}>Nomor Pendaftaran</span>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 900, color: '#0f172a', fontSize: '13px' }}>: {siswa.noPendaftaran}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span style={{ width: '135px', color: '#475569', fontWeight: 600 }}>Nama Calon Murid</span>
-                    <span style={{ fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', fontSize: '13px' }}>: {siswa.namaLengkap}</span>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex items-center">
-                    <span style={{ width: '105px', color: '#475569', fontWeight: 600 }}>NISN</span>
-                    <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>: {siswa.nisn || '-'}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <span style={{ width: '105px', color: '#475569', fontWeight: 600 }}>Asal SD/MI</span>
-                    <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '13px' }}>: {siswa.asalSekolah || 'SD/MI Pendaftar'}</span>
-                  </div>
-                </div>
-              </div>
+                <tbody>
+                  <tr>
+                    <td style={{ width: '140px', padding: '3px 4px', color: '#475569', fontWeight: 600, verticalAlign: 'middle' }}>Nomor Pendaftaran</td>
+                    <td style={{ width: '210px', padding: '3px 4px', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a', fontSize: '12.5px', verticalAlign: 'middle' }}>: {siswa.noPendaftaran}</td>
+                    <td style={{ width: '95px', padding: '3px 4px', color: '#475569', fontWeight: 600, verticalAlign: 'middle' }}>NISN</td>
+                    <td style={{ padding: '3px 4px', fontFamily: 'monospace', fontWeight: 800, color: '#0f172a', fontSize: '12.5px', verticalAlign: 'middle' }}>: {siswa.nisn || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: '3px 4px', color: '#475569', fontWeight: 600, verticalAlign: 'middle' }}>Nama Calon Murid</td>
+                    <td style={{ padding: '3px 4px', fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', fontSize: '12.5px', verticalAlign: 'middle' }}>: {siswa.namaLengkap}</td>
+                    <td style={{ padding: '3px 4px', color: '#475569', fontWeight: 600, verticalAlign: 'middle' }}>Asal SD/MI</td>
+                    <td style={{ padding: '3px 4px', fontWeight: 800, color: '#0f172a', fontSize: '12.5px', verticalAlign: 'middle' }}>: {siswa.asalSekolah || 'SD/MI Pendaftar'}</td>
+                  </tr>
+                </tbody>
+              </table>
 
               {/* Section I: Persyaratan Daftar Ulang */}
-              <div className="space-y-2 text-xs">
-                <div className="font-black text-[12px] text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-                  <span className="w-4.5 h-4.5 rounded bg-emerald-800 text-white flex items-center justify-center text-[10px] font-bold">I</span>
-                  <span>PERSYARATAN DAFTAR ULANG</span>
-                </div>
+              <div className="space-y-1.5 text-xs">
+                <table role="presentation" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                  <tbody>
+                    <tr>
+                      <td
+                        style={{
+                          width: '22px',
+                          height: '22px',
+                          backgroundColor: '#065f46',
+                          color: '#ffffff',
+                          borderRadius: '5px',
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                          fontSize: '10.5px',
+                          fontWeight: 800,
+                          lineHeight: '1',
+                          padding: 0
+                        }}
+                      >
+                        I
+                      </td>
+                      <td style={{ paddingLeft: '8px', fontWeight: 900, fontSize: '12px', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle', lineHeight: '1.2' }}>
+                        PERSYARATAN DAFTAR ULANG
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
                 
-                <div className="pl-5 space-y-2 text-[11.5px]">
-                  <div className="flex items-start gap-2">
-                    <span style={{ fontWeight: 900, color: '#0f172a' }}>1.</span>
-                    <p style={{ color: '#0f172a', fontWeight: 500, lineHeight: '1.45' }}>
-                      Melengkapi berkas persyaratan SPMB yang belum lengkap (Fotokopi Akte Kelahiran, KK, Rapor, NISN, Pasfoto).
-                    </p>
+                <div style={{ paddingLeft: '20px', fontSize: '11.5px' }} className="space-y-1.5">
+                  <div style={{ lineHeight: '1.4', color: '#0f172a', fontWeight: 500 }}>
+                    <strong style={{ fontWeight: 900 }}>1. </strong>
+                    Melengkapi berkas persyaratan SPMB yang belum lengkap (Fotokopi Akte Kelahiran, KK, Rapor, NISN, Pasfoto).
                   </div>
 
                   <div>
-                    <div className="flex items-start gap-2 mb-1.5">
-                      <span style={{ fontWeight: 900, color: '#0f172a' }}>2.</span>
-                      <span style={{ color: '#0f172a', fontWeight: 600, lineHeight: '1.45' }}>
-                        Membayar Biaya Daftar Ulang melalui transfer ke Rekening Resmi SPMB SMPIT Pondok Duta :
-                      </span>
+                    <div style={{ lineHeight: '1.4', color: '#0f172a', fontWeight: 600, marginBottom: '5px' }}>
+                      <strong style={{ fontWeight: 900 }}>2. </strong>
+                      Membayar Biaya Daftar Ulang melalui transfer ke Rekening Resmi SPMB SMPIT Pondok Duta :
                     </div>
 
-                    {/* Kotak Nomor Rekening: Rapih, Luas, Angka Besar & Proporsional */}
-                    <div 
+                    {/* Kotak Nomor Rekening 2-Baris Terstruktur berbasis Tabel Murni (bebas tumpang tindih di PDF) */}
+                    <table
+                      role="presentation"
                       style={{
-                        marginLeft: '16px',
-                        padding: '10px 18px',
+                        width: '100%',
+                        borderCollapse: 'separate',
+                        borderSpacing: 0,
                         backgroundColor: '#f0fdf4',
                         border: '1.5px solid #059669',
                         borderRadius: '10px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: '12px'
+                        padding: '8px 14px'
                       }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 900, fontSize: '12px', color: '#064e3b' }}>
-                          BANK SYARIAH INDONESIA (BSI)
-                        </span>
-                        <span style={{ color: '#059669', fontWeight: 'bold' }}>•</span>
-                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#065f46' }}>No. Rekening :</span>
-                        <span 
-                          style={{ 
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', 
-                            fontWeight: 900, 
-                            fontSize: '16px', 
-                            letterSpacing: '0.08em',
-                            color: '#064e3b',
-                            backgroundColor: '#ffffff',
-                            padding: '4px 14px',
-                            borderRadius: '8px',
-                            border: '1.5px solid #059669',
-                            display: 'inline-block'
-                          }}
-                        >
-                          7116137334
-                        </span>
-                        <span style={{ fontWeight: 800, fontSize: '12px', color: '#064e3b' }}>
-                          a.n. YPIPD SMPIT PONDOK DUTA
-                        </span>
-                      </div>
-
-                      <div style={{ fontSize: '12px', color: '#1e293b' }}>
-                        <span style={{ color: '#475569' }}>Konfirmasi WA : </span>
-                        <span style={{ fontWeight: 900, color: '#064e3b' }}>Ibu Rahmaniar (085697709948)</span>
-                      </div>
-                    </div>
+                      <tbody>
+                        <tr>
+                          <td style={{ verticalAlign: 'middle', textAlign: 'left', padding: 0 }}>
+                            <div style={{ fontSize: '11.5px', lineHeight: '16px', marginBottom: '6px' }}>
+                              <span style={{ fontWeight: 900, color: '#064e3b' }}>
+                                BANK SYARIAH INDONESIA (BSI)
+                              </span>
+                              <span style={{ color: '#059669', fontWeight: 900, margin: '0 6px' }}>•</span>
+                              <span style={{ fontWeight: 700, color: '#065f46' }}>No. Rekening :</span>
+                            </div>
+                            <table role="presentation" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                              <tbody>
+                                <tr>
+                                  <td
+                                    style={{
+                                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                      fontWeight: 900,
+                                      fontSize: '14.5px',
+                                      letterSpacing: '0.06em',
+                                      color: '#064e3b',
+                                      backgroundColor: '#ffffff',
+                                      padding: '4px 12px',
+                                      borderRadius: '6px',
+                                      border: '1.5px solid #059669',
+                                      lineHeight: '1.2',
+                                      textAlign: 'center',
+                                      verticalAlign: 'middle',
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    7116137334
+                                  </td>
+                                  <td
+                                    style={{
+                                      paddingLeft: '10px',
+                                      fontWeight: 800,
+                                      fontSize: '11.5px',
+                                      color: '#064e3b',
+                                      lineHeight: '1.3',
+                                      verticalAlign: 'middle'
+                                    }}
+                                  >
+                                    a.n. YPIPD SMPIT PONDOK DUTA
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </td>
+                          <td style={{ verticalAlign: 'middle', textAlign: 'right', fontSize: '11.5px', color: '#1e293b', whiteSpace: 'nowrap', paddingLeft: '12px' }}>
+                            <span style={{ color: '#475569', fontWeight: 600 }}>Konfirmasi WA : </span>
+                            <span style={{ fontWeight: 900, color: '#064e3b' }}>Ibu Rahmaniar (085697709948)</span>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
 
               {/* Section II: Tempat, Tanggal dan Waktu */}
               <div className="space-y-1.5 text-xs">
-                <div className="font-black text-[12px] text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-                  <span className="w-4.5 h-4.5 rounded bg-emerald-800 text-white flex items-center justify-center text-[10px] font-bold">II</span>
-                  <span>TEMPAT, TANGGAL DAN WAKTU DAFTAR ULANG</span>
-                </div>
-                <div 
+                <table role="presentation" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                  <tbody>
+                    <tr>
+                      <td
+                        style={{
+                          width: '22px',
+                          height: '22px',
+                          backgroundColor: '#065f46',
+                          color: '#ffffff',
+                          borderRadius: '5px',
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                          fontSize: '10.5px',
+                          fontWeight: 800,
+                          lineHeight: '1',
+                          padding: 0
+                        }}
+                      >
+                        II
+                      </td>
+                      <td style={{ paddingLeft: '8px', fontWeight: 900, fontSize: '12px', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle', lineHeight: '1.2' }}>
+                        TEMPAT, TANGGAL DAN WAKTU DAFTAR ULANG
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <table
+                  role="presentation"
                   style={{
-                    padding: '10px 18px',
-                    borderRadius: '10px',
+                    width: '100%',
+                    borderCollapse: 'separate',
+                    borderSpacing: 0,
                     backgroundColor: '#f8fafc',
                     border: '1.5px solid #cbd5e1',
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-                    gap: '14px',
-                    fontSize: '12px',
-                    marginLeft: '16px'
+                    borderRadius: '10px',
+                    padding: '8px 16px',
+                    fontSize: '11.5px'
                   }}
                 >
-                  <div>
-                    <span style={{ color: '#475569', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 800 }}>Tempat :</span>
-                    <span style={{ fontWeight: 800, color: '#0f172a' }}>Ruang Bendahara Lt. 2 Unit SDIT</span>
-                  </div>
-                  <div>
-                    <span style={{ color: '#475569', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 800 }}>Batas Waktu :</span>
-                    <span style={{ fontWeight: 900, color: '#064e3b', textDecoration: 'underline' }}>{tanggalDaftarUlang}</span>
-                  </div>
-                  <div>
-                    <span style={{ color: '#475569', display: 'block', fontSize: '10.5px', textTransform: 'uppercase', fontWeight: 800 }}>Hari &amp; Waktu :</span>
-                    <span style={{ fontWeight: 800, color: '#0f172a' }}>Senin – Jum’at / 08.00 – 12.00 WIB</span>
-                  </div>
-                </div>
+                  <tbody>
+                    <tr>
+                      <td style={{ width: '36%', verticalAlign: 'top', padding: '2px 6px' }}>
+                        <div style={{ color: '#475569', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, lineHeight: '1.35' }}>Tempat :</div>
+                        <div style={{ fontWeight: 800, color: '#0f172a', lineHeight: '1.4', marginTop: '2px' }}>Ruang Bendahara Lt. 2 Unit SDIT</div>
+                      </td>
+                      <td style={{ width: '32%', verticalAlign: 'top', padding: '2px 6px' }}>
+                        <div style={{ color: '#475569', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, lineHeight: '1.35' }}>Batas Waktu :</div>
+                        <div style={{ fontWeight: 900, color: '#064e3b', textDecoration: 'underline', lineHeight: '1.4', marginTop: '2px' }}>{tanggalDaftarUlang}</div>
+                      </td>
+                      <td style={{ width: '32%', verticalAlign: 'top', padding: '2px 6px' }}>
+                        <div style={{ color: '#475569', fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, lineHeight: '1.35' }}>Hari &amp; Waktu :</div>
+                        <div style={{ fontWeight: 800, color: '#0f172a', lineHeight: '1.4', marginTop: '2px' }}>Senin – Jum’at / 08.00 – 12.00 WIB</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
 
               {/* Section III: Tabel Rincian Biaya (Format Baru Modern) */}
               <div className="space-y-1.5">
-                <div className="font-black text-[12px] text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-                  <span className="w-4.5 h-4.5 rounded bg-emerald-800 text-white flex items-center justify-center text-[10px] font-bold">III</span>
-                  <span>BIAYA DAFTAR ULANG SPMB (TA: {tahunPelajaran})</span>
-                </div>
+                <table role="presentation" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
+                  <tbody>
+                    <tr>
+                      <td
+                        style={{
+                          width: '22px',
+                          height: '22px',
+                          backgroundColor: '#065f46',
+                          color: '#ffffff',
+                          borderRadius: '5px',
+                          textAlign: 'center',
+                          verticalAlign: 'middle',
+                          fontSize: '10.5px',
+                          fontWeight: 800,
+                          lineHeight: '1',
+                          padding: 0
+                        }}
+                      >
+                        III
+                      </td>
+                      <td style={{ paddingLeft: '8px', fontWeight: 900, fontSize: '12px', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.03em', verticalAlign: 'middle', lineHeight: '1.2' }}>
+                        BIAYA DAFTAR ULANG SPMB (TA: {tahunPelajaran})
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
 
-                {/* Table Layout dengan Grid Sel Utuh & Warna Huruf Tegas */}
+                {/* Table Layout dengan Grid Sel Utuh & Vertical Align Middle */}
                 <table 
                   style={{
                     width: '100%',
                     borderCollapse: 'collapse',
                     border: '1.5px solid #475569',
                     fontSize: '11.5px',
+                    lineHeight: '1.35',
                     backgroundColor: '#ffffff'
                   }}
                 >
                   <thead>
                     <tr style={{ backgroundColor: '#0f172a', color: '#ffffff', fontSize: '11px' }}>
-                      <th style={{ width: '42px', padding: '7px 4px', textAlign: 'center', border: '1px solid #334155', fontWeight: 900 }}>
+                      <th style={{ width: '42px', padding: '6px 4px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #334155', fontWeight: 900 }}>
                         NO
                       </th>
-                      <th style={{ padding: '7px 14px', textAlign: 'left', border: '1px solid #334155', fontWeight: 900 }}>
+                      <th style={{ padding: '6px 12px', textAlign: 'left', verticalAlign: 'middle', border: '1px solid #334155', fontWeight: 900 }}>
                         KETERANGAN KOMPONEN
                       </th>
-                      <th style={{ width: '150px', padding: '7px 14px', textAlign: 'right', border: '1px solid #334155', fontWeight: 900 }}>
+                      <th style={{ width: '148px', padding: '6px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #334155', fontWeight: 900 }}>
                         HARGA NORMAL
                       </th>
-                      <th style={{ width: '165px', padding: '7px 14px', textAlign: 'right', backgroundColor: '#064e3b', color: '#ffffff', border: '1px solid #064e3b', fontWeight: 900 }}>
+                      <th style={{ width: '162px', padding: '6px 12px', textAlign: 'right', verticalAlign: 'middle', backgroundColor: '#064e3b', color: '#ffffff', border: '1px solid #064e3b', fontWeight: 900 }}>
                         BIAYA DAFTAR ULANG
                       </th>
                     </tr>
@@ -485,150 +584,150 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
                   <tbody>
                     
                     {/* Kelompok I */}
-                    <tr style={{ backgroundColor: '#ecfdf5', color: '#064e3b', fontWeight: 900, fontSize: '11.5px' }}>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}>I</td>
-                      <td colSpan={3} style={{ padding: '5px 14px', border: '1px solid #cbd5e1', letterSpacing: '0.02em' }}>
+                    <tr style={{ backgroundColor: '#ecfdf5', color: '#064e3b', fontWeight: 900, fontSize: '11px' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1' }}>I</td>
+                      <td colSpan={3} style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', letterSpacing: '0.02em' }}>
                         UANG GEDUNG, BPP DAN SERAGAM
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>1</td>
-                      <td style={{ padding: '5px 14px', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Gedung (*)</td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>1</td>
+                      <td style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Gedung (*)</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
                         {formatRupiah(normalBiaya.gedung)}
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
                         {formatRupiah(activeBiaya.gedung)}
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>2</td>
-                      <td style={{ padding: '5px 14px', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Penyelenggaraan Pendidikan (BPP)</td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>2</td>
+                      <td style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Penyelenggaraan Pendidikan (BPP)</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
                         {formatRupiah(normalBiaya.bpp)}
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
                         {formatRupiah(activeBiaya.bpp)}
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>3</td>
-                      <td style={{ padding: '5px 14px', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Seragam 5 Stel</td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>3</td>
+                      <td style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Seragam 5 Stel</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
                         {formatRupiah(normalBiaya.seragam)}
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
                         {formatRupiah(activeBiaya.seragam)}
                       </td>
                     </tr>
                     <tr style={{ backgroundColor: '#f1f5f9', fontWeight: 900, color: '#0f172a' }}>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}></td>
-                      <td style={{ padding: '5px 14px', border: '1px solid #cbd5e1', textTransform: 'uppercase', fontSize: '10.5px', letterSpacing: '0.03em' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1' }}></td>
+                      <td style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', textTransform: 'uppercase', fontSize: '10.5px', letterSpacing: '0.03em' }}>
                         SUBTOTAL I (Gedung + BPP + Seragam)
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#0f172a' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#0f172a' }}>
                         {formatRupiah(normalBiaya.subtotalI)}
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#064e3b', fontSize: '12px' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#064e3b', fontSize: '12px' }}>
                         {formatRupiah(activeBiaya.subtotalI)}
                       </td>
                     </tr>
 
                     {/* Kelompok II */}
-                    <tr style={{ backgroundColor: '#ecfdf5', color: '#064e3b', fontWeight: 900, fontSize: '11.5px' }}>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}>II</td>
-                      <td colSpan={3} style={{ padding: '5px 14px', border: '1px solid #cbd5e1', letterSpacing: '0.02em' }}>
+                    <tr style={{ backgroundColor: '#ecfdf5', color: '#064e3b', fontWeight: 900, fontSize: '11px' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1' }}>II</td>
+                      <td colSpan={3} style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', letterSpacing: '0.02em' }}>
                         UANG KEGIATAN (Dibayarkan Setiap Tahun)
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>1</td>
-                      <td style={{ padding: '5px 14px', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Buku Paket</td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>1</td>
+                      <td style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Buku Paket</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
                         {formatRupiah(normalBiaya.buku)}
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
                         {formatRupiah(activeBiaya.buku)}
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>2</td>
-                      <td style={{ padding: '5px 14px', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>2</td>
+                      <td style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>
                         <span>Uang Outing dan Perkemahan </span>
                         <span style={{ fontSize: '10px', color: '#475569', fontStyle: 'italic', fontWeight: 500 }}>
                           (* dibayarkan menjelang jadwal kegiatan)
                         </span>
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>-</td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>-</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>-</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 700, color: '#475569' }}>-</td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>3</td>
-                      <td style={{ padding: '5px 14px', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Kegiatan Belajar Mengajar (KBM)</td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>3</td>
+                      <td style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Kegiatan Belajar Mengajar (KBM)</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
                         {formatRupiah(normalBiaya.kbm)}
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
                         {formatRupiah(activeBiaya.kbm)}
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>4</td>
-                      <td style={{ padding: '5px 14px', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Komite</td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>4</td>
+                      <td style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang Komite</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
                         {formatRupiah(normalBiaya.komite)}
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
                         {formatRupiah(activeBiaya.komite)}
                       </td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>5</td>
-                      <td style={{ padding: '5px 14px', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang OSIS</td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 800, color: '#0f172a' }}>5</td>
+                      <td style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontWeight: 700, color: '#0f172a' }}>Uang OSIS</td>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#1e293b' }}>
                         {formatRupiah(normalBiaya.osis)}
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#0f172a' }}>
                         {formatRupiah(activeBiaya.osis)}
                       </td>
                     </tr>
                     <tr style={{ backgroundColor: '#f1f5f9', fontWeight: 900, color: '#0f172a' }}>
-                      <td style={{ padding: '5px 6px', textAlign: 'center', border: '1px solid #cbd5e1' }}></td>
-                      <td style={{ padding: '5px 14px', border: '1px solid #cbd5e1', textTransform: 'uppercase', fontSize: '10.5px', letterSpacing: '0.03em' }}>
+                      <td style={{ padding: '5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #cbd5e1' }}></td>
+                      <td style={{ padding: '5px 12px', verticalAlign: 'middle', border: '1px solid #cbd5e1', textTransform: 'uppercase', fontSize: '10.5px', letterSpacing: '0.03em' }}>
                         SUBTOTAL II (Uang Kegiatan)
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#0f172a' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 800, color: '#0f172a' }}>
                         {formatRupiah(normalBiaya.subtotalII)}
                       </td>
-                      <td style={{ padding: '5px 14px', textAlign: 'right', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#064e3b', fontSize: '12px' }}>
+                      <td style={{ padding: '5px 12px', textAlign: 'right', verticalAlign: 'middle', border: '1px solid #cbd5e1', fontFamily: 'monospace', fontWeight: 900, color: '#064e3b', fontSize: '12px' }}>
                         {formatRupiah(activeBiaya.subtotalII)}
                       </td>
                     </tr>
 
                     {/* Kelompok III: SPP */}
                     <tr style={{ backgroundColor: '#ffffff' }}>
-                      <td style={{ padding: '6px', textAlign: 'center', fontWeight: 900, color: '#0f172a', border: '1px solid #cbd5e1' }}>III</td>
-                      <td style={{ padding: '6px 14px', fontWeight: 900, color: '#0f172a', border: '1px solid #cbd5e1', fontSize: '12px' }}>
+                      <td style={{ padding: '5.5px 6px', textAlign: 'center', verticalAlign: 'middle', fontWeight: 900, color: '#0f172a', border: '1px solid #cbd5e1' }}>III</td>
+                      <td style={{ padding: '5.5px 12px', verticalAlign: 'middle', fontWeight: 900, color: '#0f172a', border: '1px solid #cbd5e1', fontSize: '11.5px' }}>
                         SPP BULAN JULI (Flat 3 Tahun)
                       </td>
-                      <td style={{ padding: '6px 14px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, color: '#0f172a', border: '1px solid #cbd5e1', fontSize: '12px' }}>
+                      <td style={{ padding: '5.5px 12px', textAlign: 'right', verticalAlign: 'middle', fontFamily: 'monospace', fontWeight: 800, color: '#0f172a', border: '1px solid #cbd5e1', fontSize: '11.5px' }}>
                         {formatRupiah(normalBiaya.spp)}
                       </td>
-                      <td style={{ padding: '6px 14px', textAlign: 'right', fontFamily: 'monospace', fontWeight: 900, color: '#064e3b', border: '1px solid #cbd5e1', fontSize: '12.5px' }}>
+                      <td style={{ padding: '5.5px 12px', textAlign: 'right', verticalAlign: 'middle', fontFamily: 'monospace', fontWeight: 900, color: '#064e3b', border: '1px solid #cbd5e1', fontSize: '12px' }}>
                         {formatRupiah(activeBiaya.spp)}
                       </td>
                     </tr>
 
                     {/* Grand Total */}
-                    <tr style={{ backgroundColor: '#064e3b', color: '#ffffff', fontWeight: 900, fontSize: '12.5px' }}>
-                      <td style={{ padding: '7px 6px', textAlign: 'center', border: '1px solid #047857' }}>IV</td>
-                      <td style={{ padding: '7px 14px', textTransform: 'uppercase', letterSpacing: '0.03em', border: '1px solid #047857' }}>
+                    <tr style={{ backgroundColor: '#064e3b', color: '#ffffff', fontWeight: 900, fontSize: '12px' }}>
+                      <td style={{ padding: '6.5px 6px', textAlign: 'center', verticalAlign: 'middle', border: '1px solid #047857' }}>IV</td>
+                      <td style={{ padding: '6.5px 12px', verticalAlign: 'middle', textTransform: 'uppercase', letterSpacing: '0.03em', border: '1px solid #047857' }}>
                         JUMLAH TOTAL BIAYA SPMB (I + II + III)
                       </td>
-                      <td style={{ padding: '7px 14px', textAlign: 'right', fontFamily: 'monospace', border: '1px solid #047857', color: '#e2e8f0', fontWeight: 800, fontSize: '12.5px' }}>
+                      <td style={{ padding: '6.5px 12px', textAlign: 'right', verticalAlign: 'middle', fontFamily: 'monospace', border: '1px solid #047857', color: '#e2e8f0', fontWeight: 800, fontSize: '12px' }}>
                         {formatRupiah(normalBiaya.totalBiaya)}
                       </td>
-                      <td style={{ padding: '7px 14px', textAlign: 'right', fontFamily: 'monospace', border: '1px solid #047857', color: '#fef08a', fontSize: '14px', fontWeight: 900 }}>
+                      <td style={{ padding: '6.5px 12px', textAlign: 'right', verticalAlign: 'middle', fontFamily: 'monospace', border: '1px solid #047857', color: '#fef08a', fontSize: '13.5px', fontWeight: 900 }}>
                         {formatRupiah(activeBiaya.totalBiaya)}
                       </td>
                     </tr>
@@ -648,7 +747,7 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
                   lineHeight: '1.45'
                 }}
               >
-                <span style={{ fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', fontSize: '11.5px', marginBottom: '4px' }}>
+                <span style={{ fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', fontSize: '11px', marginBottom: '4px' }}>
                   Ketentuan &amp; Catatan Penting Daftar Ulang :
                 </span>
                 <ol style={{ paddingLeft: '18px', margin: 0, color: '#1e293b' }} className="space-y-0.5 list-decimal">
@@ -675,9 +774,9 @@ export const RincianPembiayaanModal: React.FC<Props> = ({
             </div>
 
             {/* Footer Lembar 2: Cukup Tanggal Saja Sesuai Instruksi User */}
-            <div style={{ paddingTop: '10px', borderTop: '1.5px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: '12px' }}>
+            <div style={{ paddingTop: '8px', borderTop: '1.5px solid #cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: '10px' }}>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '13.5px', fontWeight: 800, color: '#0f172a' }}>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#0f172a' }}>
                   Depok, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </div>
               </div>

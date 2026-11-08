@@ -27,7 +27,9 @@ import {
   KeyRound,
   LogOut,
   Download,
-  QrCode
+  QrCode,
+  RefreshCw,
+  Lock
 } from 'lucide-react';
 import QRCode from 'qrcode';
 
@@ -60,6 +62,7 @@ export const SiswaDashboard: React.FC<Props> = ({
   );
   const [draftWawancaraOrtu, setDraftWawancaraOrtu] = useState<HasilObservasiOrtuData | null>(null);
   const [reviewDraftOrtuModal, setReviewDraftOrtuModal] = useState<HasilObservasiOrtuData | null>(null);
+  const [syncingDraftOrtu, setSyncingDraftOrtu] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
@@ -128,6 +131,8 @@ export const SiswaDashboard: React.FC<Props> = ({
     const handleDbUpdate = () => {
       const activeNo = currentUser?.role === 'siswa' && currentUser?.kodePendaftaran ? currentUser.kodePendaftaran : selectedNoPendaftaran;
       if (activeNo) {
+        const latestDraft = gasService.getHasilWawancaraOrtu(activeNo);
+        setDraftWawancaraOrtu(latestDraft);
         gasService.getSiswaDetail(activeNo).then(detail => {
           if (detail) {
             setBiodataForm(detail.siswa);
@@ -140,7 +145,41 @@ export const SiswaDashboard: React.FC<Props> = ({
     return () => {
       window.removeEventListener('spmb_db_updated', handleDbUpdate);
     };
-  }, [currentUser]);
+  }, [currentUser, selectedNoPendaftaran]);
+
+  const handleRefreshDraftOrtuFromCloud = async (silent = false) => {
+    const activeNo =
+      (currentUser?.role === 'siswa' && currentUser?.kodePendaftaran ? currentUser.kodePendaftaran : '') ||
+      selectedNoPendaftaran ||
+      formOrtu34.noPendaftaran ||
+      biodataForm.noPendaftaran ||
+      '';
+    if (!activeNo) return;
+    if (!silent) setSyncingDraftOrtu(true);
+    try {
+      await gasService.syncFromSpreadsheet(undefined, true);
+      const latestDraft = gasService.getHasilWawancaraOrtu(activeNo);
+      setDraftWawancaraOrtu(latestDraft);
+    } finally {
+      if (!silent) setSyncingDraftOrtu(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'wawancara-ortu') return;
+    const activeNo =
+      (currentUser?.role === 'siswa' && currentUser?.kodePendaftaran ? currentUser.kodePendaftaran : '') ||
+      selectedNoPendaftaran;
+    if (activeNo) {
+      const immediate = gasService.getHasilWawancaraOrtu(activeNo);
+      if (immediate) setDraftWawancaraOrtu(immediate);
+      handleRefreshDraftOrtuFromCloud(true);
+    }
+    const intervalId = window.setInterval(() => {
+      handleRefreshDraftOrtuFromCloud(true);
+    }, 10000);
+    return () => window.clearInterval(intervalId);
+  }, [activeTab, currentUser, selectedNoPendaftaran]);
 
   const loadData = async (targetNoPend?: string) => {
     setLoading(prev => !biodataForm.noPendaftaran);
@@ -284,8 +323,66 @@ export const SiswaDashboard: React.FC<Props> = ({
     await loadData(noPend);
   };
 
+  // Status kunci permanen apabila Pewawancara telah menekan "Sahkan dan Simpan Hasil"
+  const isWawancaraOrtuFinalLocked = Boolean(draftWawancaraOrtu?.status === 'selesai');
+
+  // Validasi kelengkapan seluruh 34 butir + centang pernyataan setuju pada Formulir Observasi Orang Tua
+  const missingOrtuFields: string[] = React.useMemo(() => {
+    const missing: string[] = [];
+    const hasText = (v?: string) => Boolean(v && v.trim().length > 0);
+    const hasValidArray = (arr?: string[]) =>
+      Boolean(
+        Array.isArray(arr) &&
+        arr.length > 0 &&
+        !arr.some(item => item.trim().toLowerCase() === 'yang lain')
+      );
+
+    if (!hasText(formOrtu34.q1_kesiapanBiaya)) missing.push('No. 1 (Komitmen Biaya)');
+    if (!hasText(formOrtu34.q2_pekerjaanAyah)) missing.push('No. 2 (Pekerjaan Ayah)');
+    if (!hasText(formOrtu34.q3_pekerjaanBunda)) missing.push('No. 3 (Pekerjaan Bunda)');
+    if (!hasText(formOrtu34.q4_penghasilanAyah)) missing.push('No. 4 (Penghasilan Ayah)');
+    if (!hasText(formOrtu34.q5_penghasilanBunda)) missing.push('No. 5 (Penghasilan Bunda)');
+    if (!hasValidArray(formOrtu34.q6_pendampingBelajar)) missing.push('No. 6 (Pendamping Belajar)');
+    if (!hasText(formOrtu34.q7_sholat5Waktu)) missing.push('No. 7 (Sholat 5 Waktu)');
+    if (!hasValidArray(formOrtu34.q8_pengasuhPulangSekolah)) missing.push('No. 8 (Pengasuh di Rumah)');
+    if (!hasValidArray(formOrtu34.q9_kegiatanNonFormal)) missing.push('No. 9 (Kegiatan Non-Formal)');
+    if (!hasText(formOrtu34.q10_riwayatPenyakit)) missing.push('No. 10 (Riwayat Penyakit)');
+    if (!hasText(formOrtu34.q11_prestasi)) missing.push('No. 11 (Prestasi)');
+    if (!hasText(formOrtu34.q12_sifatPositif)) missing.push('No. 12 (Sifat Positif)');
+    if (!hasText(formOrtu34.q13_sifatNegatif)) missing.push('No. 13 (Sifat Negatif)');
+    if (!hasText(formOrtu34.q14_sikapTerhadapOrtu)) missing.push('No. 14 (Sikap terhadap Ortu)');
+    if (!hasText(formOrtu34.q15_pernahMelawanOrtu)) missing.push('No. 15 (Pernah Melawan Ortu)');
+    if (!hasText(formOrtu34.q16_halBerkesan)) missing.push('No. 16 (Hal Berkesan)');
+    if (!hasText(formOrtu34.q17_ayahMerokok)) missing.push('No. 17 (Ayah Merokok)');
+    if (!hasText(formOrtu34.q18_bundaMerokok)) missing.push('No. 18 (Bunda Merokok)');
+    if (!hasText(formOrtu34.q19_keluargaLainMerokok)) missing.push('No. 19 (Keluarga Lain Merokok)');
+    if (!hasText(formOrtu34.q20_durasiBersamaAnak)) missing.push('No. 20 (Durasi Bersama Ananda)');
+    if (!hasText(formOrtu34.q21_kegiatanBersamaDiRumah)) missing.push('No. 21 (Kegiatan Bersama)');
+    if (!hasText(formOrtu34.q22_traumaBullying)) missing.push('No. 22 (Trauma/Perundungan)');
+    if (!hasText(formOrtu34.q23_anakPernahMerokok)) missing.push('No. 23 (Ananda Pernah Merokok)');
+    if (!hasText(formOrtu34.q24_pendapatRokokPornografi)) missing.push('No. 24 (Pendapat Rokok/Kenakalan)');
+    if (!hasText(formOrtu34.q25_fasilitasGadget)) missing.push('No. 25 (Fasilitas Gadget)');
+    if (!hasText(formOrtu34.q26_frekuensiGadget)) missing.push('No. 26 (Frekuensi Gadget)');
+    if (!hasText(formOrtu34.q27_bersediaAwasiGadget)) missing.push('No. 27 (Pengawasan Gadget)');
+    if (!hasText(formOrtu34.q28_installAplikasiBelajarAnak)) missing.push('No. 28 (Aplikasi Pembelajaran)');
+    if (!hasText(formOrtu34.q29_installAplikasiPengawasanOrtu)) missing.push('No. 29 (Aplikasi Pengawasan Ortu)');
+    if (!hasText(formOrtu34.q30_jarakKeSekolah)) missing.push('No. 30 (Jarak ke Sekolah)');
+    if (!hasText(formOrtu34.q31_kendaraanSekolah) || formOrtu34.q31_kendaraanSekolah?.trim().toLowerCase() === 'yang lain') {
+      missing.push('No. 31 (Kendaraan Sekolah)');
+    }
+    if (!hasText(formOrtu34.q32_izinBawaMotorSendiri)) missing.push('No. 32 (Izin Bawa Motor)');
+    if (!hasText(formOrtu34.q33_harapanSekolah)) missing.push('No. 33 (Harapan Sekolah)');
+    if (!hasText(formOrtu34.q34_ttdMeterai)) missing.push('No. 34 (Kesediaan TTD Meterai)');
+    if (!formOrtu34.pernyataanSetuju) missing.push('Centang Pernyataan Persetujuan');
+
+    return missing;
+  }, [formOrtu34]);
+
+  const isFormOrtu34Complete = missingOrtuFields.length === 0;
+
   // Checkbox toggle helper
   const handleToggleArray = (field: 'q6_pendampingBelajar' | 'q8_pengasuhPulangSekolah' | 'q9_kegiatanNonFormal', val: string) => {
+    if (isWawancaraOrtuFinalLocked) return;
     const curr = (formOrtu34[field] || []) as string[];
     const next = curr.includes(val) ? curr.filter(x => x !== val) : [...curr, val];
     setFormOrtu34({ ...formOrtu34, [field]: next });
@@ -333,6 +430,26 @@ export const SiswaDashboard: React.FC<Props> = ({
   // Submit 34 Questions Form Ortu
   const handleSaveFormOrtu34 = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isWawancaraOrtuFinalLocked) {
+      showAppAlert({
+        title: 'Formulir Wawancara Orang Tua Terkunci',
+        message: 'Hasil wawancara orang tua telah disahkan oleh Pewawancara sehingga isian ini dikunci permanen.',
+        subMessage: 'Data hanya dapat dilihat dan tidak dapat diubah kembali.',
+        variant: 'warning',
+        confirmText: 'Mengerti',
+      });
+      return;
+    }
+    if (!isFormOrtu34Complete) {
+      showAppAlert({
+        title: 'Isian Observasi Orang Tua Belum Lengkap',
+        message: `Masih terdapat ${missingOrtuFields.length} bagian wajib yang belum diisi: ${missingOrtuFields.slice(0, 5).join(', ')}${missingOrtuFields.length > 5 ? ', dan lainnya.' : '.'}`,
+        subMessage: 'Seluruh 34 butir pertanyaan dan centang pernyataan wajib diisi lengkap sebelum menyimpan.',
+        variant: 'warning',
+        confirmText: 'Lengkapi Isian',
+      });
+      return;
+    }
     setSaving(true);
     await gasService.saveFormIsianOrtu({
       ...formOrtu34,
@@ -344,12 +461,12 @@ export const SiswaDashboard: React.FC<Props> = ({
       namaIbu: biodataForm.namaIbu || '',
     } as FormWawancaraOrtuPDF);
     setSaving(false);
-    setSaveSuccessMsg('Form Wawancara Orang Tua (34 butir) berhasil disimpan di Sheet OTM!');
+    setSaveSuccessMsg('Formulir Observasi Orang Tua Murid (34 butir) berhasil disimpan.');
     setTimeout(() => setSaveSuccessMsg(''), 3000);
     showAppAlert({
       title: 'Observasi Orang Tua Berhasil Disimpan',
-      message: 'Alhamdulillah! Formulir Observasi Orang Tua Murid (34 butir) berhasil disimpan di Sheet OTM.',
-      subMessage: 'Data ini menjadi rujukan resmi bagi Tim Pewawancara Orang Tua Murid (OTM).',
+      message: 'Alhamdulillah! Formulir Observasi Orang Tua Murid (34 butir) berhasil disimpan.',
+      subMessage: 'Data ini menjadi rujukan resmi bagi Tim Pewawancara Orang Tua Murid.',
       variant: 'success',
       confirmText: 'Selesai',
     });
@@ -627,7 +744,7 @@ export const SiswaDashboard: React.FC<Props> = ({
         <div className="space-y-6">
 
           {/* BANNER NOTIFIKASI REVIEW DRAFT & TANDA TANGAN DI HP ORANG TUA */}
-          {draftWawancaraOrtu && (
+          {draftWawancaraOrtu ? (
             <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-emerald-900 via-teal-900 to-slate-900 text-white shadow-xl space-y-4 border border-emerald-500/30 animate-in fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3.5">
@@ -644,21 +761,47 @@ export const SiswaDashboard: React.FC<Props> = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setReviewDraftOrtuModal(draftWawancaraOrtu)}
-                  className="w-full sm:w-auto px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer shrink-0"
-                >
-                  <PenTool className="w-4 h-4 text-slate-950" />
-                  <span>
-                    {draftWawancaraOrtu.isTtdOrtuSigned 
-                      ? 'Buka & Perbarui Tanda Tangan di HP' 
-                      : 'Review Hasil & Tanda Tangan di HP'}
-                  </span>
-                </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleRefreshDraftOrtuFromCloud(false)}
+                    disabled={syncingDraftOrtu}
+                    className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    title="Muat ulang kiriman terbaru dari Pewawancara"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${syncingDraftOrtu ? 'animate-spin' : ''}`} />
+                    <span>Perbarui</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReviewDraftOrtuModal(draftWawancaraOrtu)}
+                    className="w-full sm:w-auto px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg transition active:scale-95 cursor-pointer shrink-0"
+                  >
+                    {isWawancaraOrtuFinalLocked ? (
+                      <>
+                        <Lock className="w-4 h-4 text-slate-950" />
+                        <span>Lihat Hasil Wawancara (Terkunci)</span>
+                      </>
+                    ) : (
+                      <>
+                        <PenTool className="w-4 h-4 text-slate-950" />
+                        <span>
+                          {draftWawancaraOrtu.isTtdOrtuSigned 
+                            ? 'Buka & Perbarui Tanda Tangan di HP' 
+                            : 'Review Hasil & Tanda Tangan di HP'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
-              {draftWawancaraOrtu.isTtdOrtuSigned ? (
+              {isWawancaraOrtuFinalLocked ? (
+                <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-xs text-amber-200">
+                  <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Hasil wawancara telah disahkan oleh Pewawancara. Dokumen dan isian wawancara orang tua telah dikunci permanen (hanya dapat dilihat).</span>
+                </div>
+              ) : draftWawancaraOrtu.isTtdOrtuSigned ? (
                 <div className="pt-3 border-t border-white/10 flex items-center gap-2 text-xs text-emerald-200">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>Tanda tangan Ayah/Bunda telah tersimpan. Pewawancara dapat melihat tanda tangan ini untuk pengesahan akhir.</span>
@@ -668,6 +811,31 @@ export const SiswaDashboard: React.FC<Props> = ({
                   Pewawancara telah menyelesaikan draft wawancara ananda. Silakan klik tombol kuning di atas untuk membaca ringkasan wawancara dan membubuhkan tanda tangan langsung menggunakan jari di layar HP.
                 </p>
               )}
+            </div>
+          ) : (
+            <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/90 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+              <div className="flex items-start sm:items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-700 text-white shrink-0">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-emerald-950">
+                    Menunggu Lembar Hasil Wawancara dari Pewawancara?
+                  </h4>
+                  <p className="text-[11px] text-emerald-800 mt-0.5">
+                    Setelah pewawancara menekan tombol <strong>"Simpan Draft (Kirim ke HP Ortu)"</strong>, lembar pengesahan akan otomatis tampil di sini untuk Ayah/Bunda tandatangani.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRefreshDraftOrtuFromCloud(false)}
+                disabled={syncingDraftOrtu}
+                className="px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white font-bold text-xs flex items-center justify-center gap-2 shrink-0 shadow-xs transition cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${syncingDraftOrtu ? 'animate-spin' : ''}`} />
+                <span>{syncingDraftOrtu ? 'Mengecek Kiriman...' : 'Cek Kiriman Pewawancara'}</span>
+              </button>
             </div>
           )}
 
@@ -686,13 +854,40 @@ export const SiswaDashboard: React.FC<Props> = ({
                     Pertanyaan dikelompokkan sesuai rubrik wawancara pewawancara resmi SMPIT Pondok Duta.
                   </p>
                 </div>
-                <div className="px-3 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold self-start sm:self-auto">
-                  No. Registrasi: <strong className="font-mono">{formOrtu34.noPendaftaran || '-'}</strong>
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                  {isWawancaraOrtuFinalLocked && (
+                    <span className="px-3 py-1 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-bold flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Terkunci Permanen (Telah Disahkan)</span>
+                    </span>
+                  )}
+                  <div className="px-3 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-semibold">
+                    No. Registrasi: <strong className="font-mono">{formOrtu34.noPendaftaran || '-'}</strong>
+                  </div>
                 </div>
               </div>
 
+              {isWawancaraOrtuFinalLocked && (
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50/90 border border-amber-200 text-amber-950 flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-amber-100 text-amber-800 shrink-0 mt-0.5">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-xs sm:text-sm text-amber-950">
+                      Isian Wawancara Orang Tua Telah Dikunci Permanen
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-amber-800 leading-relaxed">
+                      Pewawancara telah menekan tombol <strong>&ldquo;Sahkan dan Simpan Hasil&rdquo;</strong>. Seluruh isian formulir wawancara orang tua di akun siswa ini hanya dapat dilihat dan tidak dapat diubah lagi.
+                    </p>
+                  </div>
+                </div>
+              )}
+
             {/* SECTIONS CONTAINER */}
-            <div className="space-y-4 sm:space-y-6">
+            <fieldset
+              disabled={isWawancaraOrtuFinalLocked}
+              className={`space-y-4 sm:space-y-6 ${isWawancaraOrtuFinalLocked ? 'opacity-90 pointer-events-none select-none' : ''}`}
+            >
               
               {/* ======================================================== */}
               {/* BAGIAN A: KOMITMEN PEMBIAYAAN                            */}
@@ -1560,18 +1755,63 @@ export const SiswaDashboard: React.FC<Props> = ({
                 </div>
               </div>
 
-            </div>
+            </fieldset>
 
-            {/* Submit Button */}
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full sm:w-auto px-8 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                <span>{saving ? 'Menyimpan...' : 'Simpan Observasi OTM'}</span>
-              </button>
+            {/* Submit Button / Locked Indicator */}
+            <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              {!isWawancaraOrtuFinalLocked && (
+                <div className="text-[11px] leading-relaxed">
+                  {isFormOrtu34Complete ? (
+                    <span className="inline-flex items-center gap-1.5 font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Seluruh 34 butir &amp; pernyataan telah lengkap. Siap disimpan.</span>
+                    </span>
+                  ) : (
+                    <div className="p-2.5 sm:px-3.5 sm:py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+                      <div className="font-bold flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span>Tombol Simpan Terkunci — Masih ada {missingOrtuFields.length} isian wajib yang belum terisi:</span>
+                      </div>
+                      <p className="text-[10px] text-amber-800 mt-0.5">
+                        {missingOrtuFields.slice(0, 6).join(', ')}
+                        {missingOrtuFields.length > 6 ? `, dan ${missingOrtuFields.length - 6} butir lainnya.` : ''}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end shrink-0 ms-auto w-full sm:w-auto">
+                {isWawancaraOrtuFinalLocked ? (
+                  <div className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs flex items-center justify-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-700" />
+                    <span>Isian Terkunci Permanen (Telah Disahkan Pewawancara)</span>
+                  </div>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={saving || !isFormOrtu34Complete}
+                    title={!isFormOrtu34Complete ? 'Lengkapi seluruh 34 butir pertanyaan dan centang pernyataan terlebih dahulu' : 'Simpan Observasi OTM'}
+                    className={`w-full sm:w-auto px-8 py-3 rounded-xl font-bold text-xs shadow-md transition flex items-center justify-center gap-2 ${
+                      isFormOrtu34Complete
+                        ? 'bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white cursor-pointer'
+                        : 'bg-slate-200 text-slate-500 border border-slate-300 cursor-not-allowed opacity-85'
+                    }`}
+                  >
+                    {isFormOrtu34Complete ? (
+                      <>
+                        <Save className="w-4 h-4" />
+                        <span>{saving ? 'Menyimpan...' : 'Simpan Observasi OTM'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="w-4 h-4 text-slate-500" />
+                        <span>Simpan Terkunci (Lengkapi {missingOrtuFields.length} Isian)</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
           </div>
@@ -1716,12 +1956,12 @@ export const SiswaDashboard: React.FC<Props> = ({
                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px] sm:text-[11px]">
                   <div>
                     <span className="text-slate-400 block font-semibold">Jadwal Observasi:</span>
-                    <span className="font-bold text-slate-800">Sabtu, 17 Januari 2026</span>
-                    <span className="block text-slate-500">Pukul 08.00 - 11.30 WIB</span>
+                    <span className="font-bold text-slate-800">Akan diinformasikan oleh Tata Usaha</span>
+                    <span className="block text-slate-500">Menunggu konfirmasi jadwal dari TU</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block font-semibold">Ruang &amp; Lokasi:</span>
-                    <span className="font-bold text-emerald-900">Ruang Aula - Gedung SMPIT Lt. 1</span>
+                    <span className="font-bold text-emerald-900">Gedung SMPIT Pondok Duta Lt. 1</span>
                     <span className="block text-slate-500">Observasi Murid &amp; OTM</span>
                   </div>
                 </div>
@@ -1767,12 +2007,12 @@ export const SiswaDashboard: React.FC<Props> = ({
       {reviewDraftOrtuModal && (
         <HasilWawancaraOrtuPrintView
           data={reviewDraftOrtuModal}
-          isPreSaveReview={true}
+          isPreSaveReview={!isWawancaraOrtuFinalLocked}
           signingRole="ortu"
           hideDownload={true}
           onClose={() => setReviewDraftOrtuModal(null)}
-          onConfirmSave={(ttdOrtu) => {
-            const res = gasService.saveTtdOrtuFromHp(selectedNoPendaftaran, ttdOrtu);
+          onConfirmSave={isWawancaraOrtuFinalLocked ? undefined : async (ttdOrtu) => {
+            const res = await gasService.saveTtdOrtuFromHp(selectedNoPendaftaran, ttdOrtu);
             if (res.data) {
               setDraftWawancaraOrtu(res.data);
             }

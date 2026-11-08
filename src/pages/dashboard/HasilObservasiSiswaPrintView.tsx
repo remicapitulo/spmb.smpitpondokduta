@@ -51,8 +51,8 @@ export const HasilObservasiSiswaPrintView: React.FC<Props> = ({ data, onClose })
       await downloadElementAsPdf({
         element: docElement,
         fileName,
-        pdfTitle: `Lembar Observasi Siswa - ${data.namaSiswa || ''}`,
-        footerText: `Lembar Observasi Calon Murid SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · Sah terverifikasi via QR Code.`,
+        pdfTitle: `Lembar Observasi Siswa - ${data.namaSiswa || ''} (${data.noPendaftaran || '-'})`,
+        footerText: `Lembar Observasi Calon Murid SPMB SMPIT Pondok Duta TP ${tahunPelajaran} · ${data.namaSiswa || '-'} (${data.noPendaftaran || '-'}) · Sah terverifikasi via QR Code.`,
         margin: 10
       });
     } catch (err) {
@@ -124,7 +124,7 @@ export const HasilObservasiSiswaPrintView: React.FC<Props> = ({ data, onClose })
                 SMPIT PONDOK DUTA
               </div>
               <p className="text-[10px] text-slate-600 font-medium">
-                <span className="font-bold text-emerald-800">Terakreditasi "A" (BAN-PDM)</span> | NPSN: 20276180 | NSS: 202026601007
+                <span className="font-bold text-emerald-800">Terakreditasi "A" (BAN-PDM)</span> | NPSN: 20276180
               </p>
               <p className="text-[9.5px] text-slate-500 leading-snug">
                 Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok, Jawa Barat 16451
@@ -247,7 +247,7 @@ export const HasilObservasiSiswaPrintView: React.FC<Props> = ({ data, onClose })
           </div>
 
           {/* Pengesahan Dokumen Resmi via QR Code (Tanda tangan manual dihapus, digantikan QR Code verifikasi resmi) */}
-          <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div data-pdf-keep-together="true" className="pdf-signature-block pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 break-inside-avoid">
             <div className="flex items-center gap-3 w-full sm:w-auto">
               {qrCodeUrl ? (
                 <div className="p-1 bg-white rounded-xl border border-slate-300 shadow-2xs shrink-0">

@@ -102,10 +102,10 @@ export const HomePage: React.FC<Props> = ({
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-10 items-center">
           
           {/* Kolom Kiri: Teks Utama & CTA */}
-          <div className="lg:col-span-7 space-y-5">
+          <div className="md:col-span-7 space-y-5">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-amber-300">
               <span>YAYASAN PERGURUAN ISLAM PONDOK DUTA (YPIPD)</span>
             </div>
@@ -201,7 +201,7 @@ export const HomePage: React.FC<Props> = ({
           </div>
 
           {/* Kolom Kanan: Gambar Animasi Potongan Foto Asli dari E-Flyer */}
-          <div className="lg:col-span-5">
+          <div className="md:col-span-5">
             <AnimatedEflayerHero />
           </div>
 
@@ -515,25 +515,25 @@ export const HomePage: React.FC<Props> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="p-4 rounded-2xl bg-slate-800/90 border border-slate-700 space-y-2">
             <div className="text-[11px] font-extrabold text-amber-400 uppercase">1. PENDAFTARAN</div>
-            <h4 className="font-bold text-sm text-white">Online (WA/PWA) & Offline</h4>
+            <h4 className="font-bold text-sm text-white">Online (CS WA/Portal) & Offline</h4>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Pendaftaran online via CS WA SMPIT (<strong>0822-2500-2011</strong>) / Portal PWA, atau offline di ruang pendaftaran serta mengembalikan formulir.
+              Pendaftaran online melalui CS SMP (<strong>0822-2500-2011</strong>) / offline di ruang Tata Usaha, mengisi data di Portal Aplikasi SPMB, serta mengembalikan formulir.
             </p>
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-800/90 border border-slate-700 space-y-2">
             <div className="text-[11px] font-extrabold text-amber-400 uppercase">2. TES KEMATANGAN MURID (TKM)</div>
-            <h4 className="font-bold text-sm text-white">Observasi, TKS & Wawancara</h4>
+            <h4 className="font-bold text-sm text-white">Pelaksanaan TKM & Observasi</h4>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Wawancara Orang Tua Murid (OTM), Observasi Murid & Tes Agama (SMP), serta Test Potensi Akademik (SMP).
+              Wawancara Orang Tua Murid, Observasi Murid & Tes Agama, Tes Potensi Akademik (IPA, Matematika, Bahasa Indonesia), dan Tes Psikotes.
             </p>
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-800/90 border border-slate-700 space-y-2">
             <div className="text-[11px] font-extrabold text-amber-400 uppercase">3. PENGUMUMAN HASIL TES</div>
-            <h4 className="font-bold text-sm text-white">Ruang TU & Portal Online</h4>
+            <h4 className="font-bold text-sm text-white">Cek Kelulusan Online</h4>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              Hasil Tes dapat diambil di Ruang Tata Usaha SMPIT Pondok Duta atau dicek secara online melalui menu Cek Kelulusan.
+              Calon murid dapat mengecek status kelulusan secara online melalui menu Cek Kelulusan.
             </p>
           </div>
 
@@ -546,10 +546,10 @@ export const HomePage: React.FC<Props> = ({
           </div>
 
           <div className="p-4 rounded-2xl bg-emerald-950/90 border border-emerald-700/70 space-y-2">
-            <div className="text-[11px] font-extrabold text-emerald-300 uppercase">5. SERAGAM & MPLS</div>
+            <div className="text-[11px] font-extrabold text-emerald-300 uppercase">5 & 6. SERAGAM & MPLS</div>
             <h4 className="font-bold text-sm text-white">Pengukuran Seragam & MPLS</h4>
             <p className="text-[11px] text-emerald-100/90 leading-relaxed">
-              Menunggu konfirmasi jadwal pengukuran seragam dari sekolah dilanjutkan <strong>Masa Pengenalan Lingkungan Sekolah (MPLS)</strong>.
+              Menunggu konfirmasi jadwal pengukuran seragam dilanjutkan kegiatan <strong>Masa Pengenalan Lingkungan Sekolah (MPLS)</strong> Tahun Ajaran {tahunPelajaran}.
             </p>
           </div>
         </div>

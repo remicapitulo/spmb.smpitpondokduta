@@ -166,7 +166,7 @@ export const BukuIndukPrintView: React.FC<Props> = ({ data, onClose }) => {
                     SMPIT PONDOK DUTA
                   </h1>
                   <p className="text-[10px] text-slate-600 font-sans">
-                    <span className="font-bold text-emerald-800">Terakreditasi "A" BAN-PDM</span> | NPSN: 20276180 | NSS: 202026601007
+                    <span className="font-bold text-emerald-800">Terakreditasi "A" BAN-PDM</span> | NPSN: 20276180
                   </p>
                   <p className="text-[9.5px] text-slate-500 font-sans leading-snug">
                     Perumahan Pondok Duta, Jl. Duta Plaza No. 1, Kel. Tugu, Kec. Cimanggis, Kota Depok 16451 | Telp: (021) 29378301

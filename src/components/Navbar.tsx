@@ -103,7 +103,7 @@ export const Navbar: React.FC<Props> = ({
           {/* Kiri: Logo & Identitas Sekolah */}
           <div 
             onClick={() => handleNavClick('home')}
-            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group min-w-0 flex-1 lg:flex-none"
+            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group min-w-0 flex-1 md:flex-none"
           >
             {logoUrl ? (
               <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-white flex items-center justify-center shadow-sm border border-slate-200 overflow-hidden p-0.5 group-hover:scale-105 transition-transform shrink-0">
@@ -129,15 +129,15 @@ export const Navbar: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Tengah: Desktop Navigation (Hanya tampil di Desktop lg ke atas) */}
-          <nav className="hidden lg:flex items-center gap-1 p-1 rounded-xl bg-slate-100/80 border border-slate-200/60 shrink-0">
+          {/* Tengah: Desktop & Tablet Navigation (Tampil di Tablet md ke atas & Desktop) */}
+          <nav className="hidden md:flex items-center gap-1 p-1 rounded-xl bg-slate-100/80 border border-slate-200/60 shrink-0">
             {navItems.map((item) => {
               const isActive = currentTab === item.id;
               return (
                 <button
                   key={item.id}
                   onClick={() => handleNavClick(item.id)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`px-2.5 lg:px-3.5 py-1.5 rounded-lg text-[11px] lg:text-xs font-semibold transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer ${
                     isActive
                       ? 'bg-white text-emerald-800 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
@@ -149,11 +149,11 @@ export const Navbar: React.FC<Props> = ({
             })}
           </nav>
 
-          {/* Kanan: Desktop Dropdown (lg+) & Mobile/Tablet Hamburger Button (<lg) */}
+          {/* Kanan: Desktop/Tablet Dropdown (md+) & Mobile Hamburger Button (<md) */}
           <div className="flex items-center gap-2 shrink-0">
             
-            {/* DESKTOP DROPDOWN MENU (Hanya tampil di layar lg ke atas agar layar HP tidak terpotong) */}
-            <div className="hidden lg:block relative" ref={dropdownRef}>
+            {/* DESKTOP & TABLET DROPDOWN MENU (Tampil di layar md ke atas) */}
+            <div className="hidden md:block relative" ref={dropdownRef}>
               {currentUser ? (
                 <button
                   type="button"
@@ -435,7 +435,7 @@ export const Navbar: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* TAMPILAN HP & TABLET (< lg):
+            {/* TAMPILAN HP (< md):
                 - Setelah Login: Menu navigasi berpindah seluruhnya ke menu bawah (MobileBottomNav).
                   Di kanan atas hanya tampil chip profil minimalis yang bila disentuh membuka laci menu bawah.
                 - Belum Login: Tetap tampil tombol Menu navigasi & login. */}
@@ -445,7 +445,7 @@ export const Navbar: React.FC<Props> = ({
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('open_mobile_bottom_drawer'));
                 }}
-                className={`lg:hidden inline-flex items-center gap-1.5 h-10 px-3 rounded-xl font-bold text-xs transition shrink-0 cursor-pointer border shadow-2xs ${
+                className={`md:hidden inline-flex items-center gap-1.5 h-10 px-3 rounded-xl font-bold text-xs transition shrink-0 cursor-pointer border shadow-2xs ${
                   currentUser.role === 'admin'
                     ? 'bg-amber-50 text-amber-950 border-amber-300 hover:bg-amber-100'
                     : currentUser.role === 'guru'
@@ -470,7 +470,7 @@ export const Navbar: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className={`lg:hidden inline-flex items-center gap-1.5 h-10 px-3 rounded-xl font-bold text-xs transition shrink-0 cursor-pointer border ${
+                className={`md:hidden inline-flex items-center gap-1.5 h-10 px-3 rounded-xl font-bold text-xs transition shrink-0 cursor-pointer border ${
                   mobileMenuOpen
                     ? 'bg-emerald-700 text-white border-emerald-800 shadow-xs'
                     : 'bg-slate-50 text-slate-800 hover:bg-slate-100 border-slate-200/90'
@@ -494,12 +494,12 @@ export const Navbar: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* PANEL MENU DROPDOWN HP & TABLET (< lg) - HANYA SAAT BELUM LOGIN */}
+      {/* PANEL MENU DROPDOWN HP (< md) - HANYA SAAT BELUM LOGIN */}
       {!currentUser && (
         <div
           className={
             mobileMenuOpen
-              ? 'lg:hidden border-t border-slate-200/80 bg-white px-4 pt-3 pb-5 space-y-4 text-sm animate-in slide-in-from-top-2 shadow-2xl max-h-[calc(100vh-4rem)] overflow-y-auto'
+              ? 'md:hidden border-t border-slate-200/80 bg-white px-4 pt-3 pb-5 space-y-4 text-sm animate-in slide-in-from-top-2 shadow-2xl max-h-[calc(100vh-4rem)] overflow-y-auto'
               : 'hidden'
           }
         >

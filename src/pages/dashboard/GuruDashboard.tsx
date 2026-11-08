@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { gasService } from '../../services/gasService';
 import { 
   DataSiswa, 
@@ -97,6 +97,8 @@ export const GuruDashboard: React.FC<Props> = ({
   // --- STATE TIM 1: WAWANCARA ORANG TUA (OTM) ---
   // =========================================================================
   const [selectedOrtuIndex, setSelectedOrtuIndex] = useState<number>(0);
+  const [selectedOrtuId, setSelectedOrtuId] = useState<string>('');
+  const selectedOrtuIdRef = useRef<string>('');
   const [searchKeywordOrtu, setSearchKeywordOrtu] = useState<string>('');
   const [namaPewawancaraOrtu, setNamaPewawancaraOrtu] = useState<string>(
     currentUser?.namaSiswa || ''
@@ -115,6 +117,8 @@ export const GuruDashboard: React.FC<Props> = ({
   // --- STATE TIM 2: OBSERVASI SISWA (TAHSIN, TAHFIDZ, ADAB, AKADEMIK) ---
   // =========================================================================
   const [selectedSiswaIndex, setSelectedSiswaIndex] = useState<number>(0);
+  const [selectedSiswaId, setSelectedSiswaId] = useState<string>('');
+  const selectedSiswaIdRef = useRef<string>('');
   const [searchKeywordSiswa, setSearchKeywordSiswa] = useState<string>('');
   const [namaPengujiSiswa, setNamaPengujiSiswa] = useState<string>(
     currentUser?.namaSiswa || ''
@@ -176,6 +180,20 @@ export const GuruDashboard: React.FC<Props> = ({
     const handleDbUpdate = () => {
       gasService.getStudentList(false).then((updatedList) => {
         setStudents(updatedList);
+        if (updatedList.length > 0) {
+          if (selectedOrtuIdRef.current) {
+            const idxOrtu = updatedList.findIndex(s => s.id === selectedOrtuIdRef.current);
+            if (idxOrtu >= 0) setSelectedOrtuIndex(idxOrtu);
+            const latestOrtuRes = gasService.getHasilWawancaraOrtu(selectedOrtuIdRef.current);
+            if (latestOrtuRes) {
+              setSavedOrtuResult(latestOrtuRes);
+            }
+          }
+          if (selectedSiswaIdRef.current) {
+            const idxSiswa = updatedList.findIndex(s => s.id === selectedSiswaIdRef.current);
+            if (idxSiswa >= 0) setSelectedSiswaIndex(idxSiswa);
+          }
+        }
         const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
         setDbGuruNames(gurus);
       });
@@ -208,9 +226,12 @@ export const GuruDashboard: React.FC<Props> = ({
     }
   }, [currentUser?.namaSiswa]);
 
-  const loadStudentList = async () => {
+  const loadStudentList = async (preserveOrtuId?: string, preserveSiswaId?: string) => {
     // Hanya tampilkan loading jika belum ada data siswa sama sekali di memori
     setLoading(prev => students.length === 0);
+    const targetOrtuId = preserveOrtuId || selectedOrtuIdRef.current || selectedOrtuId || students[selectedOrtuIndex]?.id || '';
+    const targetSiswaId = preserveSiswaId || selectedSiswaIdRef.current || selectedSiswaId || students[selectedSiswaIndex]?.id || '';
+
     const list = await gasService.getStudentList();
     const gurus = gasService.getPewawancaraAccounts().map(g => g.namaSiswa).filter(Boolean);
     setDbGuruNames(gurus);
@@ -220,10 +241,21 @@ export const GuruDashboard: React.FC<Props> = ({
     }
     setStudents(list);
     if (list.length > 0) {
-      setSelectedOrtuIndex(0);
-      setSelectedSiswaIndex(0);
-      loadExistingObservasiSiswa(list[0].id);
-      loadExistingWawancaraOrtu(list[0].id);
+      const foundOrtuIdx = targetOrtuId ? list.findIndex(s => s.id === targetOrtuId) : -1;
+      const nextOrtuIdx = foundOrtuIdx >= 0 ? foundOrtuIdx : 0;
+      const resolvedOrtuId = list[nextOrtuIdx].id;
+      selectedOrtuIdRef.current = resolvedOrtuId;
+      setSelectedOrtuId(resolvedOrtuId);
+      setSelectedOrtuIndex(nextOrtuIdx);
+      loadExistingWawancaraOrtu(resolvedOrtuId);
+
+      const foundSiswaIdx = targetSiswaId ? list.findIndex(s => s.id === targetSiswaId) : -1;
+      const nextSiswaIdx = foundSiswaIdx >= 0 ? foundSiswaIdx : 0;
+      const resolvedSiswaId = list[nextSiswaIdx].id;
+      selectedSiswaIdRef.current = resolvedSiswaId;
+      setSelectedSiswaId(resolvedSiswaId);
+      setSelectedSiswaIndex(nextSiswaIdx);
+      loadExistingObservasiSiswa(resolvedSiswaId);
     }
     setLoading(false);
   };
@@ -253,29 +285,45 @@ export const GuruDashboard: React.FC<Props> = ({
     );
   }, [students, searchKeywordSiswa]);
 
-  // Current active students for each team
-  const currentStudentOrtu = students[selectedOrtuIndex] || null;
-  const currentStudentSiswa = students[selectedSiswaIndex] || null;
+  // Current active students for each team (dipertahankan berdasarkan ID murid agar tidak pernah reset ke murid nomor 1)
+  const currentStudentOrtu = useMemo(() => {
+    if (selectedOrtuId) {
+      const found = students.find(s => s.id === selectedOrtuId);
+      if (found) return found;
+    }
+    return students[selectedOrtuIndex] || students[0] || null;
+  }, [students, selectedOrtuId, selectedOrtuIndex]);
 
-  // Pastikan setiap kali siswa yang sedang diuji berubah (baik karena dipilih maupun pembaruan daftar),
-  // form langsung membaca ulang data dari database (atau dikosongkan total jika belum ada di database)
+  const currentStudentSiswa = useMemo(() => {
+    if (selectedSiswaId) {
+      const found = students.find(s => s.id === selectedSiswaId);
+      if (found) return found;
+    }
+    return students[selectedSiswaIndex] || students[0] || null;
+  }, [students, selectedSiswaId, selectedSiswaIndex]);
+
+  // Pastikan setiap kali siswa yang sedang diuji berganti ID, form membaca data murid tersebut
   useEffect(() => {
     if (currentStudentSiswa?.id) {
+      selectedSiswaIdRef.current = currentStudentSiswa.id;
       loadExistingObservasiSiswa(currentStudentSiswa.id);
     }
-  }, [currentStudentSiswa?.id, students]);
+  }, [currentStudentSiswa?.id]);
 
   useEffect(() => {
     if (currentStudentOrtu?.id) {
+      selectedOrtuIdRef.current = currentStudentOrtu.id;
       loadExistingWawancaraOrtu(currentStudentOrtu.id);
     }
-  }, [currentStudentOrtu?.id, students]);
+  }, [currentStudentOrtu?.id]);
 
   // Handler ganti siswa Tim OTM
   const handleSelectStudentOrtu = (origIdx: number) => {
     setSelectedOrtuIndex(origIdx);
     const st = students[origIdx];
     if (st) {
+      selectedOrtuIdRef.current = st.id;
+      setSelectedOrtuId(st.id);
       loadExistingWawancaraOrtu(st.id);
     }
   };
@@ -285,6 +333,8 @@ export const GuruDashboard: React.FC<Props> = ({
     setSelectedSiswaIndex(origIdx);
     const st = students[origIdx];
     if (st) {
+      selectedSiswaIdRef.current = st.id;
+      setSelectedSiswaId(st.id);
       loadExistingObservasiSiswa(st.id);
     }
   };
@@ -292,13 +342,18 @@ export const GuruDashboard: React.FC<Props> = ({
   // Load hasil wawancara OTM yang sudah ada
   const loadExistingWawancaraOrtu = (noPend: string) => {
     const existing = gasService.getHasilWawancaraOrtu(noPend);
-    if (currentUser?.namaSiswa) {
+    setSavedOrtuResult(existing || null);
+    if (existing?.namaPewawancara && existing.namaPewawancara.trim() !== '-') {
+      setNamaPewawancaraOrtu(existing.namaPewawancara.trim());
+    } else if (currentUser?.namaSiswa) {
       setNamaPewawancaraOrtu(currentUser.namaSiswa);
-    } else if (existing?.namaPewawancara) {
-      setNamaPewawancaraOrtu(existing.namaPewawancara);
     }
     if (existing) {
-      setCatatanKhususOrtu(existing.catatanKhusus || '');
+      const catItem = existing.jsonAnswers?.find(it => it.question && String(it.question).toUpperCase().includes('CATATAN KHUSUS'));
+      const resolvedCatatan = (existing.catatanKhusus && existing.catatanKhusus !== '-')
+        ? existing.catatanKhusus
+        : (catItem?.newAnswer || '');
+      setCatatanKhususOrtu(resolvedCatatan);
       const map: { [qIdx: number]: string } = {};
       if (existing.jsonAnswers) {
         existing.jsonAnswers.forEach((item, idx) => {
@@ -405,8 +460,26 @@ export const GuruDashboard: React.FC<Props> = ({
     return '-';
   };
 
-  // Active interviewer & examiner name locked to logged-in user
-  const activePewawancaraName = (currentUser?.namaSiswa || namaPewawancaraOrtu || '').trim();
+  // Data hasil / draft wawancara OTM yang sudah pernah disimpan untuk murid yang sedang dipilih
+  const existingOrtuData = useMemo(() => {
+    if (!currentStudentOrtu?.id) return null;
+    if (savedOrtuResult && savedOrtuResult.noPendaftaran === currentStudentOrtu.id) {
+      return savedOrtuResult;
+    }
+    return gasService.getHasilWawancaraOrtu(currentStudentOrtu.id);
+  }, [currentStudentOrtu?.id, savedOrtuResult, students]);
+
+  // Jika pewawancara sudah menekan Simpan Draft ke HP orang tua (atau sudah disahkan),
+  // maka nama pewawancara awal melekat selamanya pada akun siswa tersebut dan isi wawancara dikunci (hanya Catatan yang bisa diedit)
+  const isOrtuDraftLocked = Boolean(existingOrtuData);
+  const lockedInitialPewawancara =
+    existingOrtuData?.namaPewawancara && existingOrtuData.namaPewawancara.trim() !== '-'
+      ? existingOrtuData.namaPewawancara.trim()
+      : '';
+  const loggedInPewawancaraName = (currentUser?.namaSiswa || namaPewawancaraOrtu || '').trim();
+
+  // Active interviewer & examiner name (untuk OTM: gunakan nama pewawancara awal secara permanen jika sudah pernah disimpan draft)
+  const activePewawancaraName = lockedInitialPewawancara || loggedInPewawancaraName;
   const activePengujiName = (currentUser?.namaSiswa || namaPengujiSiswa || '').trim();
 
   // Helper merangkum jawaban wawancara OTM
@@ -418,11 +491,15 @@ export const GuruDashboard: React.FC<Props> = ({
         collectedAnswers.push({ isHeader: true, question: q.text, newAnswer: '' });
       } else {
         const refVal = getRefValue(q.refId);
-        let ansVal = ortuAnswers[index] || '';
+        // Jika sudah terkunci karena draft telah disimpan, pertahankan jawaban wawancara awal kecuali bagian Catatan Khusus
+        const lockedItemAnswer = isOrtuDraftLocked && existingOrtuData?.jsonAnswers?.[index]?.newAnswer !== undefined
+          ? existingOrtuData.jsonAnswers[index].newAnswer
+          : (ortuAnswers[index] || '');
+        let ansVal = lockedItemAnswer;
         
-        // Khusus Catatan Khusus
+        // Khusus Catatan Khusus tetap dapat diedit oleh pewawancara berikutnya
         if (q.id === 'catatan' || q.text.includes('CATATAN KHUSUS')) {
-          ansVal = catatanKhususOrtu || ansVal;
+          ansVal = catatanKhususOrtu;
         }
 
         // Khusus Bagian G: Pernyataan Orang Tua (otomatis terisi dari pernyataan orang tua)
@@ -467,6 +544,12 @@ export const GuruDashboard: React.FC<Props> = ({
 
     const collectedAnswers = buildCollectedAnswers();
     const existing = gasService.getHasilWawancaraOrtu(currentStudentOrtu.id);
+    const hasGenuineTtdOrtu = Boolean(
+      existing?.ttdOrtuBase64 &&
+      existing.ttdOrtuBase64.startsWith('data:image/') &&
+      existing.ttdOrtuBase64.length >= 300 &&
+      existing.isTtdOrtuSigned !== false
+    );
 
     const reviewData: HasilObservasiOrtuData = {
       id: existing?.id || ('HO-REVIEW-' + Date.now()),
@@ -478,13 +561,15 @@ export const GuruDashboard: React.FC<Props> = ({
       namaAyah: currentStudentOrtu.ayah,
       namaIbu: currentStudentOrtu.ibu,
       namaPewawancara: activePewawancaraName,
-      tanggalWawancara: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      tanggalWawancara: existing?.tanggalWawancara || new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
       jsonAnswers: collectedAnswers,
       catatanKhusus: catatanKhususOrtu || existing?.catatanKhusus || '-',
-      ttdOrtuBase64: existing?.ttdOrtuBase64 || '',
+      ttdOrtuBase64: hasGenuineTtdOrtu ? (existing?.ttdOrtuBase64 || '') : '',
       ttdPewawancaraBase64: existing?.ttdPewawancaraBase64 || '',
-      isTtdOrtuSigned: Boolean(existing?.ttdOrtuBase64 || existing?.isTtdOrtuSigned),
-      pdfUrl: '',
+      isTtdOrtuSigned: hasGenuineTtdOrtu,
+      signedFromHpAt: hasGenuineTtdOrtu ? existing?.signedFromHpAt : undefined,
+      status: existing?.status,
+      pdfUrl: existing?.pdfUrl || '',
       createdAt: existing?.createdAt || new Date().toISOString()
     };
 
@@ -493,14 +578,23 @@ export const GuruDashboard: React.FC<Props> = ({
   };
 
   // Eksekusi simpan final setelah ditandatangani dan direview
-  const handleCommitFinalWawancara = async (ttdOrtu: string, ttdPewawancara: string) => {
+  const handleCommitFinalWawancara = async (
+    ttdOrtu: string,
+    ttdPewawancara: string,
+    pdfBase64?: string,
+    imgBase64?: string
+  ) => {
     if (!currentStudentOrtu) return;
+
+    const savedOrtuId = currentStudentOrtu.id;
+    selectedOrtuIdRef.current = savedOrtuId;
+    setSelectedOrtuId(savedOrtuId);
 
     setSaving(true);
     const collectedAnswers = buildCollectedAnswers();
 
     const formData = {
-      idSiswa: currentStudentOrtu.id,
+      idSiswa: savedOrtuId,
       namaSiswa: currentStudentOrtu.nama,
       sekolahAsal: currentStudentOrtu.sekolah,
       namaPanggilan: currentStudentOrtu.panggilan,
@@ -510,34 +604,48 @@ export const GuruDashboard: React.FC<Props> = ({
       jsonAnswers: collectedAnswers,
       catatanKhusus: catatanKhususOrtu,
       ttdOrtuBase64: ttdOrtu,
-      ttdPewawancaraBase64: ttdPewawancara
+      ttdPewawancaraBase64: ttdPewawancara,
+      pdfBase64,
+      imgBase64
     };
 
     const res = await gasService.processWawancaraOrtu(formData);
     setSaving(false);
     setPreSaveReviewModal(null);
     setSavedOrtuResult(res.data);
+
+    // Refresh list sambil tetap mempertahankan murid yang sedang dipilih
+    await loadStudentList(savedOrtuId, currentStudentSiswa?.id);
+
+    const hasDirectDriveFile = Boolean(res.pdfUrl && res.pdfUrl.includes('/file/d/'));
     showAppAlert({
-      title: 'Wawancara Berhasil Disahkan',
-      message: 'Alhamdulillah! Hasil wawancara dan tanda tangan digital berhasil disahkan & disimpan resmi.',
-      subMessage: `Data hasil wawancara Orang Tua untuk ${currentStudentOrtu.nama} (${currentStudentOrtu.id}) telah tersimpan ke database.`,
+      title: 'Wawancara Berhasil Disahkan & Dikunci',
+      message: hasDirectDriveFile
+        ? 'Alhamdulillah! Hasil wawancara, tanda tangan digital, dan file PDF resmi berhasil disimpan ke Spreadsheet & Folder Google Drive.'
+        : 'Alhamdulillah! Hasil wawancara dan tanda tangan digital berhasil disahkan & dikunci di Spreadsheet.',
+      subMessage: hasDirectDriveFile
+        ? `Data wawancara Orang Tua untuk ${currentStudentOrtu.nama} (${savedOrtuId}) telah dikunci permanen dan file PDF tersimpan di Google Drive.`
+        : `Data wawancara untuk ${currentStudentOrtu.nama} (${savedOrtuId}) telah dikunci permanen. Catatan: Agar file PDF hasil unduhan otomatis tersimpan & menautkan link file di Kolom G (Link PDF), silakan perbarui kode di menu Koneksi Database → Salin Kode GAS lalu Deploy Versi Baru di Google Apps Script.`,
       variant: 'success',
       confirmText: 'Selesai',
     });
-
-    // Refresh list agar status selesai terupdate
-    await loadStudentList();
   };
 
   // Simpan Cepat / Draft (Muncul di Menu Wawancara Ortu di Akun Siswa/Ortu untuk Ditandatangani di HP)
   const handleDirectSaveDraft = async () => {
     if (!currentStudentOrtu) return;
+
+    const savedOrtuId = currentStudentOrtu.id;
+    selectedOrtuIdRef.current = savedOrtuId;
+    setSelectedOrtuId(savedOrtuId);
+
     setSaving(true);
     const collectedAnswers = buildCollectedAnswers();
-    const existing = gasService.getHasilWawancaraOrtu(currentStudentOrtu.id);
+    const existing = gasService.getHasilWawancaraOrtu(savedOrtuId);
+    const wasAlreadySaved = Boolean(existing);
 
     const formData = {
-      idSiswa: currentStudentOrtu.id,
+      idSiswa: savedOrtuId,
       namaSiswa: currentStudentOrtu.nama,
       sekolahAsal: currentStudentOrtu.sekolah,
       namaPanggilan: currentStudentOrtu.panggilan,
@@ -549,17 +657,30 @@ export const GuruDashboard: React.FC<Props> = ({
       ttdOrtuBase64: existing?.ttdOrtuBase64 || '',
       ttdPewawancaraBase64: existing?.ttdPewawancaraBase64 || ''
     };
-    const res = gasService.saveDraftWawancaraOrtu(formData);
+    const res = await gasService.saveDraftWawancaraOrtu(formData);
     setSaving(false);
     setSavedOrtuResult(res.data);
-    showAppAlert({
-      title: 'Draft Wawancara Berhasil Disimpan',
-      message: 'Alhamdulillah! Draft wawancara berhasil disimpan.',
-      subMessage: 'Dokumen ini sekarang muncul di menu Observasi Ortu pada akun Portal Calon Murid agar dapat direview dan ditandatangani langsung oleh Ayah/Bunda di HP mereka.',
-      variant: 'success',
-      confirmText: 'Mengerti',
-    });
-    await loadStudentList();
+
+    // Refresh list sambil tetap mempertahankan murid yang sedang dipilih
+    await loadStudentList(savedOrtuId, currentStudentSiswa?.id);
+
+    if (wasAlreadySaved) {
+      showAppAlert({
+        title: 'Catatan Khusus Berhasil Diperbarui',
+        message: 'Alhamdulillah! Bagian Catatan Khusus pewawancara berhasil disimpan.',
+        subMessage: `Nama pewawancara awal (${res.data.namaPewawancara}) dan seluruh isi wawancara utama tetap terkunci permanen pada akun murid ini.`,
+        variant: 'success',
+        confirmText: 'Mengerti',
+      });
+    } else {
+      showAppAlert({
+        title: 'Draft Wawancara Berhasil Disimpan',
+        message: 'Alhamdulillah! Draft wawancara berhasil disimpan dan dikirim ke HP Orang Tua.',
+        subMessage: `Nama pewawancara (${res.data.namaPewawancara}) kini melekat permanen pada murid ini. Dokumen telah muncul di menu Observasi Ortu pada akun Portal Calon Murid untuk ditandatangani Ayah/Bunda.`,
+        variant: 'success',
+        confirmText: 'Mengerti',
+      });
+    }
   };
 
   // =========================================================================
@@ -600,10 +721,14 @@ export const GuruDashboard: React.FC<Props> = ({
       return;
     }
 
+    const savedSiswaId = currentStudentSiswa.id;
+    selectedSiswaIdRef.current = savedSiswaId;
+    setSelectedSiswaId(savedSiswaId);
+
     setSaving(true);
-    const existingSiswa = gasService.getSiswaByNo(currentStudentSiswa.id);
-    const existingInduk = gasService.getDataIndukList().find(d => d.noPendaftaran === currentStudentSiswa.id);
-    const existingLulus = gasService.getStatusKelulusan(currentStudentSiswa.id);
+    const existingSiswa = gasService.getSiswaByNo(savedSiswaId);
+    const existingInduk = gasService.getDataIndukList().find(d => d.noPendaftaran === savedSiswaId);
+    const existingLulus = gasService.getStatusKelulusan(savedSiswaId);
     const resolvedNisn = (existingSiswa?.nisn && existingSiswa.nisn !== '-') 
       ? existingSiswa.nisn 
       : ((existingInduk?.nisn && existingInduk.nisn !== '-') 
@@ -613,8 +738,8 @@ export const GuruDashboard: React.FC<Props> = ({
 
     const payload: ObservasiSiswaData = {
       id: 'OBS-SISWA-' + Date.now(),
-      siswaId: currentStudentSiswa.id,
-      noPendaftaran: currentStudentSiswa.id,
+      siswaId: savedSiswaId,
+      noPendaftaran: savedSiswaId,
       nisn: resolvedNisn,
       asalSekolah: resolvedAsalSekolah,
       namaSiswa: currentStudentSiswa.nama,
@@ -645,14 +770,17 @@ export const GuruDashboard: React.FC<Props> = ({
     const res = await gasService.saveObservasiSiswa(payload);
     setSaving(false);
     setSavedSiswaResult(res.data);
+
+    // Refresh list sambil tetap mempertahankan murid yang sedang dipilih
+    await loadStudentList(currentStudentOrtu?.id, savedSiswaId);
+
     showAppAlert({
       title: 'Lembar Observasi Murid Tersimpan',
       message: res.message,
-      subMessage: `Status evaluasi dan rincian pembiayaan untuk ${currentStudentSiswa.nama} (${currentStudentSiswa.id}) telah disinkronkan ke Sheet Observasi & Sheet Kelulusan.`,
+      subMessage: `Status evaluasi dan rincian pembiayaan untuk ${currentStudentSiswa.nama} (${savedSiswaId}) telah disinkronkan ke Sheet Observasi & Sheet Kelulusan.`,
       variant: 'success',
       confirmText: 'Selesai',
     });
-    await loadStudentList();
   };
 
   const handleApplyTanggalToAllLulus = async () => {
@@ -721,7 +849,7 @@ export const GuruDashboard: React.FC<Props> = ({
               Evaluasi Seleksi Penerimaan Murid Baru
             </h1>
             <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
-              Panel instrumen evaluasi seleksi murid baru. Silakan pilih salah satu menu kerja di bawah ini untuk mengelola Wawancara OTM, Observasi Murid, Data Induk, atau Pengumuman.
+              Panel instrumen evaluasi seleksi murid baru. Silakan pilih salah satu menu kerja di bawah ini untuk mengelola Wawancara OTM, Observasi Murid, Pengumuman, atau Data Induk.
             </p>
           </div>
 
@@ -761,21 +889,12 @@ export const GuruDashboard: React.FC<Props> = ({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-1.5">
-                  <span
-                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                      activeTeam === 'ortu'
-                        ? 'bg-black/20 text-emerald-100'
-                        : 'bg-emerald-500/15 text-emerald-300'
-                    }`}
-                  >
-                    Menu 01
-                  </span>
+                  <div className="text-sm font-black text-white leading-snug">
+                    1. Wawancara OTM
+                  </div>
                   {activeTeam === 'ortu' && (
                     <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
                   )}
-                </div>
-                <div className="text-sm font-black text-white mt-1 leading-snug">
-                  1. Wawancara OTM
                 </div>
                 <div
                   className={`text-[11px] mt-0.5 leading-tight ${
@@ -808,21 +927,12 @@ export const GuruDashboard: React.FC<Props> = ({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-1.5">
-                  <span
-                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                      activeTeam === 'siswa'
-                        ? 'bg-black/20 text-indigo-100'
-                        : 'bg-indigo-500/15 text-indigo-300'
-                    }`}
-                  >
-                    Menu 02
-                  </span>
+                  <div className="text-sm font-black text-white leading-snug">
+                    2. Observasi Murid
+                  </div>
                   {activeTeam === 'siswa' && (
                     <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
                   )}
-                </div>
-                <div className="text-sm font-black text-white mt-1 leading-snug">
-                  2. Observasi Murid
                 </div>
                 <div
                   className={`text-[11px] mt-0.5 leading-tight ${
@@ -834,58 +944,7 @@ export const GuruDashboard: React.FC<Props> = ({
               </div>
             </button>
 
-            {/* MENU 3: DATA INDUK */}
-            <button
-              type="button"
-              onClick={() => setActiveTeam('data-induk')}
-              className={`group relative p-3.5 sm:p-4 rounded-2xl text-left transition-all duration-200 flex items-center gap-3.5 cursor-pointer border ${
-                activeTeam === 'data-induk'
-                  ? 'bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 text-slate-950 border-amber-300 shadow-lg shadow-amber-950/40 ring-2 ring-amber-300/40 -translate-y-0.5'
-                  : 'bg-slate-800/75 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:border-amber-500/40'
-              }`}
-            >
-              <div
-                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${
-                  activeTeam === 'data-induk'
-                    ? 'bg-slate-950/15 text-slate-950 border border-slate-950/20 shadow-inner'
-                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
-                }`}
-              >
-                <Award className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-1.5">
-                  <span
-                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                      activeTeam === 'data-induk'
-                        ? 'bg-slate-950/15 text-slate-950'
-                        : 'bg-amber-500/15 text-amber-300'
-                    }`}
-                  >
-                    Menu 03
-                  </span>
-                  {activeTeam === 'data-induk' && (
-                    <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse shrink-0" />
-                  )}
-                </div>
-                <div
-                  className={`text-sm font-black mt-1 leading-snug ${
-                    activeTeam === 'data-induk' ? 'text-slate-950' : 'text-white'
-                  }`}
-                >
-                  3. Data Induk
-                </div>
-                <div
-                  className={`text-[11px] mt-0.5 leading-tight ${
-                    activeTeam === 'data-induk' ? 'text-slate-900 font-semibold' : 'text-slate-400'
-                  }`}
-                >
-                  Buku Induk Sekolah &amp; NIS
-                </div>
-              </div>
-            </button>
-
-            {/* MENU 4: PENGUMUMAN */}
+            {/* MENU 3: PENGUMUMAN */}
             <button
               type="button"
               onClick={() => setActiveTeam('whatsapp')}
@@ -906,21 +965,12 @@ export const GuruDashboard: React.FC<Props> = ({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-1.5">
-                  <span
-                    className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                      activeTeam === 'whatsapp'
-                        ? 'bg-black/20 text-teal-100'
-                        : 'bg-teal-500/15 text-teal-300'
-                    }`}
-                  >
-                    Menu 04
-                  </span>
+                  <div className="text-sm font-black text-white leading-snug">
+                    3. Pengumuman
+                  </div>
                   {activeTeam === 'whatsapp' && (
                     <span className="w-2 h-2 rounded-full bg-white animate-pulse shrink-0" />
                   )}
-                </div>
-                <div className="text-sm font-black text-white mt-1 leading-snug">
-                  4. Pengumuman
                 </div>
                 <div
                   className={`text-[11px] mt-0.5 leading-tight ${
@@ -928,6 +978,48 @@ export const GuruDashboard: React.FC<Props> = ({
                   }`}
                 >
                   Kirim WA &amp; Pantau Seleksi
+                </div>
+              </div>
+            </button>
+
+            {/* MENU 4: DATA INDUK */}
+            <button
+              type="button"
+              onClick={() => setActiveTeam('data-induk')}
+              className={`group relative p-3.5 sm:p-4 rounded-2xl text-left transition-all duration-200 flex items-center gap-3.5 cursor-pointer border ${
+                activeTeam === 'data-induk'
+                  ? 'bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 text-slate-950 border-amber-300 shadow-lg shadow-amber-950/40 ring-2 ring-amber-300/40 -translate-y-0.5'
+                  : 'bg-slate-800/75 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:border-amber-500/40'
+              }`}
+            >
+              <div
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                  activeTeam === 'data-induk'
+                    ? 'bg-slate-950/15 text-slate-950 border border-slate-950/20 shadow-inner'
+                    : 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
+                }`}
+              >
+                <Award className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-1.5">
+                  <div
+                    className={`text-sm font-black leading-snug ${
+                      activeTeam === 'data-induk' ? 'text-slate-950' : 'text-white'
+                    }`}
+                  >
+                    4. Data Induk
+                  </div>
+                  {activeTeam === 'data-induk' && (
+                    <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse shrink-0" />
+                  )}
+                </div>
+                <div
+                  className={`text-[11px] mt-0.5 leading-tight ${
+                    activeTeam === 'data-induk' ? 'text-slate-900 font-semibold' : 'text-slate-400'
+                  }`}
+                >
+                  Buku Induk Sekolah &amp; NIS
                 </div>
               </div>
             </button>
@@ -960,69 +1052,130 @@ export const GuruDashboard: React.FC<Props> = ({
 
               {/* Alert Status Tanda Tangan Orang Tua dari HP */}
               {(() => {
-                const existing = currentStudentOrtu ? gasService.getHasilWawancaraOrtu(currentStudentOrtu.id) : null;
+                const existing = currentStudentOrtu ? (savedOrtuResult?.noPendaftaran === currentStudentOrtu.id ? savedOrtuResult : gasService.getHasilWawancaraOrtu(currentStudentOrtu.id)) : null;
                 const hasTtdOrtuFromHp = Boolean(existing?.isTtdOrtuSigned || existing?.ttdOrtuBase64);
-                if (!hasTtdOrtuFromHp) return null;
-                return (
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in shadow-xs">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-emerald-600 text-white rounded-xl shrink-0">
-                        <Smartphone className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="font-bold text-xs sm:text-sm text-emerald-900 flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          <span>Tanda Tangan Orang Tua Sudah Masuk dari HP!</span>
+                if (hasTtdOrtuFromHp) {
+                  return (
+                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in shadow-xs">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-emerald-600 text-white rounded-xl shrink-0">
+                          <Smartphone className="w-5 h-5" />
                         </div>
-                        <p className="text-[11px] text-emerald-800">
-                          Orang tua murid telah mereview dan menandatangani di HP mereka. Tanda tangan ini otomatis disematkan pada lembar pengesahan. Pewawancara dapat langsung melanjutkan tanda tangan pengesahan.
-                        </p>
+                        <div>
+                          <div className="font-bold text-xs sm:text-sm text-emerald-900 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>Orang Tua telah menandatangani Hasil Wawancara.</span>
+                          </div>
+                          <p className="text-[11px] text-emerald-800">
+                            Orang tua murid telah mereview dan menandatangani Hasil Wawancara. Pewawancara dapat langsung melanjutkan tanda tangan pengesahan.
+                          </p>
+                        </div>
+                      </div>
+                      {existing?.ttdOrtuBase64 && (
+                        <div className="bg-white px-2.5 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2 self-start sm:self-auto shrink-0 shadow-2xs">
+                          <span className="text-[10px] text-slate-500 font-bold">TTD Ortu:</span>
+                          <img src={existing.ttdOrtuBase64} alt="TTD Ortu" className="h-7 max-w-[80px] object-contain" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                if (existing && !currentStudentOrtu?.existingPdf) {
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in shadow-2xs">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-amber-500 text-white rounded-xl shrink-0">
+                          <Smartphone className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="font-bold text-xs text-amber-950">
+                            Draft Wawancara Telah Dikirim ke HP Orang Tua ({currentStudentOrtu?.id})
+                          </div>
+                          <p className="text-[11px] text-amber-800">
+                            Menunggu Ayah/Bunda membuka menu <strong>Observasi Ortu</strong> di HP mereka dan menandatangani lembar wawancara.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!currentStudentOrtu) return;
+                          setSaving(true);
+                          await gasService.syncFromSpreadsheet(undefined, true);
+                          const latest = gasService.getHasilWawancaraOrtu(currentStudentOrtu.id);
+                          setSavedOrtuResult(latest);
+                          setSaving(false);
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] flex items-center gap-1.5 shrink-0 self-start sm:self-auto shadow-2xs transition cursor-pointer"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${saving ? 'animate-spin' : ''}`} />
+                        <span>Cek TTD Ortu dari HP</span>
+                      </button>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Keterangan Status Wawancara Sebelumnya */}
+              {currentStudentOrtu?.existingPdf && (() => {
+                const existingOrtuDoc = currentStudentOrtu ? (savedOrtuResult?.noPendaftaran === currentStudentOrtu.id ? savedOrtuResult : gasService.getHasilWawancaraOrtu(currentStudentOrtu.id)) : null;
+                const tanggalWawancaraText = existingOrtuDoc?.tanggalWawancara || (existingOrtuDoc?.createdAt ? new Date(existingOrtuDoc.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-');
+                const pewawancaraText = activePewawancaraName || existingOrtuDoc?.namaPewawancara || '-';
+                return (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex items-center gap-3 animate-in fade-in shadow-2xs">
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="p-2 bg-emerald-600 text-white rounded-xl">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <div className="p-2 bg-amber-500 text-white rounded-xl">
+                        <Lock className="w-4 h-4" />
                       </div>
                     </div>
-                    {existing?.ttdOrtuBase64 && (
-                      <div className="bg-white px-2.5 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-2 self-start sm:self-auto shrink-0 shadow-2xs">
-                        <span className="text-[10px] text-slate-500 font-bold">TTD Ortu:</span>
-                        <img src={existing.ttdOrtuBase64} alt="TTD Ortu" className="h-7 max-w-[80px] object-contain" />
-                      </div>
-                    )}
+                    <div className="text-xs leading-relaxed">
+                      <span className="font-bold text-amber-950">
+                        Orang tua calon murid ini sudah selesai diwawancara oleh {pewawancaraText} pada tanggal {tanggalWawancaraText}.
+                      </span>
+                      <span className="text-amber-900 ml-1">
+                        Hanya bagian Catatan Khusus yang dapat diedit.
+                      </span>
+                    </div>
                   </div>
                 );
               })()}
-
-              {/* Keterangan Status Wawancara Sebelumnya (Tombol atas dihapus sesuai instruksi user) */}
-              {currentStudentOrtu?.existingPdf && (
-                <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 flex items-center gap-3 animate-in fade-in shadow-2xs">
-                  <div className="p-2 bg-emerald-600 text-white rounded-xl shrink-0">
-                    <CheckCircle2 className="w-4 h-4" />
-                  </div>
-                  <div className="text-xs">
-                    <span className="font-bold text-emerald-900">Orang tua calon murid ini sudah selesai diwawancara.</span>
-                    <span className="text-emerald-700 ml-1">Hasil wawancara dan tanda tangan tersimpan di sistem. Anda dapat memperbarui isian jika diperlukan, atau mencetak PDF melalui tombol di bawah formulir.</span>
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* ROW 2: IDENTITAS SISWA & NAMA PEWAWANCARA TERKUNCI SESUAI LOGIN */}
+            {/* ROW 2: IDENTITAS SISWA & NAMA PEWAWANCARA TERKUNCI PERMANEN JIKA SUDAH SIMPAN DRAFT */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-blue-200/60">
               
-              {/* Nama Pewawancara (Dikunci sesuai akun login user) */}
+              {/* Nama Pewawancara */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-slate-600" />
-                  <span>Nama Pewawancara (Sesuai Login):</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between gap-1.5">
+                  <span className="flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-slate-600" />
+                    <span>
+                      {isOrtuDraftLocked
+                        ? 'Nama Pewawancara Awal:'
+                        : 'Nama Pewawancara (Sesuai Login):'}
+                    </span>
+                  </span>
                 </label>
                 <input
                   type="text"
                   readOnly
                   value={activePewawancaraName || '-'}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-200/80 text-slate-700 cursor-not-allowed font-bold text-xs"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-200/80 text-slate-800 cursor-not-allowed font-bold text-xs"
                 />
+                {isOrtuDraftLocked && loggedInPewawancaraName && loggedInPewawancaraName.toLowerCase() !== activePewawancaraName.toLowerCase() && (
+                  <p className="text-[10.5px] text-amber-900 font-semibold mt-1">
+                    Akun login Anda ({loggedInPewawancaraName}) hanya dapat mengedit bagian Catatan Khusus di bawah.
+                  </p>
+                )}
               </div>
 
-              {/* Asal Sekolah (Otomatis) */}
+              {/* Asal Sekolah */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Asal Sekolah (Otomatis):</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Asal Sekolah:</label>
                 <input
                   type="text"
                   readOnly
@@ -1070,7 +1223,7 @@ export const GuruDashboard: React.FC<Props> = ({
           {/* TABEL PERTANYAAN WAWANCARA OTM */}
           <form onSubmit={handleOpenPreSaveReview} className="space-y-6">
             <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-4 sm:p-6">
-              
+
               {/* Desktop Table View */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full border-collapse text-xs">
@@ -1115,33 +1268,49 @@ export const GuruDashboard: React.FC<Props> = ({
                           return (
                             <tr key={index} className="hover:bg-slate-50/80">
                               <td colSpan={3} className="p-3.5 align-top space-y-2">
-                                <div className="font-semibold text-[#2c3e50] leading-relaxed whitespace-pre-line text-xs">
-                                  {q.text}
+                                <div className="font-semibold text-[#2c3e50] leading-relaxed whitespace-pre-line text-xs flex items-center justify-between gap-2">
+                                  <span>{q.text}</span>
+                                  {isOrtuDraftLocked && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-500 text-[10px] font-bold shrink-0">
+                                      <Lock className="w-3 h-3" /> Terkunci
+                                    </span>
+                                  )}
                                 </div>
                                 <textarea
                                   rows={2}
+                                  readOnly={isOrtuDraftLocked}
+                                  disabled={isOrtuDraftLocked}
                                   value={ortuAnswers[index] || ''}
-                                  onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
+                                  onChange={(e) => {
+                                    if (isOrtuDraftLocked) return;
+                                    setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value });
+                                  }}
                                   placeholder="Jawaban / Catatan wawancara..."
-                                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white shadow-2xs"
+                                  className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none shadow-2xs ${
+                                    isOrtuDraftLocked
+                                      ? 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed'
+                                      : 'border-slate-300 bg-white focus:ring-2 focus:ring-blue-500'
+                                  }`}
                                 />
-                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                  <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
-                                  {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
-                                    <button
-                                      type="button"
-                                      key={quickOption}
-                                      onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
-                                      className={`px-2.5 py-1 text-[11px] rounded-lg font-medium border transition cursor-pointer ${
-                                        ortuAnswers[index] === quickOption
-                                          ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                          : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
-                                      }`}
-                                    >
-                                      + {quickOption}
-                                    </button>
-                                  ))}
-                                </div>
+                                {!isOrtuDraftLocked && (
+                                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                    <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                                    {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                                      <button
+                                        type="button"
+                                        key={quickOption}
+                                        onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                        className={`px-2.5 py-1 text-[11px] rounded-lg font-medium border transition cursor-pointer ${
+                                          ortuAnswers[index] === quickOption
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                            : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                        }`}
+                                      >
+                                        + {quickOption}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </td>
                             </tr>
                           );
@@ -1166,13 +1335,16 @@ export const GuruDashboard: React.FC<Props> = ({
                           );
                         }
 
-                        // Catatan Khusus Pewawancara (Pindahkan isian ke bawah, hilangkan kolom kosong)
+                        // Catatan Khusus Pewawancara (Pindahkan isian ke bawah, hilangkan kolom kosong - TETAP BISA DIEDIT)
                         if (isCatatanKhusus) {
                           return (
                             <tr key={index} className="hover:bg-amber-50/50 bg-amber-50/30 border-y-2 border-amber-300">
                               <td colSpan={3} className="p-3.5 align-top space-y-2">
-                                <div className="font-bold text-amber-950 leading-relaxed whitespace-pre-line text-xs flex items-center gap-1.5">
+                                <div className="font-bold text-amber-950 leading-relaxed whitespace-pre-line text-xs flex items-center justify-between gap-2">
                                   <span>📌 {q.text}</span>
+                                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-extrabold">
+                                    Bagian Catatan Dapat Diedit Pewawancara
+                                  </span>
                                 </div>
                                 <textarea
                                   rows={3}
@@ -1203,28 +1375,44 @@ export const GuruDashboard: React.FC<Props> = ({
                             <td className="p-3 align-top space-y-1.5">
                               <textarea
                                 rows={2}
+                                readOnly={isOrtuDraftLocked}
+                                disabled={isOrtuDraftLocked}
                                 value={ortuAnswers[index] || ''}
-                                onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
+                                onChange={(e) => {
+                                  if (isOrtuDraftLocked) return;
+                                  setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value });
+                                }}
                                 placeholder="Jawaban / Catatan wawancara..."
-                                className="w-full p-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white shadow-2xs"
+                                className={`w-full p-2.5 rounded-xl border text-xs focus:outline-none shadow-2xs ${
+                                  isOrtuDraftLocked
+                                    ? 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed'
+                                    : 'border-slate-300 bg-white focus:ring-2 focus:ring-blue-500'
+                                }`}
                               />
-                              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
-                                {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
-                                  <button
-                                    type="button"
-                                    key={quickOption}
-                                    onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
-                                    className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
-                                      ortuAnswers[index] === quickOption
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                        : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
-                                    }`}
-                                  >
-                                    + {quickOption}
-                                  </button>
-                                ))}
-                              </div>
+                              {!isOrtuDraftLocked ? (
+                                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                  <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                                  {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                                    <button
+                                      type="button"
+                                      key={quickOption}
+                                      onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                      className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
+                                        ortuAnswers[index] === quickOption
+                                          ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                          : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                      }`}
+                                    >
+                                      + {quickOption}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 text-[10px] text-slate-400 font-semibold">
+                                  <Lock className="w-3 h-3" />
+                                  <span>Dikunci oleh pewawancara awal ({activePewawancaraName})</span>
+                                </div>
+                              )}
                             </td>
                           </tr>
                         );
@@ -1269,28 +1457,39 @@ export const GuruDashboard: React.FC<Props> = ({
                           </div>
                           <textarea
                             rows={3}
+                            readOnly={isOrtuDraftLocked}
+                            disabled={isOrtuDraftLocked}
                             value={ortuAnswers[index] || ''}
-                            onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
+                            onChange={(e) => {
+                              if (isOrtuDraftLocked) return;
+                              setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value });
+                            }}
                             placeholder="Jawaban / Catatan wawancara..."
-                            className="w-full p-2.5 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-blue-500 shadow-2xs"
+                            className={`w-full p-2.5 rounded-xl border text-xs shadow-2xs ${
+                              isOrtuDraftLocked
+                                ? 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed'
+                                : 'border-slate-300 bg-white focus:ring-2 focus:ring-blue-500'
+                            }`}
                           />
-                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                            <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
-                            {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
-                              <button
-                                type="button"
-                                key={quickOption}
-                                onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
-                                className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
-                                  ortuAnswers[index] === quickOption
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                    : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
-                                }`}
-                              >
-                                + {quickOption}
-                              </button>
-                            ))}
-                          </div>
+                          {!isOrtuDraftLocked && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                              <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                              {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                                <button
+                                  type="button"
+                                  key={quickOption}
+                                  onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                  className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
+                                    ortuAnswers[index] === quickOption
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                      : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                  }`}
+                                >
+                                  + {quickOption}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     }
@@ -1311,12 +1510,15 @@ export const GuruDashboard: React.FC<Props> = ({
                       );
                     }
 
-                    // Catatan Khusus Pewawancara (Mobile)
+                    // Catatan Khusus Pewawancara (Mobile - TETAP BISA DIEDIT)
                     if (isCatatanKhusus) {
                       return (
                         <div key={index} className="p-4 rounded-2xl border border-amber-400 bg-amber-50/50 space-y-2.5">
-                          <div className="font-bold text-xs text-amber-950 leading-relaxed whitespace-pre-line flex items-center gap-1.5">
+                          <div className="font-bold text-xs text-amber-950 leading-relaxed whitespace-pre-line flex items-center justify-between gap-1.5">
                             <span>📌 {q.text}</span>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-[9.5px] font-extrabold">
+                              Dapat Diedit
+                            </span>
                           </div>
                           <textarea
                             rows={3}
@@ -1344,28 +1546,39 @@ export const GuruDashboard: React.FC<Props> = ({
                         <div className="space-y-1.5">
                           <textarea
                             rows={3}
+                            readOnly={isOrtuDraftLocked}
+                            disabled={isOrtuDraftLocked}
                             value={ortuAnswers[index] || ''}
-                            onChange={(e) => setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value })}
+                            onChange={(e) => {
+                              if (isOrtuDraftLocked) return;
+                              setOrtuAnswers({ ...ortuAnswers, [index]: e.target.value });
+                            }}
                             placeholder="Jawaban / Catatan wawancara..."
-                            className="w-full p-2.5 rounded-xl border border-slate-300 text-xs bg-white focus:ring-2 focus:ring-blue-500"
+                            className={`w-full p-2.5 rounded-xl border text-xs ${
+                              isOrtuDraftLocked
+                                ? 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed'
+                                : 'border-slate-300 bg-white focus:ring-2 focus:ring-blue-500'
+                            }`}
                           />
-                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                            <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
-                            {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
-                              <button
-                                type="button"
-                                key={quickOption}
-                                onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
-                                className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
-                                  ortuAnswers[index] === quickOption
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                                    : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
-                                }`}
-                              >
-                                + {quickOption}
-                              </button>
-                            ))}
-                          </div>
+                          {!isOrtuDraftLocked && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                              <span className="text-[10px] text-slate-400 font-semibold">Pilih Cepat:</span>
+                              {['Sesuai', 'Sudah dijelaskan', 'Mengikuti Peraturan Sekolah'].map((quickOption) => (
+                                <button
+                                  type="button"
+                                  key={quickOption}
+                                  onClick={() => setOrtuAnswers({ ...ortuAnswers, [index]: quickOption })}
+                                  className={`px-2 py-0.5 text-[10.5px] rounded-lg font-medium border transition cursor-pointer ${
+                                    ortuAnswers[index] === quickOption
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                                      : 'bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border-slate-200 hover:border-blue-300'
+                                  }`}
+                                >
+                                  + {quickOption}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1382,7 +1595,9 @@ export const GuruDashboard: React.FC<Props> = ({
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     <span>SOP Penutupan Wawancara:</span>
                   </div>
-                  Klik tombol di samping untuk mereview lembar PDF bersama orang tua dan menandatangani secara digital.
+                  {isOrtuDraftLocked
+                    ? `Isi wawancara dikunci pada pewawancara awal (${activePewawancaraName}). Anda tetap dapat menyimpan perubahan Catatan Khusus atau membuka Pratinjau & Tanda Tangan.`
+                    : 'Klik tombol di samping untuk menyimpan draft ke HP orang tua atau mereview lembar PDF & tanda tangan digital.'}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
@@ -1391,10 +1606,14 @@ export const GuruDashboard: React.FC<Props> = ({
                     onClick={handleDirectSaveDraft}
                     disabled={saving || !currentStudentOrtu}
                     className="px-4 py-3 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
-                    title="Kirim draft agar dapat dibuka dan ditandatangani orang tua di HP"
+                    title={isOrtuDraftLocked ? 'Simpan perubahan pada bagian Catatan Khusus' : 'Kirim draft agar dapat dibuka dan ditandatangani orang tua di HP'}
                   >
                     <Smartphone className="w-4 h-4 text-emerald-700" />
-                    <span>Simpan Draft (Kirim ke HP Ortu)</span>
+                    <span>
+                      {isOrtuDraftLocked
+                        ? 'Simpan Perubahan Catatan'
+                        : 'Simpan Draft (Kirim ke HP Ortu)'}
+                    </span>
                   </button>
 
                   <button
@@ -2057,10 +2276,13 @@ export const GuruDashboard: React.FC<Props> = ({
       {/* ===================================================================== */}
       {preSaveReviewModal && (
         <HasilWawancaraOrtuPrintView
+          key={`review-${preSaveReviewModal.idSiswa || preSaveReviewModal.noPendaftaran}`}
           data={preSaveReviewModal}
           isPreSaveReview={true}
           onClose={() => setPreSaveReviewModal(null)}
-          onConfirmSave={(ttdOrtu, ttdPewawancara) => handleCommitFinalWawancara(ttdOrtu, ttdPewawancara)}
+          onConfirmSave={(ttdOrtu, ttdPewawancara, pdfBase64, imgBase64) =>
+            handleCommitFinalWawancara(ttdOrtu, ttdPewawancara, pdfBase64, imgBase64)
+          }
         />
       )}
 
@@ -2069,6 +2291,7 @@ export const GuruDashboard: React.FC<Props> = ({
       {/* ===================================================================== */}
       {previewOrtuModal && (
         <HasilWawancaraOrtuPrintView
+          key={`preview-${previewOrtuModal.idSiswa || previewOrtuModal.noPendaftaran}`}
           data={previewOrtuModal}
           onClose={() => setPreviewOrtuModal(null)}
         />
